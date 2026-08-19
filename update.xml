@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<!--
+  Manifiesto de actualizaciones de AutoExam.
+
+  Lo lee AutoUpdater.NET desde:
+  https://raw.githubusercontent.com/MatiVillalba015/AutoExam/main/update.xml
+  (la misma URL que tiene ActualizacionService.UrlManifiesto).
+
+  El procedimiento completo para publicar una version esta en el README, seccion
+  "Actualizaciones automaticas". Lo unico que no se puede olvidar: el .exe que va dentro del
+  ZIP tiene que estar compilado con el mismo <Version> del .csproj que figura aca abajo. Si el
+  binario publicado reporta una version mas vieja, la app se actualiza, reinicia, vuelve a
+  verse desactualizada y pide actualizar otra vez, en bucle.
+-->
+
+<item>
+    <version>1.0.1</version>
+    <url>https://github.com/MatiVillalba015/AutoExam/releases/download/v1.0.1/AutoExam-v1.0.1.zip</url>
+    <changelog>https://github.com/MatiVillalba015/AutoExam/releases/tag/v1.0.1</changelog>
+
+    <!--
+      En false a proposito. Con true se ocultan "Mas tarde" y "Omitir", y si el paquete
+      publicado tiene algun problema la ventana vuelve en cada arranque sin forma de
+      cerrarla. Ya paso una vez: el ZIP de la v1.0.1 se subio con un binario compilado
+      cuando el .csproj todavia decia 1.0.0, y la actualizacion se repetia sin fin.
+      Poner true solo para una version que arregle algo que impide usar la app.
+    -->
+    <mandatory>false</mandatory>
+</item>

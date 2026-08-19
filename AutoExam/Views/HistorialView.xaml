@@ -1,0 +1,136 @@
+<UserControl x:Class="AutoExam.Views.HistorialView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+             xmlns:modelos="clr-namespace:AutoExam.Models"
+             xmlns:vm="clr-namespace:AutoExam.ViewModels"
+             mc:Ignorable="d"
+             d:DataContext="{d:DesignInstance Type=vm:HistorialViewModel}">
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <TextBlock Grid.Row="0" Text="Historial" Style="{StaticResource TxtSeccion}" Margin="0,0,0,18" />
+
+        <!-- Tres numeros, no seis lineas de estadisticas -->
+        <Border Grid.Row="1" Style="{StaticResource Tarjeta}" Margin="0,0,14,20" Padding="22,18"
+                Visibility="{Binding HayExamenes, Converter={StaticResource BoolToVis}}">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+
+                <StackPanel Grid.Column="0" Margin="0,0,44,0">
+                    <TextBlock Text="{Binding Promedio}" FontFamily="{DynamicResource FuenteDato}"
+                               FontSize="26" Foreground="{DynamicResource PincelTexto}" />
+                    <TextBlock Text="PROMEDIO" Style="{StaticResource TxtRotulo}" Margin="0,2,0,0" />
+                </StackPanel>
+
+                <StackPanel Grid.Column="1" Margin="0,0,44,0">
+                    <TextBlock Text="{Binding Aciertos}" FontFamily="{DynamicResource FuenteDato}"
+                               FontSize="26" Foreground="{DynamicResource PincelTexto}" />
+                    <TextBlock Text="ACIERTOS" Style="{StaticResource TxtRotulo}" Margin="0,2,0,0" />
+                </StackPanel>
+
+                <StackPanel Grid.Column="2" Margin="0,0,44,0">
+                    <TextBlock Text="{Binding MejorNota}" FontFamily="{DynamicResource FuenteDato}"
+                               FontSize="26" Foreground="{DynamicResource PincelAcierto}" />
+                    <TextBlock Text="MEJOR NOTA" Style="{StaticResource TxtRotulo}" Margin="0,2,0,0" />
+                </StackPanel>
+
+                <TextBlock Grid.Column="3" Text="{Binding Resumen}" Style="{StaticResource TxtSuave}"
+                           VerticalAlignment="Center" MaxWidth="260" />
+            </Grid>
+        </Border>
+
+        <!-- Estado vacio -->
+        <StackPanel Grid.Row="2" VerticalAlignment="Center" HorizontalAlignment="Center" MaxWidth="330"
+                    Visibility="{Binding HayExamenes, Converter={StaticResource BoolAVisibilidad},
+                                 ConverterParameter=invertir}">
+            <ui:SymbolIcon Symbol="History24" FontSize="30" HorizontalAlignment="Center"
+                           Foreground="{DynamicResource PincelTextoTenue}" />
+            <TextBlock Text="{Binding Resumen}" Style="{StaticResource TxtCuerpo}"
+                       HorizontalAlignment="Center" Margin="0,14,0,4" />
+            <TextBlock Text="{Binding Detalle}" Style="{StaticResource TxtTenue}" TextAlignment="Center" />
+        </StackPanel>
+
+        <ListBox Grid.Row="2" ItemsSource="{Binding Examenes}" Background="Transparent" BorderThickness="0"
+                 ItemContainerStyle="{StaticResource ItemLibro}"
+                 ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                 AutomationProperties.Name="Examenes rendidos"
+                 Visibility="{Binding HayExamenes, Converter={StaticResource BoolToVis}}">
+            <ListBox.ItemTemplate>
+                <DataTemplate DataType="{x:Type modelos:ExamenRendido}">
+                    <Grid MaxWidth="880" HorizontalAlignment="Left">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="52" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <Border Grid.Column="0" Width="38" Height="38" CornerRadius="19"
+                                HorizontalAlignment="Left" BorderThickness="2"
+                                BorderBrush="{Binding Aprobado, Converter={StaticResource AprobadoAPincel}}"
+                                Background="{Binding Aprobado, Converter={StaticResource AprobadoAPincel},
+                                             ConverterParameter=suave}">
+                            <TextBlock Text="{Binding NotaUBA}" FontSize="15" FontWeight="Bold"
+                                       FontFamily="{DynamicResource FuenteDato}"
+                                       Foreground="{Binding Aprobado, Converter={StaticResource AprobadoAPincel}}"
+                                       HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+
+                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                            <TextBlock Text="{Binding TituloTexto}" Style="{StaticResource TxtCuerpo}" />
+                            <TextBlock Text="{Binding DetalleTexto}" Style="{StaticResource TxtTenue}" />
+                        </StackPanel>
+
+                        <TextBlock Grid.Column="2" Text="{Binding FechaTexto}" Style="{StaticResource TxtDato}"
+                                   FontSize="11" VerticalAlignment="Center" Margin="16,0,0,0" />
+                    </Grid>
+                </DataTemplate>
+            </ListBox.ItemTemplate>
+        </ListBox>
+
+        <ui:CardExpander Grid.Row="3" Icon="{ui:SymbolIcon Info24}" ContentPadding="18" Margin="0,16,14,14">
+            <ui:CardExpander.Header>
+                <TextBlock Text="Escala UBA y datos guardados" Style="{StaticResource TxtCuerpo}"
+                           FontWeight="SemiBold" />
+            </ui:CardExpander.Header>
+
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="28" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <StackPanel Grid.Column="0">
+                    <TextBlock Text="{Binding Detalle}" Style="{StaticResource TxtSuave}" LineHeight="22" />
+                    <TextBlock Style="{StaticResource TxtTenue}" Margin="0,10,0,0"
+                               Text="Las salteadas cuentan como no respondidas: restan igual que un error. Las revanchas no modifican la nota original." />
+                    <Button Content="Borrar historial" Style="{StaticResource ChipAccion}"
+                            Margin="0,16,0,0" HorizontalAlignment="Left" Command="{Binding BorrarCommand}" />
+                </StackPanel>
+
+                <ItemsControl Grid.Column="2" ItemsSource="{Binding Escala}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <TextBlock Text="{Binding}" Style="{StaticResource TxtDato}"
+                                       FontSize="11" Margin="0,1" />
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </Grid>
+        </ui:CardExpander>
+    </Grid>
+</UserControl>
