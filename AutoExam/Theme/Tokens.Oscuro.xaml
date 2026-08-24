@@ -1,0 +1,49 @@
+<!--
+    Paleta oscura. Pensada para leer enunciados largos de noche: el fondo es
+    tinta azulada (no negro puro) y el texto no llega al blanco, que es lo que
+    produce el halo y el cansancio en sesiones largas.
+
+    El violeta de marca existe por una razon concreta: verde, rojo y ambar ya
+    estan tomados por la correccion (correcta / incorrecta / salteada). Un acento
+    en esos tonos competiria con el significado de la nota.
+
+    Los pinceles se definen aca con su color literal, y no en Estilos.xaml a
+    partir de tokens de Color: un pincel guardado en un diccionario no esta en el
+    arbol visual, asi que un DynamicResource adentro suyo no se vuelve a resolver
+    al cambiar de tema y la app se queda con la paleta vieja.
+-->
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- Superficies -->
+    <SolidColorBrush x:Key="PincelFondo" Color="#12141A" />
+    <SolidColorBrush x:Key="PincelSuperficie" Color="#1A1D26" />
+    <SolidColorBrush x:Key="PincelTarjeta" Color="#20242F" />
+    <SolidColorBrush x:Key="PincelTarjetaHover" Color="#262B38" />
+    <SolidColorBrush x:Key="PincelBorde" Color="#2E3442" />
+    <SolidColorBrush x:Key="PincelBordeFuerte" Color="#3D4453" />
+
+    <!-- Texto -->
+    <SolidColorBrush x:Key="PincelTexto" Color="#E4E7EE" />
+    <SolidColorBrush x:Key="PincelTextoSuave" Color="#A2AAB9" />
+    <SolidColorBrush x:Key="PincelTextoTenue" Color="#7C8595" />
+
+    <!-- Marca -->
+    <SolidColorBrush x:Key="PincelMarca" Color="#9B87F5" />
+    <SolidColorBrush x:Key="PincelMarcaFuerte" Color="#B3A3FF" />
+    <SolidColorBrush x:Key="PincelMarcaSuave" Color="#2A2440" />
+    <SolidColorBrush x:Key="PincelSobreMarca" Color="#12101C" />
+
+    <!-- Semantica de correccion: fija, nunca se reutiliza para decorar -->
+    <SolidColorBrush x:Key="PincelAcierto" Color="#3FBF7F" />
+    <SolidColorBrush x:Key="PincelAciertoSuave" Color="#16281F" />
+    <SolidColorBrush x:Key="PincelError" Color="#F2686B" />
+    <SolidColorBrush x:Key="PincelErrorSuave" Color="#2B191B" />
+    <SolidColorBrush x:Key="PincelPendiente" Color="#E3B341" />
+    <SolidColorBrush x:Key="PincelPendienteSuave" Color="#2A2318" />
+
+    <!-- Sombra unica. Sobre fondo oscuro tiene que ser profunda para leerse. -->
+    <DropShadowEffect x:Key="SombraTarjeta" BlurRadius="22" ShadowDepth="3" Direction="270"
+                      Color="#000000" Opacity="0.55" />
+
+</ResourceDictionary>

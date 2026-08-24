@@ -1,0 +1,39 @@
+﻿## Visual Studio y .NET
+bin/
+obj/
+out/
+.vs/
+.vscode/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+## Archivos de compilaciÃ³n y paquetes
+*.dll
+*.exe
+*.pdb
+*.cache
+packages/
+*.nupkg
+
+## Registros y archivos temporales
+*.log
+*.tmp
+*.temp
+TestResults/
+coverage/
+
+## Sistema Operativo
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+.DS_Store
+
+## Herramientas de agentes (configuracion local, no forma parte del proyecto)
+.agents/
+skills-lock.json
+
+## Paquetes y binarios de salida: los regenera publicar.ps1, no se versionan
+release/
+AutoExam/publish/

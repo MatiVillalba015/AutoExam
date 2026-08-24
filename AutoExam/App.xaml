@@ -1,0 +1,56 @@
+<Application x:Class="AutoExam.App"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+             xmlns:local="clr-namespace:AutoExam"
+             xmlns:vm="clr-namespace:AutoExam.ViewModels"
+             xmlns:vistas="clr-namespace:AutoExam.Views"
+             DispatcherUnhandledException="Application_DispatcherUnhandledException">
+    <Application.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ui:ThemesDictionary Theme="Dark" />
+                <ui:ControlsDictionary />
+
+                <!-- Tokens del tema. TemaService reemplaza este diccionario al
+                     cambiar entre claro y oscuro. -->
+                <ResourceDictionary Source="Theme/Tokens.Oscuro.xaml" />
+                <ResourceDictionary Source="Theme/Estilos.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+
+            <!-- Convertidores compartidos -->
+            <local:IndiceOpcionConverter x:Key="IndiceOpcion" />
+            <local:TextoAVisibilidadConverter x:Key="TextoAVisibilidad" />
+            <local:BoolAVisibilidadConverter x:Key="BoolAVisibilidad" />
+            <local:BoolInvertidoConverter x:Key="BoolInvertido" />
+            <local:RutaAImagenConverter x:Key="RutaAImagen" />
+            <local:EstadoAPincelConverter x:Key="EstadoAPincel" />
+            <local:AprobadoAPincelConverter x:Key="AprobadoAPincel" />
+            <local:SeveridadConverter x:Key="Severidad" />
+            <local:MayorQueCeroConverter x:Key="MayorQueCero" />
+            <BooleanToVisibilityConverter x:Key="BoolToVis" />
+
+            <!-- Cada pagina se dibuja sola: el shell muestra el ViewModel activo
+                 en un ContentControl y WPF elige la vista por tipo. -->
+            <DataTemplate DataType="{x:Type vm:BibliotecaViewModel}">
+                <vistas:BibliotecaView />
+            </DataTemplate>
+
+            <DataTemplate DataType="{x:Type vm:AsistenteViewModel}">
+                <vistas:AsistenteView />
+            </DataTemplate>
+
+            <DataTemplate DataType="{x:Type vm:ExamenViewModel}">
+                <vistas:ExamenView />
+            </DataTemplate>
+
+            <DataTemplate DataType="{x:Type vm:HistorialViewModel}">
+                <vistas:HistorialView />
+            </DataTemplate>
+
+            <DataTemplate DataType="{x:Type vm:AjustesViewModel}">
+                <vistas:AjustesView />
+            </DataTemplate>
+        </ResourceDictionary>
+    </Application.Resources>
+</Application>

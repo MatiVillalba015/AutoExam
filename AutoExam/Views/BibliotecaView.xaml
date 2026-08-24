@@ -1,0 +1,214 @@
+<UserControl x:Class="AutoExam.Views.BibliotecaView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+             xmlns:beh="clr-namespace:AutoExam.Behaviors"
+             xmlns:modelos="clr-namespace:AutoExam.Models"
+             xmlns:vm="clr-namespace:AutoExam.ViewModels"
+             mc:Ignorable="d"
+             d:DataContext="{d:DesignInstance Type=vm:BibliotecaViewModel}">
+
+    <Grid>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="300" />
+            <ColumnDefinition Width="24" />
+            <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <TextBlock Grid.Row="0" Grid.ColumnSpan="3" Text="Libros" Style="{StaticResource TxtSeccion}"
+                   Margin="0,0,0,18" />
+
+        <!-- ============================================================ -->
+        <!-- Columna izquierda: soltar un PDF y elegir de la lista         -->
+        <!-- ============================================================ -->
+        <Grid Grid.Row="1" Grid.Column="0">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+
+            <!--
+                Es boton y zona de arrastre a la vez. Arrastrar nunca puede ser
+                la unica forma de agregar un libro (WCAG 2.2, 2.5.7): el mismo
+                control abre el selector de archivos con click o con Enter.
+            -->
+            <Button Grid.Row="0" Style="{StaticResource ZonaSoltar}" Margin="0,0,0,16"
+                    Command="{Binding ElegirArchivoCommand}"
+                    AutomationProperties.Name="Agregar un PDF: solta el archivo aca o hace click para elegirlo"
+                    beh:SoltarArchivo.Comando="{Binding SoltarCommand}"
+                    beh:SoltarArchivo.Extension=".pdf">
+                <StackPanel HorizontalAlignment="Center">
+                    <ui:SymbolIcon Symbol="ArrowUpload24" FontSize="26" HorizontalAlignment="Center"
+                                   Foreground="{DynamicResource PincelMarca}" />
+                    <TextBlock Text="Solta un PDF aca" Style="{StaticResource TxtCuerpo}"
+                               HorizontalAlignment="Center" Margin="0,10,0,2" />
+                    <TextBlock Text="o hace click para elegirlo" Style="{StaticResource TxtTenue}"
+                               HorizontalAlignment="Center" />
+                </StackPanel>
+            </Button>
+
+            <ListBox Grid.Row="1" ItemsSource="{Binding Libros}"
+                     SelectedItem="{Binding LibroSeleccionado, Mode=TwoWay}"
+                     ItemContainerStyle="{StaticResource ItemLibro}"
+                     Background="Transparent" BorderThickness="0"
+                     ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                     AutomationProperties.Name="Libros de la biblioteca">
+                <ListBox.ItemTemplate>
+                    <DataTemplate DataType="{x:Type modelos:Libro}">
+                        <StackPanel>
+                            <TextBlock Text="{Binding Titulo}" Style="{StaticResource TxtCuerpo}"
+                                       FontWeight="SemiBold" />
+                            <TextBlock Text="{Binding Resumen}" Style="{StaticResource TxtTenue}"
+                                       Margin="0,2,0,0" />
+                        </StackPanel>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
+        </Grid>
+
+        <!-- ============================================================ -->
+        <!-- Columna derecha: ficha del libro abierto                      -->
+        <!-- ============================================================ -->
+        <Grid Grid.Row="1" Grid.Column="2">
+
+            <!-- Vacio: una sola instruccion, no un formulario apagado -->
+            <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" MaxWidth="320"
+                        Visibility="{Binding HayLibroAbierto, Converter={StaticResource BoolAVisibilidad},
+                                     ConverterParameter=invertir}">
+                <ui:SymbolIcon Symbol="BookOpen24" FontSize="30" HorizontalAlignment="Center"
+                               Foreground="{DynamicResource PincelTextoTenue}" />
+                <TextBlock Style="{StaticResource TxtSuave}" TextAlignment="Center" Margin="0,14,0,0"
+                           Text="Solta un PDF a la izquierda o elegi un libro de la lista para editar su ficha." />
+            </StackPanel>
+
+            <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="0,0,12,0"
+                          Visibility="{Binding HayLibroAbierto, Converter={StaticResource BoolToVis}}">
+                <!-- Stretch y no Left: con Left el panel se encoge al ancho de su
+                     contenido y los campos del formulario quedan angostos. -->
+                <StackPanel MaxWidth="640" HorizontalAlignment="Stretch">
+
+                    <Border Style="{StaticResource Tarjeta}" Margin="0,0,0,16">
+                        <StackPanel>
+                            <TextBlock Text="{Binding DetalleArchivo}" Style="{StaticResource TxtDato}"
+                                       Margin="0,0,0,20" />
+
+                            <ui:InfoBar Severity="Error" IsClosable="False" Margin="0,0,0,18"
+                                        Title="Falta el archivo PDF"
+                                        Message="La copia interna no esta disponible. Volve a agregar el libro."
+                                        IsOpen="{Binding FaltaElPdf, Mode=OneWay}" />
+
+                            <TextBlock Text="TITULO" Style="{StaticResource TxtRotulo}" />
+                            <ui:TextBox Text="{Binding TituloLibro, UpdateSourceTrigger=PropertyChanged}"
+                                        AutomationProperties.Name="Titulo del libro"
+                                        PlaceholderText="Manual de Fisiologia" Margin="0,0,0,18" />
+
+                            <TextBlock Text="MATERIA" Style="{StaticResource TxtRotulo}" />
+                            <ui:TextBox Text="{Binding Materia, UpdateSourceTrigger=PropertyChanged}"
+                                        AutomationProperties.Name="Materia"
+                                        PlaceholderText="Fisiologia" Margin="0,0,0,8" />
+
+                            <!-- Materias ya usadas: un click en vez de volver a tipearlas
+                                 (WCAG 2.2, 3.3.7 Entrada redundante). -->
+                            <ItemsControl ItemsSource="{Binding MateriasConocidas}"
+                                          Visibility="{Binding HayLibroAbierto, Converter={StaticResource BoolToVis}}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <WrapPanel />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Button Content="{Binding}" Style="{StaticResource ChipAccion}"
+                                                Margin="0,0,6,6"
+                                                Command="{Binding DataContext.UsarMateriaCommand,
+                                                          RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                CommandParameter="{Binding}" />
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Modulos: plegado, porque la mayoria de las veces no hace falta tocarlo -->
+                    <ui:CardExpander Icon="{ui:SymbolIcon BookNumber24}" ContentPadding="18" Margin="0,0,0,16">
+                        <ui:CardExpander.Header>
+                            <StackPanel>
+                                <TextBlock Text="Modulos y capitulos" Style="{StaticResource TxtCuerpo}"
+                                           FontWeight="SemiBold" />
+                                <TextBlock Text="{Binding ResumenModulos}" Style="{StaticResource TxtTenue}" />
+                            </StackPanel>
+                        </ui:CardExpander.Header>
+
+                        <StackPanel>
+                            <WrapPanel Margin="0,0,0,14">
+                                <!-- Primero, y con el acento: es lo que hay que tocar. Cargar
+                                     veinte capitulos a mano es lo que nadie quiere hacer. -->
+                                <ui:Button Content="Detectar capitulos del PDF" Appearance="Primary"
+                                           Margin="0,0,8,0" Padding="14,7"
+                                           Icon="{ui:SymbolIcon TextBulletListTree24}"
+                                           Command="{Binding DetectarCapitulosCommand}"
+                                           ToolTip="Lee el indice interno del PDF y arma un modulo por capitulo" />
+                                <Button Content="Agregar modulo" Style="{StaticResource ChipAccion}"
+                                        Command="{Binding AgregarModuloCommand}" />
+                                <Button Content="Quitar el ultimo" Style="{StaticResource ChipAccion}"
+                                        Command="{Binding QuitarModuloCommand}" />
+                            </WrapPanel>
+
+                            <ui:DataGrid ItemsSource="{Binding Modulos}" AutoGenerateColumns="False"
+                                         MaxHeight="240" CanUserAddRows="False" HeadersVisibility="Column"
+                                         GridLinesVisibility="Horizontal" Margin="0,0,0,16"
+                                         AutomationProperties.Name="Modulos del libro"
+                                         Visibility="{Binding HayModulos, Converter={StaticResource BoolToVis}}">
+                                <ui:DataGrid.Columns>
+                                    <DataGridTextColumn Header="Nombre" Width="*"
+                                                        Binding="{Binding Nombre, UpdateSourceTrigger=PropertyChanged}" />
+                                    <DataGridTextColumn Header="Desde" Width="80"
+                                                        Binding="{Binding DesdePagina, UpdateSourceTrigger=PropertyChanged}" />
+                                    <DataGridTextColumn Header="Hasta" Width="80"
+                                                        Binding="{Binding HastaPagina, UpdateSourceTrigger=PropertyChanged}" />
+                                </ui:DataGrid.Columns>
+                            </ui:DataGrid>
+
+                            <Border Style="{StaticResource TarjetaPlana}" Padding="16">
+                                <StackPanel>
+                                    <TextBlock Text="Dividir el libro en partes iguales"
+                                               Style="{StaticResource TxtCuerpo}" Margin="0,0,0,4" />
+                                    <TextBlock Style="{StaticResource TxtTenue}" Margin="0,0,0,12"
+                                               Text="Util cuando el PDF no trae capitulos claros. Reemplaza los modulos actuales." />
+
+                                    <StackPanel Orientation="Horizontal">
+                                        <ui:NumberBox Value="{Binding PartesParaDividir, Mode=TwoWay}"
+                                                      Minimum="1" Maximum="200" Width="90"
+                                                      AutomationProperties.Name="Cantidad de partes"
+                                                      ClearButtonEnabled="False" />
+                                        <Button Content="Dividir" Style="{StaticResource ChipAccion}"
+                                                Margin="10,0,0,0" VerticalAlignment="Center"
+                                                Command="{Binding DividirCommand}" />
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+                    </ui:CardExpander>
+
+                    <StackPanel Orientation="Horizontal">
+                        <ui:Button Content="Guardar cambios" Appearance="Primary" Padding="18,10"
+                                   Icon="{ui:SymbolIcon Save24}" Command="{Binding GuardarCommand}" />
+                        <Button Content="Quitar libro" Style="{StaticResource ChipAccion}"
+                                Margin="10,0,0,0" VerticalAlignment="Center"
+                                Command="{Binding QuitarCommand}" />
+                    </StackPanel>
+
+                    <ui:InfoBar Margin="0,18,0,20" IsClosable="True" Title="" Message="{Binding Mensaje}"
+                                IsOpen="{Binding HayMensaje, Mode=OneWay}"
+                                Severity="{Binding Severidad, Converter={StaticResource Severidad}}" />
+                </StackPanel>
+            </ScrollViewer>
+        </Grid>
+    </Grid>
+</UserControl>

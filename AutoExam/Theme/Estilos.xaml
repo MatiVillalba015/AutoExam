@@ -1,0 +1,418 @@
+<!--
+    Sistema visual de AutoExam.
+
+    Reglas que sostienen todo lo de abajo:
+    · Un solo lugar define color, radio, sombra y tipografia. Ningun color literal
+      vive en una vista.
+    · Los pinceles toman el Color con DynamicResource, asi que cambiar de tema es
+      intercambiar Tokens.Claro/Tokens.Oscuro sin recrear un solo estilo.
+    · La familia mono se reserva para datos que se comparan de un vistazo
+      (cronometro, nota, paginas). El texto que se lee corrido nunca es mono.
+-->
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:sys="clr-namespace:System;assembly=System.Runtime">
+
+    <!-- ============================================================== -->
+    <!-- Escalas. Los pinceles y la sombra viven en Theme/Tokens.*.xaml   -->
+    <!-- ============================================================== -->
+    <CornerRadius x:Key="RadioTarjeta">14</CornerRadius>
+    <CornerRadius x:Key="RadioCampo">10</CornerRadius>
+    <CornerRadius x:Key="RadioChip">18</CornerRadius>
+
+    <FontFamily x:Key="FuenteTitulo">Segoe UI Variable Display, Segoe UI Semibold, Segoe UI</FontFamily>
+    <FontFamily x:Key="FuenteCuerpo">Segoe UI Variable Text, Segoe UI</FontFamily>
+    <FontFamily x:Key="FuenteDato">Cascadia Mono, Consolas, Courier New</FontFamily>
+
+    <sys:Double x:Key="TamTitulo">30</sys:Double>
+    <sys:Double x:Key="TamSeccion">20</sys:Double>
+    <sys:Double x:Key="TamEnunciado">17</sys:Double>
+    <sys:Double x:Key="TamCuerpo">14</sys:Double>
+    <sys:Double x:Key="TamMenor">12.5</sys:Double>
+    <sys:Double x:Key="TamMinimo">11</sys:Double>
+
+    <!-- ============================================================== -->
+    <!-- Tipografia                                                      -->
+    <!-- ============================================================== -->
+    <Style x:Key="TxtTitulo" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{DynamicResource FuenteTitulo}" />
+        <Setter Property="FontSize" Value="{DynamicResource TamTitulo}" />
+        <Setter Property="FontWeight" Value="Light" />
+        <Setter Property="Foreground" Value="{DynamicResource PincelTexto}" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+
+    <Style x:Key="TxtSeccion" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{DynamicResource FuenteTitulo}" />
+        <Setter Property="FontSize" Value="{DynamicResource TamSeccion}" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Foreground" Value="{DynamicResource PincelTexto}" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+
+    <Style x:Key="TxtCuerpo" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{DynamicResource FuenteCuerpo}" />
+        <Setter Property="FontSize" Value="{DynamicResource TamCuerpo}" />
+        <Setter Property="Foreground" Value="{DynamicResource PincelTexto}" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+        <Setter Property="LineHeight" Value="21" />
+    </Style>
+
+    <!-- Contexto secundario. Color propio, no opacidad: la opacidad tambien
+         apaga los bordes y los iconos que caen dentro del mismo contenedor. -->
+    <Style x:Key="TxtSuave" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{DynamicResource FuenteCuerpo}" />
+        <Setter Property="FontSize" Value="{DynamicResource TamMenor}" />
+        <Setter Property="Foreground" Value="{DynamicResource PincelTextoSuave}" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+
+    <Style x:Key="TxtTenue" TargetType="TextBlock" BasedOn="{StaticResource TxtSuave}">
+        <Setter Property="FontSize" Value="{DynamicResource TamMinimo}" />
+        <Setter Property="Foreground" Value="{DynamicResource PincelTextoTenue}" />
+    </Style>
+
+    <!-- Rotulo de campo en versalitas: separa la etiqueta del dato sin usar negrita,
+         que a este tamanio compite con el titulo de la seccion. -->
+    <Style x:Key="TxtRotulo" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{DynamicResource FuenteCuerpo}" />
+        <Setter Property="FontSize" Value="{DynamicResource TamMinimo}" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Foreground" Value="{DynamicResource PincelTextoSuave}" />
+        <Setter Property="Margin" Value="0,0,0,8" />
+    </Style>
+
+    <Style x:Key="TxtDato" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{DynamicResource FuenteDato}" />
+        <Setter Property="FontSize" Value="{DynamicResource TamMenor}" />
+        <Setter Property="Foreground" Value="{DynamicResource PincelTextoSuave}" />
+    </Style>
+
+    <!-- Texto que se puede arrastrar con el mouse para copiar. TextBox de solo
+         lectura con template minimo: identico a un TextBlock a la vista. -->
+    <Style x:Key="TextoSeleccionable" TargetType="TextBox">
+        <Setter Property="IsReadOnly" Value="True" />
+        <Setter Property="IsReadOnlyCaretVisible" Value="False" />
+        <Setter Property="IsTabStop" Value="False" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Padding" Value="0" />
+        <Setter Property="Margin" Value="0" />
+        <Setter Property="Cursor" Value="IBeam" />
+        <Setter Property="FontFamily" Value="{DynamicResource FuenteCuerpo}" />
+        <Setter Property="FontSize" Value="{DynamicResource TamCuerpo}" />
+        <Setter Property="Foreground" Value="{DynamicResource PincelTexto}" />
+        <Setter Property="ContextMenu">
+            <Setter.Value>
+                <ContextMenu>
+                    <MenuItem Command="Copy" Header="Copiar" />
+                    <MenuItem Command="SelectAll" Header="Seleccionar todo" />
+                </ContextMenu>
+            </Setter.Value>
+        </Setter>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="TextBox">
+                    <ScrollViewer x:Name="PART_ContentHost" Focusable="False"
+                                  HorizontalScrollBarVisibility="Disabled"
+                                  VerticalScrollBarVisibility="Disabled" />
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- ============================================================== -->
+    <!-- Tarjetas                                                        -->
+    <!-- ============================================================== -->
+    <Style x:Key="Tarjeta" TargetType="Border">
+        <Setter Property="Background" Value="{DynamicResource PincelTarjeta}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource PincelBorde}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="{DynamicResource RadioTarjeta}" />
+        <Setter Property="Padding" Value="22" />
+        <Setter Property="Effect" Value="{DynamicResource SombraTarjeta}" />
+    </Style>
+
+    <!-- Variante sin sombra para tarjetas anidadas: apilar sombras ensucia. -->
+    <Style x:Key="TarjetaPlana" TargetType="Border" BasedOn="{StaticResource Tarjeta}">
+        <Setter Property="Effect" Value="{x:Null}" />
+        <Setter Property="Background" Value="{DynamicResource PincelSuperficie}" />
+    </Style>
+
+    <!-- ============================================================== -->
+    <!-- Chips: la seleccion rapida que reemplaza a los campos de texto   -->
+    <!-- ============================================================== -->
+    <Style x:Key="Chip" TargetType="ToggleButton">
+        <Setter Property="FontFamily" Value="{DynamicResource FuenteCuerpo}" />
+        <Setter Property="FontSize" Value="{DynamicResource TamMenor}" />
+        <Setter Property="Foreground" Value="{DynamicResource PincelTexto}" />
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderBrush" Value="{DynamicResource PincelBordeFuerte}" />
+        <Setter Property="Padding" Value="15,8" />
+        <Setter Property="Margin" Value="0,0,8,8" />
+        <Setter Property="Cursor" Value="Hand" />
+        <!-- 32 px de alto minimo: blanco de click comodo tambien con el trackpad. -->
+        <Setter Property="MinHeight" Value="34" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ToggleButton">
+                    <Border x:Name="Fondo"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="1"
+                            CornerRadius="{DynamicResource RadioChip}"
+                            Padding="{TemplateBinding Padding}"
+                            SnapsToDevicePixels="True">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"
+                                          RecognizesAccessKey="True" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Fondo" Property="Background" Value="{DynamicResource PincelTarjetaHover}" />
+                        </Trigger>
+                        <!-- Seleccionado: relleno + borde + texto de marca. El estado no
+                             depende solo del color, tambien cambia el peso del texto. -->
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter TargetName="Fondo" Property="Background" Value="{DynamicResource PincelMarcaSuave}" />
+                            <Setter TargetName="Fondo" Property="BorderBrush" Value="{DynamicResource PincelMarca}" />
+                            <Setter Property="Foreground" Value="{DynamicResource PincelMarcaFuerte}" />
+                            <Setter Property="FontWeight" Value="SemiBold" />
+                        </Trigger>
+                        <Trigger Property="IsKeyboardFocused" Value="True">
+                            <Setter TargetName="Fondo" Property="BorderBrush" Value="{DynamicResource PincelMarcaFuerte}" />
+                            <Setter TargetName="Fondo" Property="BorderThickness" Value="2" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Opacity" Value="0.4" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- Chip que ejecuta una accion en vez de mantener estado (ej. "Marcar todos"). -->
+    <Style x:Key="ChipAccion" TargetType="Button">
+        <Setter Property="FontFamily" Value="{DynamicResource FuenteCuerpo}" />
+        <Setter Property="FontSize" Value="{DynamicResource TamMinimo}" />
+        <Setter Property="Foreground" Value="{DynamicResource PincelTextoSuave}" />
+        <Setter Property="Padding" Value="12,6" />
+        <Setter Property="Margin" Value="0,0,6,0" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="MinHeight" Value="30" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="Fondo" Background="Transparent"
+                            BorderBrush="{DynamicResource PincelBorde}" BorderThickness="1"
+                            CornerRadius="{DynamicResource RadioChip}"
+                            Padding="{TemplateBinding Padding}">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Fondo" Property="Background" Value="{DynamicResource PincelTarjetaHover}" />
+                            <Setter Property="Foreground" Value="{DynamicResource PincelTexto}" />
+                        </Trigger>
+                        <Trigger Property="IsKeyboardFocused" Value="True">
+                            <Setter TargetName="Fondo" Property="BorderBrush" Value="{DynamicResource PincelMarca}" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Opacity" Value="0.4" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- ============================================================== -->
+    <!-- Opcion del examen: tarjeta clickeable con letra y texto copiable -->
+    <!-- ============================================================== -->
+    <Style x:Key="OpcionExamen" TargetType="RadioButton">
+        <Setter Property="Margin" Value="0,0,0,10" />
+        <Setter Property="Padding" Value="16,14" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="RadioButton">
+                    <Border x:Name="Fondo"
+                            Background="{DynamicResource PincelTarjeta}"
+                            BorderBrush="{DynamicResource PincelBorde}"
+                            BorderThickness="1"
+                            CornerRadius="{DynamicResource RadioCampo}"
+                            Padding="{TemplateBinding Padding}">
+                        <ContentPresenter />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Fondo" Property="Background" Value="{DynamicResource PincelTarjetaHover}" />
+                            <Setter TargetName="Fondo" Property="BorderBrush" Value="{DynamicResource PincelBordeFuerte}" />
+                        </Trigger>
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter TargetName="Fondo" Property="Background" Value="{DynamicResource PincelMarcaSuave}" />
+                            <Setter TargetName="Fondo" Property="BorderBrush" Value="{DynamicResource PincelMarca}" />
+                            <Setter TargetName="Fondo" Property="BorderThickness" Value="2" />
+                            <Setter TargetName="Fondo" Property="Padding" Value="15,13" />
+                        </Trigger>
+                        <Trigger Property="IsKeyboardFocused" Value="True">
+                            <Setter TargetName="Fondo" Property="BorderBrush" Value="{DynamicResource PincelMarcaFuerte}" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- ============================================================== -->
+    <!-- Zona de arrastre. Tambien es un boton: arrastrar nunca puede ser -->
+    <!-- la unica forma de hacer algo (WCAG 2.2 - Dragging Movements).    -->
+    <!-- ============================================================== -->
+    <Style x:Key="ZonaSoltar" TargetType="Button">
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Grid>
+                        <Border x:Name="Fondo" Background="{DynamicResource PincelSuperficie}"
+                                CornerRadius="{DynamicResource RadioTarjeta}" />
+                        <!-- El trazo discontinuo es la senial universal de "solta algo aca". -->
+                        <Rectangle x:Name="Trazo" RadiusX="14" RadiusY="14"
+                                   StrokeDashArray="5 4" StrokeThickness="1.5"
+                                   Stroke="{DynamicResource PincelBordeFuerte}" />
+                        <ContentPresenter Margin="24,28" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Fondo" Property="Background" Value="{DynamicResource PincelMarcaSuave}" />
+                            <Setter TargetName="Trazo" Property="Stroke" Value="{DynamicResource PincelMarca}" />
+                        </Trigger>
+                        <Trigger Property="IsKeyboardFocused" Value="True">
+                            <Setter TargetName="Trazo" Property="Stroke" Value="{DynamicResource PincelMarca}" />
+                            <Setter TargetName="Trazo" Property="StrokeThickness" Value="2.5" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- ============================================================== -->
+    <!-- Navegacion lateral del shell                                    -->
+    <!-- ============================================================== -->
+    <Style x:Key="ItemNavegacion" TargetType="RadioButton">
+        <Setter Property="Margin" Value="0,0,0,4" />
+        <Setter Property="Padding" Value="14,11" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        <Setter Property="FontFamily" Value="{DynamicResource FuenteCuerpo}" />
+        <Setter Property="FontSize" Value="{DynamicResource TamCuerpo}" />
+        <Setter Property="Foreground" Value="{DynamicResource PincelTextoSuave}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="RadioButton">
+                    <Grid>
+                        <Border x:Name="Fondo" Background="Transparent" CornerRadius="{DynamicResource RadioCampo}"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter VerticalAlignment="Center" />
+                        </Border>
+                        <!-- Marcador de pagina activa: barra a la izquierda. Es la unica
+                             pista posicional del shell, por eso no se pinta en hover. -->
+                        <Border x:Name="Marca" Width="3" Height="18" HorizontalAlignment="Left"
+                                CornerRadius="2" Background="{DynamicResource PincelMarca}"
+                                Visibility="Collapsed" />
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Fondo" Property="Background" Value="{DynamicResource PincelTarjetaHover}" />
+                        </Trigger>
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter TargetName="Fondo" Property="Background" Value="{DynamicResource PincelMarcaSuave}" />
+                            <Setter TargetName="Marca" Property="Visibility" Value="Visible" />
+                            <Setter Property="Foreground" Value="{DynamicResource PincelTexto}" />
+                            <Setter Property="FontWeight" Value="SemiBold" />
+                        </Trigger>
+                        <Trigger Property="IsKeyboardFocused" Value="True">
+                            <Setter TargetName="Fondo" Property="Background" Value="{DynamicResource PincelTarjetaHover}" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Opacity" Value="0.35" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- ============================================================== -->
+    <!-- Tarjeta de libro en la lista                                    -->
+    <!-- ============================================================== -->
+    <Style x:Key="ItemLibro" TargetType="ListBoxItem">
+        <Setter Property="Margin" Value="0,0,0,8" />
+        <Setter Property="Padding" Value="0" />
+        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ListBoxItem">
+                    <Border x:Name="Fondo" Background="{DynamicResource PincelTarjeta}"
+                            BorderBrush="{DynamicResource PincelBorde}" BorderThickness="1"
+                            CornerRadius="{DynamicResource RadioCampo}" Padding="16,13"
+                            Cursor="Hand">
+                        <ContentPresenter />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Fondo" Property="Background" Value="{DynamicResource PincelTarjetaHover}" />
+                        </Trigger>
+                        <Trigger Property="IsSelected" Value="True">
+                            <Setter TargetName="Fondo" Property="Background" Value="{DynamicResource PincelMarcaSuave}" />
+                            <Setter TargetName="Fondo" Property="BorderBrush" Value="{DynamicResource PincelMarca}" />
+                        </Trigger>
+                        <Trigger Property="IsKeyboardFocusWithin" Value="True">
+                            <Setter TargetName="Fondo" Property="BorderBrush" Value="{DynamicResource PincelMarcaFuerte}" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- ============================================================== -->
+    <!-- Baldosa del navegador de preguntas (el elemento firma)          -->
+    <!-- ============================================================== -->
+    <Style x:Key="BaldosaPregunta" TargetType="Button">
+        <Setter Property="Width" Value="30" />
+        <Setter Property="Height" Value="30" />
+        <Setter Property="Margin" Value="0,0,5,5" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="FontFamily" Value="{DynamicResource FuenteDato}" />
+        <Setter Property="FontSize" Value="{DynamicResource TamMinimo}" />
+        <!-- El numero se lee sobre los tres fondos semanticos, tambien el ambar. -->
+        <Setter Property="Foreground" Value="{DynamicResource PincelTexto}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="Fondo"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            CornerRadius="8">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Fondo" Property="Opacity" Value="0.75" />
+                        </Trigger>
+                        <Trigger Property="IsKeyboardFocused" Value="True">
+                            <Setter TargetName="Fondo" Property="BorderBrush" Value="{DynamicResource PincelMarcaFuerte}" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+</ResourceDictionary>

@@ -1,0 +1,172 @@
+<UserControl x:Class="AutoExam.Views.AjustesView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+             xmlns:vm="clr-namespace:AutoExam.ViewModels"
+             mc:Ignorable="d"
+             d:DataContext="{d:DesignInstance Type=vm:AjustesViewModel}">
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="0,0,14,0">
+        <StackPanel MaxWidth="620" HorizontalAlignment="Stretch">
+
+            <TextBlock Text="Ajustes" Style="{StaticResource TxtSeccion}" Margin="0,0,0,18" />
+
+            <Border Style="{StaticResource Tarjeta}" Margin="0,0,0,16">
+                <StackPanel>
+                    <TextBlock Text="API KEYS DE GOOGLE GEMINI" Style="{StaticResource TxtRotulo}" />
+                    <ui:PasswordBox PlaceholderText="AQ.Ab8...,  AQ.Ab8...  (separalas con comas)"
+                                    RevealButtonEnabled="True" Margin="0,0,0,6"
+                                    AutomationProperties.Name="API Keys de Google Gemini, separadas por comas"
+                                    Password="{Binding ApiKey, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+
+                    <TextBlock Text="{Binding ResumenClaves}" Style="{StaticResource TxtDato}"
+                               TextWrapping="Wrap" Margin="0,0,0,18" />
+
+                    <TextBlock Text="MODELO" Style="{StaticResource TxtRotulo}" />
+                    <Grid Margin="0,0,0,20">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <ComboBox Grid.Column="0" IsEditable="True" ItemsSource="{Binding Modelos}"
+                                  Text="{Binding Modelo, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                  AutomationProperties.Name="Modelo de Gemini" />
+
+                        <Button Grid.Column="1" Content="Detectar" Style="{StaticResource ChipAccion}"
+                                Margin="8,0,0,0" Command="{Binding DetectarCommand}"
+                                ToolTip="Consulta a Google que modelos habilita tu API Key" />
+                    </Grid>
+
+                    <StackPanel Orientation="Horizontal">
+                        <ui:Button Content="Guardar" Appearance="Primary" Padding="18,10"
+                                   Command="{Binding GuardarCommand}" />
+                        <Button Content="Probar conexion" Style="{StaticResource ChipAccion}"
+                                Margin="10,0,0,0" VerticalAlignment="Center"
+                                Command="{Binding ProbarCommand}" />
+                        <ui:ProgressRing IsIndeterminate="True" Width="18" Height="18" Margin="12,0,0,0"
+                                         VerticalAlignment="Center"
+                                         Visibility="{Binding Ocupado, Converter={StaticResource BoolToVis}}" />
+                    </StackPanel>
+
+                    <ui:InfoBar Margin="0,18,0,0" IsClosable="True"
+                                Title="{Binding MensajeTitulo}" Message="{Binding Mensaje}"
+                                Severity="{Binding Severidad, Converter={StaticResource Severidad}}"
+                                IsOpen="{Binding MensajeTitulo, Converter={StaticResource TextoAVisibilidad},
+                                         Mode=OneWay}" />
+                </StackPanel>
+            </Border>
+
+            <!-- Aspecto: es lo unico ademas de la clave que se toca seguido -->
+            <Border Style="{StaticResource TarjetaPlana}" Margin="0,0,0,16" Padding="18">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <StackPanel Grid.Column="0">
+                        <TextBlock Text="Tema oscuro" Style="{StaticResource TxtCuerpo}" />
+                        <TextBlock Text="Fondo tinta y texto atenuado, para sesiones largas de lectura."
+                                   Style="{StaticResource TxtTenue}" />
+                    </StackPanel>
+
+                    <ui:ToggleSwitch Grid.Column="1" VerticalAlignment="Center"
+                                     AutomationProperties.Name="Tema oscuro"
+                                     IsChecked="{Binding TemaOscuro, Mode=TwoWay}" />
+                </Grid>
+            </Border>
+
+            <ui:CardExpander Icon="{ui:SymbolIcon Options24}" ContentPadding="18" Margin="0,0,0,20">
+                <ui:CardExpander.Header>
+                    <StackPanel>
+                        <TextBlock Text="Opciones avanzadas" Style="{StaticResource TxtCuerpo}"
+                                   FontWeight="SemiBold" />
+                        <TextBlock Text="Solo si algo falla o queres afinar el rendimiento."
+                                   Style="{StaticResource TxtTenue}" />
+                    </StackPanel>
+                </ui:CardExpander.Header>
+
+                <StackPanel>
+                    <Grid Margin="0,0,0,16">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="18" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+
+                        <StackPanel Grid.Column="0">
+                            <TextBlock Text="PREGUNTAS POR PETICION" Style="{StaticResource TxtRotulo}" />
+                            <ui:NumberBox Value="{Binding PreguntasPorLote, Mode=TwoWay}" Minimum="5" Maximum="15"
+                                          ClearButtonEnabled="False"
+                                          AutomationProperties.Name="Preguntas por peticion" />
+                            <TextBlock Style="{StaticResource TxtTenue}" Margin="0,6,0,0" TextWrapping="Wrap"
+                                       Text="Minimo de preguntas por peticion, con tope de 15. El reparto busca la menor cantidad de llamadas: 30 preguntas salen en 2 lotes de 15, y 60 en 4. Si a Gemini se le corta la respuesta, la app baja el tamaño sola y hace mas viajes hasta completar el examen. Cada peticion descuenta de las 20 diarias por clave." />
+                        </StackPanel>
+
+                        <StackPanel Grid.Column="2">
+                            <TextBlock Text="PAGINAS POR BLOQUE" Style="{StaticResource TxtRotulo}" />
+                            <ui:NumberBox Value="{Binding PaginasPorBloque, Mode=TwoWay}" Minimum="5" Maximum="40"
+                                          ClearButtonEnabled="False"
+                                          AutomationProperties.Name="Paginas por bloque" />
+                        </StackPanel>
+                    </Grid>
+
+                    <Grid Margin="0,0,0,16">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="18" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+
+                        <StackPanel Grid.Column="0">
+                            <TextBlock Text="MAXIMO DE CARACTERES" Style="{StaticResource TxtRotulo}" />
+                            <ui:NumberBox Value="{Binding MaxCaracteres, Mode=TwoWay}" Minimum="10000" Maximum="300000"
+                                          LargeChange="10000" SmallChange="5000" ClearButtonEnabled="False"
+                                          AutomationProperties.Name="Maximo de caracteres de contexto" />
+                        </StackPanel>
+
+                        <StackPanel Grid.Column="2">
+                            <TextBlock Text="MAXIMO DE IMAGENES" Style="{StaticResource TxtRotulo}" />
+                            <ui:NumberBox Value="{Binding MaxImagenes, Mode=TwoWay}" Minimum="0" Maximum="30"
+                                          ClearButtonEnabled="False"
+                                          AutomationProperties.Name="Maximo de imagenes por examen" />
+                        </StackPanel>
+                    </Grid>
+
+                    <CheckBox IsChecked="{Binding IncluirImagenes, Mode=TwoWay}" Margin="0,0,0,16"
+                              Content="Extraer imagenes de los PDF por defecto" />
+
+                    <Button Content="Abrir carpeta de datos" Style="{StaticResource ChipAccion}"
+                            HorizontalAlignment="Left" Command="{Binding AbrirCarpetaCommand}" />
+
+                    <TextBlock Text="{Binding CarpetaDatos}" Style="{StaticResource TxtDato}"
+                               FontSize="11" Margin="0,10,0,0" TextWrapping="Wrap" />
+                </StackPanel>
+            </ui:CardExpander>
+
+            <!-- Actualizaciones: se comprueba sola al arrancar, esto es para no tener que reiniciar -->
+            <Border Style="{StaticResource TarjetaPlana}" Margin="0,0,0,24" Padding="18">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                        <TextBlock Style="{StaticResource TxtCuerpo}"
+                                   Text="{Binding VersionActual, StringFormat='AutoExam {0}'}" />
+                        <TextBlock Text="Busca versiones nuevas sola cada vez que abris la app."
+                                   Style="{StaticResource TxtTenue}" TextWrapping="Wrap" />
+                    </StackPanel>
+
+                    <Button Grid.Column="1" Content="Buscar actualizaciones"
+                            Style="{StaticResource ChipAccion}" VerticalAlignment="Center"
+                            Margin="12,0,0,0" Command="{Binding BuscarActualizacionCommand}" />
+                </Grid>
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

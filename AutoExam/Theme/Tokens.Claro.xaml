@@ -1,0 +1,41 @@
+<!--
+    Paleta clara. Papel frio en vez de blanco puro, por el mismo motivo que la
+    oscura evita el negro: bajar el contraste bruto del fondo sin perder
+    legibilidad. Las claves son identicas a las de Tokens.Oscuro.xaml, asi que
+    cambiar de tema es intercambiar este diccionario y nada mas.
+-->
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- Superficies -->
+    <SolidColorBrush x:Key="PincelFondo" Color="#F4F5F8" />
+    <SolidColorBrush x:Key="PincelSuperficie" Color="#FFFFFF" />
+    <SolidColorBrush x:Key="PincelTarjeta" Color="#FFFFFF" />
+    <SolidColorBrush x:Key="PincelTarjetaHover" Color="#F1F3F8" />
+    <SolidColorBrush x:Key="PincelBorde" Color="#E1E4EC" />
+    <SolidColorBrush x:Key="PincelBordeFuerte" Color="#C4CAD8" />
+
+    <!-- Texto -->
+    <SolidColorBrush x:Key="PincelTexto" Color="#1A1D26" />
+    <SolidColorBrush x:Key="PincelTextoSuave" Color="#5A6273" />
+    <SolidColorBrush x:Key="PincelTextoTenue" Color="#767E8E" />
+
+    <!-- Marca -->
+    <SolidColorBrush x:Key="PincelMarca" Color="#6246C8" />
+    <SolidColorBrush x:Key="PincelMarcaFuerte" Color="#4F38AA" />
+    <SolidColorBrush x:Key="PincelMarcaSuave" Color="#EEEAFB" />
+    <SolidColorBrush x:Key="PincelSobreMarca" Color="#FFFFFF" />
+
+    <!-- Semantica de correccion: fija, nunca se reutiliza para decorar -->
+    <SolidColorBrush x:Key="PincelAcierto" Color="#12855A" />
+    <SolidColorBrush x:Key="PincelAciertoSuave" Color="#E4F5EC" />
+    <SolidColorBrush x:Key="PincelError" Color="#C4373C" />
+    <SolidColorBrush x:Key="PincelErrorSuave" Color="#FCEAEA" />
+    <SolidColorBrush x:Key="PincelPendiente" Color="#8A5D06" />
+    <SolidColorBrush x:Key="PincelPendienteSuave" Color="#FCF2DC" />
+
+    <!-- Sombra unica. Sobre papel tiene que ser apenas perceptible. -->
+    <DropShadowEffect x:Key="SombraTarjeta" BlurRadius="18" ShadowDepth="2" Direction="270"
+                      Color="#2A3040" Opacity="0.13" />
+
+</ResourceDictionary>

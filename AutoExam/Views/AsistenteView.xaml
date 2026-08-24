@@ -1,0 +1,374 @@
+<UserControl x:Class="AutoExam.Views.AsistenteView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+             xmlns:beh="clr-namespace:AutoExam.Behaviors"
+             xmlns:modelos="clr-namespace:AutoExam.Models"
+             xmlns:vm="clr-namespace:AutoExam.ViewModels"
+             mc:Ignorable="d"
+             d:DataContext="{d:DesignInstance Type=vm:AsistenteViewModel}">
+
+    <Grid MaxWidth="820" HorizontalAlignment="Left">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <TextBlock Grid.Row="0" Text="Nuevo examen" Style="{StaticResource TxtSeccion}" Margin="0,0,0,18" />
+
+        <!-- ============================================================ -->
+        <!-- Riel de pasos. El subtitulo de cada paso no repite su nombre: -->
+        <!-- muestra lo que el usuario ya eligio ahi.                      -->
+        <!-- ============================================================ -->
+        <ItemsControl Grid.Row="1" ItemsSource="{Binding Pasos}" Margin="0,0,0,22">
+            <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                    <UniformGrid Rows="1" />
+                </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+                <DataTemplate DataType="{x:Type vm:PasoAsistente}">
+                    <Button Background="Transparent" BorderThickness="0" Padding="0" Margin="0,0,10,0"
+                            HorizontalContentAlignment="Stretch" Cursor="Hand"
+                            AutomationProperties.Name="{Binding Titulo}"
+                            Command="{Binding DataContext.IrAPasoCommand,
+                                      RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                            CommandParameter="{Binding Numero}">
+                        <Button.Template>
+                            <ControlTemplate TargetType="Button">
+                                <StackPanel Background="Transparent">
+                                    <Grid Margin="0,0,0,8">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="26" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+
+                                        <Border x:Name="Circulo" Grid.Column="0" Width="22" Height="22"
+                                                CornerRadius="11" HorizontalAlignment="Left"
+                                                Background="Transparent"
+                                                BorderBrush="{DynamicResource PincelBordeFuerte}"
+                                                BorderThickness="1.5">
+                                            <TextBlock x:Name="Numero" Text="{Binding Numero}"
+                                                       FontFamily="{DynamicResource FuenteDato}" FontSize="11"
+                                                       Foreground="{DynamicResource PincelTextoSuave}"
+                                                       HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                        </Border>
+
+                                        <TextBlock x:Name="Titulo" Grid.Column="1" Text="{Binding Titulo}"
+                                                   VerticalAlignment="Center"
+                                                   FontFamily="{DynamicResource FuenteCuerpo}"
+                                                   FontSize="{DynamicResource TamCuerpo}"
+                                                   Foreground="{DynamicResource PincelTextoSuave}" />
+                                    </Grid>
+
+                                    <!-- La linea es el indicador de avance: se pinta entera
+                                         cuando el paso esta activo o ya quedo atras. -->
+                                    <Border x:Name="Linea" Height="3" CornerRadius="2"
+                                            Background="{DynamicResource PincelBorde}" />
+
+                                    <TextBlock Text="{Binding Resumen}" Style="{StaticResource TxtTenue}"
+                                               Margin="0,8,12,0" TextTrimming="CharacterEllipsis"
+                                               TextWrapping="NoWrap" />
+                                </StackPanel>
+
+                                <ControlTemplate.Triggers>
+                                    <DataTrigger Binding="{Binding Completado}" Value="True">
+                                        <Setter TargetName="Linea" Property="Background" Value="{DynamicResource PincelMarca}" />
+                                        <Setter TargetName="Circulo" Property="BorderBrush" Value="{DynamicResource PincelMarca}" />
+                                        <Setter TargetName="Circulo" Property="Background" Value="{DynamicResource PincelMarcaSuave}" />
+                                        <Setter TargetName="Numero" Property="Foreground" Value="{DynamicResource PincelMarcaFuerte}" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding EsActual}" Value="True">
+                                        <Setter TargetName="Linea" Property="Background" Value="{DynamicResource PincelMarca}" />
+                                        <Setter TargetName="Circulo" Property="Background" Value="{DynamicResource PincelMarca}" />
+                                        <Setter TargetName="Circulo" Property="BorderBrush" Value="{DynamicResource PincelMarca}" />
+                                        <Setter TargetName="Numero" Property="Foreground" Value="{DynamicResource PincelSobreMarca}" />
+                                        <Setter TargetName="Titulo" Property="Foreground" Value="{DynamicResource PincelTexto}" />
+                                        <Setter TargetName="Titulo" Property="FontWeight" Value="SemiBold" />
+                                    </DataTrigger>
+                                </ControlTemplate.Triggers>
+                            </ControlTemplate>
+                        </Button.Template>
+                    </Button>
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
+
+        <!-- ============================================================ -->
+        <!-- Contenido del paso                                            -->
+        <!-- ============================================================ -->
+        <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto" Padding="0,0,12,0">
+            <Grid>
+
+                <!-- PASO 1: material -->
+                <StackPanel>
+                    <StackPanel.Style>
+                        <Style TargetType="StackPanel">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding Paso}" Value="1">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </StackPanel.Style>
+
+                    <TextBlock Text="¿De que libro?" Style="{StaticResource TxtCuerpo}" Margin="0,0,0,14" />
+
+                    <ListBox ItemsSource="{Binding Libros}" MaxHeight="300"
+                             SelectedItem="{Binding Libro, Mode=TwoWay}"
+                             ItemContainerStyle="{StaticResource ItemLibro}"
+                             Background="Transparent" BorderThickness="0" Margin="0,0,0,16"
+                             ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                             AutomationProperties.Name="Libro para el examen"
+                             Visibility="{Binding HayLibros, Converter={StaticResource BoolToVis}}">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate DataType="{x:Type modelos:Libro}">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+
+                                    <StackPanel Grid.Column="0">
+                                        <TextBlock Text="{Binding Titulo}" Style="{StaticResource TxtCuerpo}"
+                                                   FontWeight="SemiBold" />
+                                        <TextBlock Text="{Binding Materia}" Style="{StaticResource TxtTenue}" />
+                                    </StackPanel>
+
+                                    <TextBlock Grid.Column="1" Style="{StaticResource TxtDato}"
+                                               VerticalAlignment="Center"
+                                               Text="{Binding CantidadPaginas, StringFormat='{}{0} pag.'}" />
+                                </Grid>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+
+                    <Button Style="{StaticResource ZonaSoltar}"
+                            Command="{Binding ElegirArchivoCommand}"
+                            AutomationProperties.Name="Agregar un PDF nuevo: solta el archivo o hace click"
+                            beh:SoltarArchivo.Comando="{Binding SoltarCommand}"
+                            beh:SoltarArchivo.Extension=".pdf">
+                        <StackPanel HorizontalAlignment="Center">
+                            <TextBlock Text="Solta otro PDF para sumarlo" Style="{StaticResource TxtCuerpo}"
+                                       HorizontalAlignment="Center" />
+                            <TextBlock Text="o hace click para elegirlo" Style="{StaticResource TxtTenue}"
+                                       HorizontalAlignment="Center" Margin="0,2,0,0" />
+                        </StackPanel>
+                    </Button>
+
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,14,0,0"
+                                Visibility="{Binding Agregando, Converter={StaticResource BoolToVis}}">
+                        <ui:ProgressRing IsIndeterminate="True" Width="16" Height="16" />
+                        <TextBlock Text="Leyendo el PDF..." Style="{StaticResource TxtSuave}"
+                                   VerticalAlignment="Center" Margin="8,0,0,0" />
+                    </StackPanel>
+                </StackPanel>
+
+                <!-- PASO 2: alcance -->
+                <StackPanel>
+                    <StackPanel.Style>
+                        <Style TargetType="StackPanel">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding Paso}" Value="2">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </StackPanel.Style>
+
+                    <TextBlock Text="CAPITULOS" Style="{StaticResource TxtRotulo}" />
+                    <TextBlock Style="{StaticResource TxtTenue}" Margin="0,0,0,12"
+                               Text="Toca los que quieras y se combinan, salteados incluidos (1, 2, 5, 7...). Sin ninguno marcado entra el libro entero." />
+
+                    <!-- Sin capitulos cargados los chips no existen y la pantalla parece
+                         rota: hay que decir por que no hay nada y como conseguirlos. -->
+                    <Border Style="{StaticResource TarjetaPlana}" Padding="14" Margin="0,0,0,14"
+                            Visibility="{Binding HayModulos, Converter={StaticResource BoolToVis},
+                                         ConverterParameter=invertir}">
+                        <StackPanel>
+                            <TextBlock Style="{StaticResource TxtSuave}" Margin="0,0,0,10"
+                                       Text="Este libro todavia no tiene capitulos cargados, asi que solo podes elegir por paginas." />
+                            <Button Content="Detectarlos ahora desde el indice del PDF"
+                                    Style="{StaticResource ChipAccion}" HorizontalAlignment="Left"
+                                    Command="{Binding DetectarCapitulosCommand}" />
+                        </StackPanel>
+                    </Border>
+
+                    <ItemsControl ItemsSource="{Binding Modulos}" Margin="0,0,0,4">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <!-- Los chips se acomodan en varias filas: nunca se recorta
+                                     una etiqueta ni se esconde un modulo. -->
+                                <WrapPanel />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate DataType="{x:Type modelos:Modulo}">
+                                <ToggleButton Style="{StaticResource Chip}"
+                                              IsChecked="{Binding Seleccionado, Mode=TwoWay}"
+                                              AutomationProperties.Name="{Binding Nombre}"
+                                              ToolTip="{Binding Descripcion}">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="{Binding Nombre}" />
+                                        <TextBlock Text="{Binding CantidadPaginas, StringFormat=' · {0}p'}"
+                                                   FontFamily="{DynamicResource FuenteDato}" FontSize="11"
+                                                   Opacity="0.7" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </ToggleButton>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,24"
+                                Visibility="{Binding HayModulos, Converter={StaticResource BoolToVis}}">
+                        <Button Content="Marcar todos" Style="{StaticResource ChipAccion}"
+                                Command="{Binding MarcarTodosCommand}" />
+                        <Button Content="Ninguno" Style="{StaticResource ChipAccion}"
+                                Command="{Binding DesmarcarTodosCommand}" />
+                        <TextBlock Text="{Binding ResumenCapitulos}" Style="{StaticResource TxtTenue}"
+                                   VerticalAlignment="Center" Margin="8,0,0,0" />
+                    </StackPanel>
+
+                    <TextBlock Text="PAGINAS" Style="{StaticResource TxtRotulo}" />
+                    <WrapPanel Margin="0,0,0,4">
+                        <RadioButton Style="{StaticResource Chip}" Content="Todo el libro"
+                                      IsChecked="{Binding PresetRango, Converter={StaticResource IndiceOpcion},
+                                                  ConverterParameter=0, Mode=TwoWay}" />
+                        <RadioButton Style="{StaticResource Chip}" Content="Primeras 50"
+                                      IsChecked="{Binding PresetRango, Converter={StaticResource IndiceOpcion},
+                                                  ConverterParameter=1, Mode=TwoWay}" />
+                        <RadioButton Style="{StaticResource Chip}" Content="Ultimas 50"
+                                      IsChecked="{Binding PresetRango, Converter={StaticResource IndiceOpcion},
+                                                  ConverterParameter=2, Mode=TwoWay}" />
+                        <RadioButton Style="{StaticResource Chip}" Content="Elegir rango"
+                                      IsChecked="{Binding PresetRango, Converter={StaticResource IndiceOpcion},
+                                                  ConverterParameter=3, Mode=TwoWay}" />
+                    </WrapPanel>
+
+                    <!-- Los numeros aparecen solo si el usuario los pidio -->
+                    <StackPanel Orientation="Horizontal" Margin="0,6,0,24"
+                                Visibility="{Binding RangoAMano, Converter={StaticResource BoolToVis}}">
+                        <TextBlock Text="Desde" Style="{StaticResource TxtSuave}" VerticalAlignment="Center"
+                                   Margin="0,0,8,0" />
+                        <ui:NumberBox Value="{Binding Desde, Mode=TwoWay}" Minimum="1" Maximum="100000"
+                                      Width="110" ClearButtonEnabled="False"
+                                      AutomationProperties.Name="Pagina desde" />
+                        <TextBlock Text="hasta" Style="{StaticResource TxtSuave}" VerticalAlignment="Center"
+                                   Margin="14,0,8,0" />
+                        <ui:NumberBox Value="{Binding Hasta, Mode=TwoWay}" Minimum="1" Maximum="100000"
+                                      Width="110" ClearButtonEnabled="False"
+                                      AutomationProperties.Name="Pagina hasta" />
+                    </StackPanel>
+
+                    <TextBlock Text="EJE TEMATICO (OPCIONAL)" Style="{StaticResource TxtRotulo}" />
+                    <ui:TextBox Text="{Binding Tema, UpdateSourceTrigger=PropertyChanged}"
+                                PlaceholderText="Potenciales de accion, arritmias..."
+                                AutomationProperties.Name="Eje tematico" />
+                    <TextBlock Style="{StaticResource TxtTenue}" Margin="0,6,0,0"
+                               Text="Acota las preguntas a un tema puntual dentro de las paginas elegidas." />
+                </StackPanel>
+
+                <!-- PASO 3: formato -->
+                <StackPanel>
+                    <StackPanel.Style>
+                        <Style TargetType="StackPanel">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding Paso}" Value="3">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </StackPanel.Style>
+
+                    <TextBlock Text="CUANTAS PREGUNTAS" Style="{StaticResource TxtRotulo}" />
+                    <WrapPanel Margin="0,0,0,4">
+                        <RadioButton Style="{StaticResource Chip}" Content="10"
+                                      IsChecked="{Binding PresetCantidad, Converter={StaticResource IndiceOpcion},
+                                                  ConverterParameter=10, Mode=TwoWay}" />
+                        <RadioButton Style="{StaticResource Chip}" Content="30"
+                                      IsChecked="{Binding PresetCantidad, Converter={StaticResource IndiceOpcion},
+                                                  ConverterParameter=30, Mode=TwoWay}" />
+                        <RadioButton Style="{StaticResource Chip}" Content="60"
+                                      IsChecked="{Binding PresetCantidad, Converter={StaticResource IndiceOpcion},
+                                                  ConverterParameter=60, Mode=TwoWay}" />
+                        <RadioButton Style="{StaticResource Chip}" Content="Otra"
+                                      IsChecked="{Binding PresetCantidad, Converter={StaticResource IndiceOpcion},
+                                                  ConverterParameter=-1, Mode=TwoWay}" />
+                        <ui:NumberBox Value="{Binding CantidadPersonalizada, Mode=TwoWay}" Minimum="1" Maximum="120"
+                                      Width="100" ClearButtonEnabled="False" Margin="4,0,0,8"
+                                      AutomationProperties.Name="Cantidad de preguntas"
+                                      Visibility="{Binding CantidadAMano, Converter={StaticResource BoolToVis}}" />
+                    </WrapPanel>
+
+                    <CheckBox IsChecked="{Binding IncluirImagenes, Mode=TwoWay}" Margin="0,14,0,24"
+                              Content="Incluir preguntas sobre graficos e imagenes del PDF" />
+
+                    <!-- Resumen antes de gastar cuota: que entra, cuanto y con que -->
+                    <Border Style="{StaticResource Tarjeta}" Margin="0,0,0,20">
+                        <StackPanel>
+                            <TextBlock Text="Vas a generar" Style="{StaticResource TxtRotulo}" />
+
+                            <TextBlock Style="{StaticResource TxtCuerpo}" Margin="0,0,0,10">
+                                <Run Text="{Binding Cantidad, Mode=OneWay}" FontWeight="SemiBold" />
+                                <Run Text="preguntas de" />
+                                <Run Text="{Binding Libro.Titulo, Mode=OneWay}" FontWeight="SemiBold" />
+                            </TextBlock>
+
+                            <TextBlock Text="{Binding ResumenAlcance}" Style="{StaticResource TxtSuave}" />
+                            <TextBlock Style="{StaticResource TxtDato}" Margin="0,6,0,0"
+                                       Text="{Binding PaginasDelAlcance, StringFormat='~{0} paginas de material'}" />
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </Grid>
+        </ScrollViewer>
+
+        <!-- ============================================================ -->
+        <!-- Barra de accion                                               -->
+        <!-- ============================================================ -->
+        <ui:InfoBar Grid.Row="3" IsClosable="True" Margin="0,16,0,0" Title=""
+                    Message="{Binding Mensaje}"
+                    IsOpen="{Binding HayMensaje, Mode=OneWay}"
+                    Severity="{Binding Severidad, Converter={StaticResource Severidad}}" />
+
+        <Grid Grid.Row="4" Margin="0,18,0,16">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+            <Button Grid.Column="0" Content="Atras" Style="{StaticResource ChipAccion}"
+                    VerticalAlignment="Center" Command="{Binding AnteriorCommand}" />
+
+            <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Center"
+                        VerticalAlignment="Center"
+                        Visibility="{Binding Generando, Converter={StaticResource BoolToVis}}">
+                <ui:ProgressRing IsIndeterminate="True" Width="20" Height="20" />
+                <TextBlock Text="{Binding Progreso}" Style="{StaticResource TxtSuave}"
+                           VerticalAlignment="Center" Margin="10,0,0,0" MaxWidth="360" />
+                <Button Content="Cancelar" Style="{StaticResource ChipAccion}" Margin="12,0,0,0"
+                        Command="{Binding CancelarCommand}" />
+            </StackPanel>
+
+            <StackPanel Grid.Column="2" Orientation="Horizontal">
+                <ui:Button Content="Continuar" Appearance="Primary" Padding="22,11" FontSize="14"
+                           Icon="{ui:SymbolIcon ArrowRight24}" Command="{Binding SiguienteCommand}"
+                           Visibility="{Binding EsUltimoPaso, Converter={StaticResource BoolAVisibilidad},
+                                        ConverterParameter=invertir}" />
+
+                <ui:Button Content="Generar examen" Appearance="Primary" Padding="22,11" FontSize="14"
+                           Icon="{ui:SymbolIcon Sparkle24}" Command="{Binding GenerarCommand}"
+                           Visibility="{Binding EsUltimoPaso, Converter={StaticResource BoolToVis}}" />
+            </StackPanel>
+        </Grid>
+    </Grid>
+</UserControl>

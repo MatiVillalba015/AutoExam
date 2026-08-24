@@ -1,0 +1,404 @@
+<UserControl x:Class="AutoExam.Views.ExamenView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+             xmlns:modelos="clr-namespace:AutoExam.Models"
+             xmlns:vm="clr-namespace:AutoExam.ViewModels"
+             mc:Ignorable="d"
+             d:DataContext="{d:DesignInstance Type=vm:ExamenViewModel}">
+
+    <!--
+        Atajos del examen. Van como InputBindings y no como manejadores de teclado:
+        el gesto queda declarado al lado del comando que dispara.
+
+        OJO: este UserControl NO puede ser Focusable. Con Focusable="True" el foco
+        rebota del boton al UserControl durante el clic, ese cambio de foco libera
+        la captura del mouse, y ButtonBase deja de convertir el MouseUp en Click:
+        toda la pantalla del examen queda muerta al mouse sin un solo error.
+        Los InputBindings igual funcionan, porque se buscan desde el elemento con
+        foco hacia arriba y el foco queda en un descendiente de esta vista.
+    -->
+    <UserControl.InputBindings>
+        <KeyBinding Key="D1" Command="{Binding ResponderCommand}" CommandParameter="0" />
+        <KeyBinding Key="D2" Command="{Binding ResponderCommand}" CommandParameter="1" />
+        <KeyBinding Key="D3" Command="{Binding ResponderCommand}" CommandParameter="2" />
+        <KeyBinding Key="D4" Command="{Binding ResponderCommand}" CommandParameter="3" />
+        <KeyBinding Key="NumPad1" Command="{Binding ResponderCommand}" CommandParameter="0" />
+        <KeyBinding Key="NumPad2" Command="{Binding ResponderCommand}" CommandParameter="1" />
+        <KeyBinding Key="NumPad3" Command="{Binding ResponderCommand}" CommandParameter="2" />
+        <KeyBinding Key="NumPad4" Command="{Binding ResponderCommand}" CommandParameter="3" />
+        <KeyBinding Key="A" Command="{Binding ResponderCommand}" CommandParameter="0" />
+        <KeyBinding Key="B" Command="{Binding ResponderCommand}" CommandParameter="1" />
+        <KeyBinding Key="C" Command="{Binding ResponderCommand}" CommandParameter="2" />
+        <KeyBinding Key="D" Command="{Binding ResponderCommand}" CommandParameter="3" />
+        <KeyBinding Key="Right" Command="{Binding SiguienteCommand}" />
+        <KeyBinding Key="Enter" Command="{Binding SiguienteCommand}" />
+        <KeyBinding Key="Left" Command="{Binding AnteriorCommand}" />
+        <KeyBinding Key="S" Command="{Binding SaltearCommand}" />
+    </UserControl.InputBindings>
+
+    <Grid>
+
+        <!-- ============================================================ -->
+        <!-- Sin examen                                                    -->
+        <!-- ============================================================ -->
+        <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" MaxWidth="340"
+                    Visibility="{Binding SinExamen, Converter={StaticResource BoolToVis}}">
+            <ui:SymbolIcon Symbol="ClipboardTaskListLtr24" FontSize="32" HorizontalAlignment="Center"
+                           Foreground="{DynamicResource PincelTextoTenue}" />
+            <TextBlock Text="No hay ningun examen abierto" Style="{StaticResource TxtCuerpo}"
+                       HorizontalAlignment="Center" Margin="0,16,0,4" />
+            <TextBlock Style="{StaticResource TxtTenue}" TextAlignment="Center" Margin="0,0,0,20"
+                       Text="Arma uno desde Nuevo examen: elegis el libro, el alcance y cuantas preguntas." />
+            <ui:Button Content="Armar un examen" Appearance="Primary" HorizontalAlignment="Center"
+                       Padding="20,10" Command="{Binding ArmarOtroCommand}" />
+        </StackPanel>
+
+        <!-- ============================================================ -->
+        <!-- Rindiendo                                                     -->
+        <!-- ============================================================ -->
+        <Grid Visibility="{Binding Rindiendo, Converter={StaticResource BoolToVis}}">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <!-- Encabezado -->
+            <Grid Grid.Row="0" Margin="0,0,0,16">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                    <TextBlock Text="{Binding Encabezado}" Style="{StaticResource TxtSeccion}" FontSize="18" />
+                    <TextBlock Text="{Binding Subtitulo}" Style="{StaticResource TxtTenue}" />
+                </StackPanel>
+
+                <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="0,0,14,0">
+                    <TextBlock Text="{Binding Cronometro}" Style="{StaticResource TxtDato}"
+                               FontSize="19" Foreground="{DynamicResource PincelTexto}"
+                               HorizontalAlignment="Right" />
+                    <TextBlock Text="{Binding Contadores}" Style="{StaticResource TxtTenue}"
+                               HorizontalAlignment="Right" />
+                </StackPanel>
+
+                <ui:Button Grid.Column="2" Appearance="Transparent" Icon="{ui:SymbolIcon Dismiss24}"
+                           Padding="8" VerticalAlignment="Center" Command="{Binding SalirCommand}"
+                           AutomationProperties.Name="Salir del examen"
+                           ToolTip="Salir del examen y descartar el intento" />
+            </Grid>
+
+            <!--
+                Navegador de preguntas. Es a la vez el indicador de avance: cada
+                baldosa ES una pregunta y se pinta con su estado, asi que no hace
+                falta una barra de progreso aparte diciendo lo mismo.
+            -->
+            <!--
+                Scroll vertical, nunca horizontal: un ScrollViewer que puede scrollear
+                a lo ancho mide su contenido con ancho infinito, y entonces el WrapPanel
+                nunca envuelve. Con 60 preguntas quedaba una tira de 2.100 px en una
+                sola fila y la mitad de las baldosas fuera de la ventana.
+            -->
+            <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto"
+                          HorizontalScrollBarVisibility="Disabled" Margin="0,0,0,18" MaxHeight="112">
+                <ItemsControl ItemsSource="{Binding Navegador}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <WrapPanel Orientation="Horizontal" />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate DataType="{x:Type modelos:NavegadorItem}">
+                            <Button Content="{Binding Numero}"
+                                    AutomationProperties.Name="{Binding Accesible}"
+                                    ToolTip="{Binding Accesible}"
+                                    Command="{Binding DataContext.IrAPreguntaCommand,
+                                              RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                    CommandParameter="{Binding}">
+                                <Button.Style>
+                                    <Style TargetType="Button" BasedOn="{StaticResource BaldosaPregunta}">
+                                        <Setter Property="Background"
+                                                Value="{Binding Estado, Converter={StaticResource EstadoAPincel}}" />
+                                        <Setter Property="BorderBrush"
+                                                Value="{Binding Estado, Converter={StaticResource EstadoAPincel},
+                                                        ConverterParameter=borde}" />
+                                        <Setter Property="BorderThickness" Value="1" />
+                                        <Style.Triggers>
+                                            <!-- La pregunta en pantalla se marca con el color de
+                                                 marca, no solo con un borde mas grueso: el grosor
+                                                 solo no se distingue a este tamanio. -->
+                                            <DataTrigger Binding="{Binding EsActual}" Value="True">
+                                                <Setter Property="BorderBrush" Value="{DynamicResource PincelMarcaFuerte}" />
+                                                <Setter Property="BorderThickness" Value="2" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Button.Style>
+                            </Button>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </ScrollViewer>
+
+            <!-- Pregunta -->
+            <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto" Padding="0,0,14,0">
+                <StackPanel MaxWidth="860" HorizontalAlignment="Left">
+
+                    <TextBlock Text="{Binding ProgresoTexto}" Style="{StaticResource TxtTenue}"
+                               Margin="0,0,0,10" />
+
+                    <TextBox Text="{Binding Actual.TextoPregunta, Mode=OneWay}"
+                             Style="{StaticResource TextoSeleccionable}"
+                             FontSize="{DynamicResource TamEnunciado}" Margin="0,0,0,20" />
+
+                    <Border Margin="0,0,0,20" Padding="12" HorizontalAlignment="Left"
+                            Background="{DynamicResource PincelSuperficie}"
+                            BorderBrush="{DynamicResource PincelBorde}" BorderThickness="1"
+                            CornerRadius="{DynamicResource RadioCampo}"
+                            Visibility="{Binding Actual.TieneImagen, Converter={StaticResource BoolToVis}}">
+                        <StackPanel>
+                            <Image Source="{Binding Actual.RutaImagenAdjunta, Converter={StaticResource RutaAImagen}}"
+                                   MaxHeight="320" MaxWidth="740" Stretch="Uniform"
+                                   RenderOptions.BitmapScalingMode="HighQuality" />
+                            <TextBlock Text="{Binding PieImagen}" Style="{StaticResource TxtTenue}"
+                                       Margin="2,10,0,0" />
+                        </StackPanel>
+                    </Border>
+
+                    <ItemsControl ItemsSource="{Binding Opciones}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate DataType="{x:Type vm:OpcionViewModel}">
+                                <RadioButton Style="{StaticResource OpcionExamen}"
+                                             IsChecked="{Binding Elegida, Mode=OneWay}"
+                                             AutomationProperties.Name="{Binding Texto}"
+                                             Command="{Binding DataContext.ResponderCommand,
+                                                       RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                             CommandParameter="{Binding}">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="30" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+
+                                        <TextBlock Grid.Column="0" Text="{Binding Letra}"
+                                                   FontFamily="{DynamicResource FuenteDato}"
+                                                   FontWeight="Bold" VerticalAlignment="Top"
+                                                   Foreground="{DynamicResource PincelTextoSuave}" />
+
+                                        <!--
+                                            TextBlock y no TextBox: un TextBox marca el click
+                                            como manejado para poner el cursor, y como ocupa
+                                            casi toda la tarjeta, la opcion quedaba imposible
+                                            de elegir con el mouse. Aca elegir gana a copiar.
+                                        -->
+                                        <TextBlock Grid.Column="1" Text="{Binding Texto}"
+                                                   Style="{StaticResource TxtCuerpo}"
+                                                   VerticalAlignment="Center" />
+                                    </Grid>
+                                </RadioButton>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </ScrollViewer>
+
+            <!-- Barra inferior -->
+            <Grid Grid.Row="3" Margin="0,18,0,16">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <ui:Button Grid.Column="0" Appearance="Transparent" Icon="{ui:SymbolIcon ArrowLeft24}"
+                           Padding="10,8" Command="{Binding AnteriorCommand}"
+                           AutomationProperties.Name="Pregunta anterior"
+                           ToolTip="Anterior (flecha izquierda)" />
+
+                <ui:Button Grid.Column="1" Content="Siguiente" Margin="8,0,0,0" Appearance="Primary"
+                           MinWidth="140" Padding="16,8" Icon="{ui:SymbolIcon ArrowRight24}"
+                           Command="{Binding SiguienteCommand}"
+                           ToolTip="Siguiente (Enter o flecha derecha)" />
+
+                <CheckBox Grid.Column="2" IsChecked="{Binding AvanceAutomatico, Mode=TwoWay}"
+                          FontSize="11" VerticalAlignment="Center" Margin="20,0,0,0"
+                          Foreground="{DynamicResource PincelTextoTenue}"
+                          Content="Avanzar sola al responder"
+                          ToolTip="Atajos: 1-4 o A-D eligen · Enter o flecha derecha avanza · flecha izquierda vuelve · S saltea" />
+
+                <Button Grid.Column="3" Content="Saltear" Style="{StaticResource ChipAccion}"
+                        Margin="0,0,10,0" VerticalAlignment="Center" Command="{Binding SaltearCommand}"
+                        ToolTip="La pregunta queda Salteada y vuelve en el Modo Revancha (S)" />
+
+                <ui:Button Grid.Column="4" Content="{Binding TextoFinalizar}" Padding="16,8"
+                           Command="{Binding FinalizarCommand}" />
+            </Grid>
+        </Grid>
+
+        <!-- ============================================================ -->
+        <!-- Resultados                                                    -->
+        <!-- ============================================================ -->
+        <Grid Visibility="{Binding EnResultados, Converter={StaticResource BoolToVis}}">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+
+            <!-- Mismo ancho que la lista de correccion: una sola columna de lectura. -->
+            <Border Grid.Row="0" Style="{StaticResource Tarjeta}" Margin="0,0,0,22"
+                    MaxWidth="920" HorizontalAlignment="Left">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <Border Grid.Column="0" Width="86" Height="86" CornerRadius="43" BorderThickness="3"
+                            VerticalAlignment="Center"
+                            BorderBrush="{Binding Aprobado, Converter={StaticResource AprobadoAPincel}}"
+                            Background="{Binding Aprobado, Converter={StaticResource AprobadoAPincel},
+                                         ConverterParameter=suave}">
+                        <TextBlock Text="{Binding Nota}" FontSize="34" FontWeight="Bold"
+                                   FontFamily="{DynamicResource FuenteDato}"
+                                   Foreground="{Binding Aprobado, Converter={StaticResource AprobadoAPincel}}"
+                                   HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
+
+                    <StackPanel Grid.Column="1" Margin="22,0,16,0" VerticalAlignment="Center">
+                        <TextBlock Text="{Binding Condicion}" Style="{StaticResource TxtSeccion}" FontSize="19" />
+                        <TextBlock Text="{Binding ResumenResultado}" Style="{StaticResource TxtSuave}"
+                                   Margin="0,6,0,0" />
+                        <TextBlock Text="{Binding DetalleRondas}" Style="{StaticResource TxtTenue}"
+                                   Margin="0,8,0,0" />
+                    </StackPanel>
+
+                    <StackPanel Grid.Column="2" VerticalAlignment="Center">
+                        <ui:Button Appearance="Primary" Margin="0,0,0,8" Padding="16,9"
+                                   Icon="{ui:SymbolIcon ArrowRepeatAll24}"
+                                   Content="{Binding TextoRevancha}" Command="{Binding RevanchaCommand}"
+                                   Visibility="{Binding HayPendientes, Converter={StaticResource BoolToVis}}" />
+                        <Button Content="Armar otro examen" Style="{StaticResource ChipAccion}"
+                                HorizontalAlignment="Center" Command="{Binding ArmarOtroCommand}" />
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Padding="0,0,14,14">
+                <ItemsControl ItemsSource="{Binding Correccion}" MaxWidth="920" HorizontalAlignment="Left">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate DataType="{x:Type modelos:Pregunta}">
+                            <Border Margin="0,0,0,10" CornerRadius="{DynamicResource RadioCampo}"
+                                    Background="{DynamicResource PincelTarjeta}"
+                                    BorderBrush="{Binding Resultado, Converter={StaticResource EstadoAPincel},
+                                                  ConverterParameter=borde}"
+                                    BorderThickness="1">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="4" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+
+                                    <Border Grid.Column="0" CornerRadius="10,0,0,10"
+                                            Background="{Binding Resultado, Converter={StaticResource EstadoAPincel},
+                                                         ConverterParameter=borde}" />
+
+                                    <StackPanel Grid.Column="1" Margin="18,16">
+                                        <TextBlock Text="{Binding TituloResultado}" FontWeight="Bold" FontSize="11"
+                                                   Margin="0,0,0,8"
+                                                   Foreground="{Binding Resultado, Converter={StaticResource EstadoAPincel},
+                                                                ConverterParameter=borde}" />
+
+                                        <TextBox Text="{Binding TextoPregunta, Mode=OneWay}"
+                                                 Style="{StaticResource TextoSeleccionable}"
+                                                 Margin="0,0,0,10" />
+
+                                        <Image Source="{Binding RutaImagenAdjunta, Converter={StaticResource RutaAImagen}}"
+                                               MaxHeight="200" HorizontalAlignment="Left" Margin="0,0,0,10"
+                                               Stretch="Uniform"
+                                               Visibility="{Binding TieneImagen, Converter={StaticResource BoolToVis}}" />
+
+                                        <TextBlock Text="{Binding TextoRespuestaUsuario, StringFormat='Tu respuesta: {0}'}"
+                                                   Style="{StaticResource TxtSuave}" />
+
+                                        <!--
+                                            De donde salio la pregunta. Va en TODAS, tambien en las
+                                            falladas: la pagina es lo que necesitas para ir a estudiar,
+                                            y no delata cual de las cuatro opciones era la correcta.
+                                        -->
+                                        <StackPanel Orientation="Horizontal" Margin="0,8,0,0"
+                                                    Visibility="{Binding ReferenciaFuente, Converter={StaticResource TextoAVisibilidad}}">
+                                            <ui:SymbolIcon Symbol="BookOpen24" FontSize="13" VerticalAlignment="Center"
+                                                           Foreground="{DynamicResource PincelTextoTenue}" />
+                                            <TextBlock Text="{Binding ReferenciaFuente}" Style="{StaticResource TxtDato}"
+                                                       VerticalAlignment="Center" Margin="7,0,0,0" />
+                                        </StackPanel>
+
+                                        <!-- Solo las correctas revelan cita y analisis: si el
+                                             error mostrara la respuesta, la revancha no serviria. -->
+                                        <StackPanel Margin="0,12,0,0"
+                                                    Visibility="{Binding MuestraAnalisisCompleto, Converter={StaticResource BoolToVis}}">
+                                            <TextBox Text="{Binding JustificacionBibliografia, Mode=OneWay}"
+                                                     Style="{StaticResource TextoSeleccionable}"
+                                                     FontSize="12" Foreground="{DynamicResource PincelTextoSuave}"
+                                                     Margin="0,0,0,12" />
+
+                                            <TextBox Text="{Binding AnalisisOpciones.ExplicacionCorrecta, Mode=OneWay}"
+                                                     Style="{StaticResource TextoSeleccionable}" Margin="0,0,0,14"
+                                                     Visibility="{Binding AnalisisOpciones.ExplicacionCorrecta,
+                                                                  Converter={StaticResource TextoAVisibilidad}}" />
+
+                                            <ItemsControl ItemsSource="{Binding LineasAnalisis}">
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate DataType="{x:Type modelos:LineaAnalisis}">
+                                                        <Grid Margin="0,0,0,8">
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="20" />
+                                                                <ColumnDefinition Width="*" />
+                                                            </Grid.ColumnDefinitions>
+
+                                                            <TextBlock Grid.Column="0" Text="{Binding Prefijo}"
+                                                                       Foreground="{Binding EsCorrecta, Converter={StaticResource AprobadoAPincel}}"
+                                                                       FontWeight="Bold"
+                                                                       FontFamily="{DynamicResource FuenteDato}"
+                                                                       FontSize="12" />
+
+                                                            <StackPanel Grid.Column="1">
+                                                                <TextBlock TextWrapping="Wrap" FontSize="13"
+                                                                           Foreground="{DynamicResource PincelTexto}">
+                                                                    <Run Text="{Binding Encabezado, Mode=OneWay}" />
+                                                                    <Run Text="{Binding Marca, Mode=OneWay}"
+                                                                         FontStyle="Italic" FontSize="11" />
+                                                                </TextBlock>
+                                                                <TextBox Text="{Binding Detalle, Mode=OneWay}"
+                                                                         Style="{StaticResource TextoSeleccionable}"
+                                                                         FontSize="12"
+                                                                         Foreground="{DynamicResource PincelTextoSuave}" />
+                                                            </StackPanel>
+                                                        </Grid>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                        </StackPanel>
+
+                                        <TextBlock Style="{StaticResource TxtTenue}" Margin="0,10,0,0"
+                                                   Visibility="{Binding EsPendiente, Converter={StaticResource BoolToVis}}"
+                                                   Text="La respuesta correcta no se revela. Reintentala hasta acertarla." />
+                                    </StackPanel>
+                                </Grid>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </ScrollViewer>
+        </Grid>
+    </Grid>
+</UserControl>
