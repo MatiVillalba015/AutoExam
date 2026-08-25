@@ -73,6 +73,7 @@
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
 
                 <StackPanel Grid.Column="0" VerticalAlignment="Center">
@@ -88,7 +89,20 @@
                                HorizontalAlignment="Right" />
                 </StackPanel>
 
-                <ui:Button Grid.Column="2" Appearance="Transparent" Icon="{ui:SymbolIcon Dismiss24}"
+                <!-- Tamanio de texto de pregunta y opciones (US-005). Solo afecta esta vista. -->
+                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center"
+                            Margin="0,0,10,0">
+                    <ui:Button Content="A-" Appearance="Transparent" Padding="10,8"
+                               Command="{Binding DisminuirTextoExamenCommand}"
+                               AutomationProperties.Name="Achicar el texto de la pregunta y las opciones"
+                               ToolTip="Achicar texto" />
+                    <ui:Button Content="A+" Appearance="Transparent" Padding="10,8" Margin="4,0,0,0"
+                               Command="{Binding AumentarTextoExamenCommand}"
+                               AutomationProperties.Name="Agrandar el texto de la pregunta y las opciones"
+                               ToolTip="Agrandar texto" />
+                </StackPanel>
+
+                <ui:Button Grid.Column="3" Appearance="Transparent" Icon="{ui:SymbolIcon Dismiss24}"
                            Padding="8" VerticalAlignment="Center" Command="{Binding SalirCommand}"
                            AutomationProperties.Name="Salir del examen"
                            ToolTip="Salir del examen y descartar el intento" />
@@ -153,9 +167,14 @@
                     <TextBlock Text="{Binding ProgresoTexto}" Style="{StaticResource TxtTenue}"
                                Margin="0,0,0,10" />
 
+                    <!--
+                        US-005: tamanio ajustable solo aca (Rindiendo), no en Theme/Estilos.xaml.
+                        TamanioTextoPregunta/Opciones son del ExamenViewModel, calculadas a partir
+                        del nivel guardado en AppConfig.TamanioTextoExamen.
+                    -->
                     <TextBox Text="{Binding Actual.TextoPregunta, Mode=OneWay}"
                              Style="{StaticResource TextoSeleccionable}"
-                             FontSize="{DynamicResource TamEnunciado}" Margin="0,0,0,20" />
+                             FontSize="{Binding TamanioTextoPregunta}" Margin="0,0,0,20" />
 
                     <Border Margin="0,0,0,20" Padding="12" HorizontalAlignment="Left"
                             Background="{DynamicResource PincelSuperficie}"
@@ -199,6 +218,8 @@
                                         -->
                                         <TextBlock Grid.Column="1" Text="{Binding Texto}"
                                                    Style="{StaticResource TxtCuerpo}"
+                                                   FontSize="{Binding DataContext.TamanioTextoOpciones,
+                                                              RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                                                    VerticalAlignment="Center" />
                                     </Grid>
                                 </RadioButton>

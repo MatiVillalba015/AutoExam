@@ -46,6 +46,17 @@ public partial class ExamenViewModel : PaginaViewModel
     private readonly DispatcherTimer _cronometro = new() { Interval = TimeSpan.FromSeconds(1) };
     private readonly DispatcherTimer _avance = new() { Interval = TimeSpan.FromMilliseconds(280) };
 
+    /// <summary>
+    /// Mapeo nivel (0..4) -&gt; puntos, para pregunta y opciones (US-005). El nivel 2
+    /// (indice 2, "Normal") reproduce el tamanio de siempre: 17pt/14pt.
+    /// </summary>
+    private static readonly double[] PuntosPregunta = { 13, 15, 17, 20, 23 };
+
+    private static readonly double[] PuntosOpciones = { 11, 12, 14, 16, 18 };
+
+    public const int NivelTextoMinimo = 0;
+    public const int NivelTextoMaximo = 4;
+
     public ExamenViewModel(SesionUsuarioService sesion, IDialogos dialogos, INavegacion nav)
         : base("examen", "Examen", "ClipboardTaskListLtr24")
     {
@@ -110,6 +121,38 @@ public partial class ExamenViewModel : PaginaViewModel
 
     public string Cronometro => Examen?.Transcurrido.ToString(@"hh\:mm\:ss") ?? "00:00:00";
 
+    // ------------------------------------------------------------------
+    // Tamanio de texto (US-005)
+    // ------------------------------------------------------------------
+
+    /// <summary>Nivel actual, 0..4. Se persiste en AppConfig.TamanioTextoExamen.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(TamanioTextoPregunta))]
+    [NotifyPropertyChangedFor(nameof(TamanioTextoOpciones))]
+    [NotifyCanExecuteChangedFor(nameof(AumentarTextoExamenCommand))]
+    [NotifyCanExecuteChangedFor(nameof(DisminuirTextoExamenCommand))]
+    private int _nivelTextoExamen = 2;
+
+    public double TamanioTextoPregunta => PuntosPregunta[NivelTextoExamen];
+
+    public double TamanioTextoOpciones => PuntosOpciones[NivelTextoExamen];
+
+    partial void OnNivelTextoExamenChanged(int value)
+    {
+        _sesion.Config.TamanioTextoExamen = value;
+        _sesion.GuardarConfig();
+    }
+
+    [RelayCommand(CanExecute = nameof(PuedeAumentarTextoExamen))]
+    private void AumentarTextoExamen() => NivelTextoExamen = Math.Min(NivelTextoMaximo, NivelTextoExamen + 1);
+
+    private bool PuedeAumentarTextoExamen() => NivelTextoExamen < NivelTextoMaximo;
+
+    [RelayCommand(CanExecute = nameof(PuedeDisminuirTextoExamen))]
+    private void DisminuirTextoExamen() => NivelTextoExamen = Math.Max(NivelTextoMinimo, NivelTextoExamen - 1);
+
+    private bool PuedeDisminuirTextoExamen() => NivelTextoExamen > NivelTextoMinimo;
+
     // ---------- Resultados ----------
     [ObservableProperty]
     private int _nota;
@@ -162,6 +205,16 @@ public partial class ExamenViewModel : PaginaViewModel
     }
 
     public bool HayIntentoAbierto => Examen is not null && Vista == VistaExamen.Rindiendo;
+
+    /// <summary>
+    /// Trae el nivel de tamanio de texto guardado. Se llama despues de <c>SesionUsuarioService.Cargar()</c>
+    /// (ver ShellViewModel.IniciarAsync), igual que AjustesViewModel.CargarDesdeConfig: en el
+    /// constructor todavia no existe config.json leido.
+    /// </summary>
+    public void CargarDesdeConfig()
+    {
+        NivelTextoExamen = Math.Clamp(_sesion.Config.TamanioTextoExamen, NivelTextoMinimo, NivelTextoMaximo);
+    }
 
     private void ReconstruirNavegador()
     {

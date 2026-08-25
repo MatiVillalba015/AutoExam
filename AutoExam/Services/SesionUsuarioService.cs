@@ -38,6 +38,7 @@ public class SesionUsuarioService
         Config.PaginasPorBloque = Math.Clamp(Config.PaginasPorBloque, 5, 40);
         Config.MaxCaracteresContexto = Math.Clamp(Config.MaxCaracteresContexto, 10_000, 300_000);
         Config.MaxImagenesPorExamen = Math.Clamp(Config.MaxImagenesPorExamen, 0, 30);
+        Config.TamanioTextoExamen = Math.Clamp(Config.TamanioTextoExamen, 0, 4);
 
         RefrescarHistorial();
     }
