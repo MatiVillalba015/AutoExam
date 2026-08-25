@@ -27,10 +27,9 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
             return;
         }
 
-        RestaurarGeometria(Vm.Config);
-
         try
         {
+            RestaurarGeometria(Vm.Config);
             await Vm.IniciarAsync();
         }
         catch (Exception ex)
@@ -90,7 +89,15 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
         Height = config.VentanaAlto;
         Left = config.VentanaX;
         Top = config.VentanaY;
-        WindowState = config.VentanaEstado;
+
+        // config.json corrupto (corte de luz durante JsonStore.Guardar, edicion a mano,
+        // etc.) puede traer un entero fuera de rango: JsonStore lo deserializa sin
+        // problema porque no hay JsonStringEnumConverter, pero Window.WindowState SI
+        // valida y tira ArgumentException con cualquier valor que no sea Normal/
+        // Minimized/Maximized. Se cae a Normal en vez de dejar crashear el arranque.
+        WindowState = Enum.IsDefined(typeof(WindowState), config.VentanaEstado)
+            ? config.VentanaEstado
+            : WindowState.Normal;
     }
 
     /// <summary>
@@ -101,17 +108,19 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
     /// </summary>
     private void GuardarGeometria(AppConfig config)
     {
-        // Minimized no se persiste: no tendria sentido volver a abrir minimizada. Si la
-        // ventana esta maximizada, RestoreBounds trae el tamanio/posicion "normal" (el
-        // que hay que restaurar despues), no el del monitor entero.
-        bool maximizada = WindowState == WindowState.Maximized;
+        // Minimized no se persiste como tal (no tendria sentido volver a abrir
+        // minimizada), pero mientras esta minimizada Left/Top/Width/Height reflejan el
+        // placement "iconic" de Win32 (algo como -32000,-32000), no la geometria real:
+        // hay que leer RestoreBounds igual que con Maximized, y guardar el estado como
+        // Normal. Solo si esta realmente Normal se puede confiar en Left/Top/Width/Height.
+        bool debeUsarRestoreBounds = WindowState != WindowState.Normal;
 
-        Rect bounds = maximizada ? RestoreBounds : new Rect(Left, Top, Width, Height);
+        Rect bounds = debeUsarRestoreBounds ? RestoreBounds : new Rect(Left, Top, Width, Height);
 
         config.VentanaAncho = bounds.Width;
         config.VentanaAlto = bounds.Height;
         config.VentanaX = bounds.X;
         config.VentanaY = bounds.Y;
-        config.VentanaEstado = maximizada ? WindowState.Maximized : WindowState.Normal;
+        config.VentanaEstado = WindowState == WindowState.Maximized ? WindowState.Maximized : WindowState.Normal;
     }
 }
