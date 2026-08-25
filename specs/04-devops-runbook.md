@@ -73,3 +73,52 @@ binario que sí descarga pero tiene un defecto funcional.
   en paralelo por `test-dev-actualizacion`) y `dotnet test AutoExam.sln
   --configuration Release` corre en verde localmente (23/23) al momento de
   este commit.
+
+## 5. Sanity final pre-push (2026-08-25, post sign-off UAT)
+
+Validación de cierre sobre el estado actual de `main` (local, `uat-signoff.md`
+aprobado, sin push todavía). Confirma que `publish.yml` está listo para correr
+apenas el usuario haga push, sin cambios de código de este rol:
+
+| Chequeo | Resultado |
+|---|---|
+| `dotnet build AutoExam.sln` | 0 Advertencias, 0 Errores |
+| `dotnet test AutoExam.sln --configuration Release` | 94/94 correctas, 0 con error |
+| `AutoExam/AutoExam.csproj` → `<Version>` | `1.0.2` |
+| `update.xml` → `<version>` | `1.0.1` |
+| `1.0.2 > 1.0.1` (gate `should_publish` del paso 2-3 de `publish.yml`) | Verdadero → el próximo push a `main` SÍ publica (no es un no-op) |
+| `env.REPO` en `publish.yml` (`MatiVillalba015/AutoExam`) vs. `git remote -v` | Coinciden |
+| `env.CSPROJ` / `env.PUBLISH_DIR` en `publish.yml` vs. `TargetFramework`/`RuntimeIdentifier` reales del `.csproj` (`net8.0-windows` / `win-x64`) | Coinciden |
+| Proyectos referenciados por `AutoExam.sln` (`AutoExam`, `AutoExam.Tests`) | Existen y compilan/testean con el `.sln` |
+
+No se modificó ningún archivo de código ni el workflow: no hizo falta, todo
+seguía consistente. **No se hizo `git push`, no se creó ningún Release ni tag**
+— eso queda para el usuario (checklist abajo).
+
+## 6. Checklist final del usuario — único responsable de estos pasos
+
+Nada de esto lo puede ejecutar un agente contra el remoto. Orden estricto:
+
+1. [ ] **GitHub → Settings → Actions → General → Workflow permissions** →
+   marcar **"Read and write permissions"** → Save. (R-1, una sola vez).
+2. [ ] **GitHub → Settings → Branches** → si `main` tiene branch protection,
+   confirmar que no bloquea el push directo de `github-actions[bot]` (o
+   agregarlo a la lista de bypass). (R-1, una sola vez).
+3. [ ] `git push origin main` desde este checkout (8 commits locales
+   pendientes, incluye `AutoExam.csproj` en `1.0.2` y el propio `publish.yml`).
+4. [ ] Pestaña **Actions** del repo → esperar a que corra el workflow
+   **"Publicar release"** (se dispara solo por el push) → confirmar que
+   termina en verde (✓), no en rojo (✗). Si falla, ver §2 fila 3 de este
+   documento.
+5. [ ] **GitHub → Releases** → confirmar que existe `v1.0.2` con el asset
+   `AutoExam-v1.0.2.zip` adjunto y descargable.
+6. [ ] Confirmar que `update.xml` en `main` quedó en `<version>1.0.2</version>`
+   (commit automático de `github-actions[bot]`, mensaje
+   `update.xml: 1.0.2 [skip ci]`).
+7. [ ] En una segunda PC con una versión anterior de AutoExam instalada,
+   abrir la app y confirmar que `AutoUpdater.NET` detecta `1.0.2` (lee
+   `update.xml` vía raw.githubusercontent.com), descarga, y al aceptar la
+   app se actualiza y reinicia mostrando la nueva versión.
+
+Rollback si algo sale mal en producción: ver §3 de este documento (máximo
+3 pasos, sin herramientas nuevas).
