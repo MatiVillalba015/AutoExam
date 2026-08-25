@@ -1,0 +1,63 @@
+<!--
+    Dialogo propio (US-002): reemplaza MessageBox.Show en DialogoService para que
+    confirmaciones, avisos y errores usen la misma paleta, tipografia y bordes
+    redondeados que el resto de la app en vez del cuadro gris de Windows.
+
+    El icono no usa PincelAcierto/PincelError/PincelPendiente: esos tokens son la
+    semantica de correccion del examen (ver comentario en Theme/Tokens.*.xaml,
+    "nunca se reutiliza para decorar") y este dialogo no corrige nada. El tipo se
+    distingue por el simbolo (pregunta / info / error), no por color.
+-->
+<ui:FluentWindow x:Class="AutoExam.Views.DialogoVentana"
+                 xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                 xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+                 xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+                 xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+                 mc:Ignorable="d"
+                 Title="AutoExam"
+                 SizeToContent="WidthAndHeight"
+                 ResizeMode="NoResize"
+                 WindowStartupLocation="CenterOwner"
+                 ShowInTaskbar="False"
+                 ExtendsContentIntoTitleBar="True"
+                 WindowBackdropType="Mica"
+                 WindowCornerPreference="Round"
+                 Background="{DynamicResource PincelFondo}">
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <ui:TitleBar Grid.Row="0" Title="AutoExam" ShowMaximize="False" ShowMinimize="False"
+                     CanMaximize="False">
+            <ui:TitleBar.Icon>
+                <ui:SymbolIcon Symbol="BookOpen24" />
+            </ui:TitleBar.Icon>
+        </ui:TitleBar>
+
+        <Border Grid.Row="1" Style="{StaticResource Tarjeta}" Margin="20,0,20,20"
+                MinWidth="380" MaxWidth="460">
+            <StackPanel>
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Top" Margin="0,0,0,14">
+                    <ui:SymbolIcon x:Name="IconoTipo" FontSize="26" VerticalAlignment="Top"
+                                   Margin="0,2,14,0" Foreground="{DynamicResource PincelMarca}" />
+                    <TextBlock x:Name="TxtTituloBloque" Style="{StaticResource TxtSeccion}"
+                               VerticalAlignment="Center" />
+                </StackPanel>
+
+                <TextBlock x:Name="TxtMensajeBloque" Style="{StaticResource TxtCuerpo}" Margin="0,0,0,22" />
+
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                    <Button x:Name="BtnCancelar" Content="No" Style="{StaticResource ChipAccion}"
+                            Margin="0,0,10,0" IsCancel="True" Click="BtnCancelar_Click"
+                            Visibility="Collapsed" />
+                    <ui:Button x:Name="BtnAceptar" Content="Aceptar" Appearance="Primary" Padding="18,10"
+                               IsDefault="True" Click="BtnAceptar_Click" />
+                </StackPanel>
+            </StackPanel>
+        </Border>
+    </Grid>
+</ui:FluentWindow>

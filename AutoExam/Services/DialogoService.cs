@@ -1,5 +1,5 @@
 using System.Diagnostics;
-using System.Windows;
+using AutoExam.Views;
 using Microsoft.Win32;
 
 namespace AutoExam.Services;
@@ -24,15 +24,25 @@ public interface IDialogos
 
 public class DialogoService : IDialogos
 {
+    // Confirmar/Aviso/Error usan una ventana propia (DialogoVentana, Fluent/Mica)
+    // en vez de MessageBox.Show para que respeten el tema claro/oscuro de la app
+    // (US-002). ElegirPdf y AbrirCarpeta quedan fuera de alcance de US-002 y
+    // siguen igual.
     public bool Confirmar(string mensaje, string titulo = "AutoExam")
-        => MessageBox.Show(mensaje, titulo, MessageBoxButton.YesNo, MessageBoxImage.Question)
-           == MessageBoxResult.Yes;
+        => Mostrar(TipoDialogo.Pregunta, titulo, mensaje);
 
     public void Aviso(string titulo, string mensaje)
-        => MessageBox.Show($"{titulo}\n\n{mensaje}", "AutoExam", MessageBoxButton.OK, MessageBoxImage.Information);
+        => Mostrar(TipoDialogo.Aviso, titulo, mensaje);
 
     public void Error(string titulo, string mensaje)
-        => MessageBox.Show($"{titulo}\n\n{mensaje}", "AutoExam", MessageBoxButton.OK, MessageBoxImage.Error);
+        => Mostrar(TipoDialogo.Error, titulo, mensaje);
+
+    private static bool Mostrar(TipoDialogo tipo, string titulo, string mensaje)
+    {
+        var dialogo = new DialogoVentana(tipo, titulo, mensaje);
+        dialogo.ShowDialog();
+        return dialogo.Resultado;
+    }
 
     public string? ElegirPdf()
     {
