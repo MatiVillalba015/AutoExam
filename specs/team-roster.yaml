@@ -1,0 +1,110 @@
+# Roster de instancias paralelas — deriva de specs/03-architecture.md
+# Todos los roles reusan las plantillas genéricas del catálogo existente
+# (developer, test-developer, devops), parametrizadas con stack_context.
+# No se requiere ningún especialista_nuevo para este alcance (US-001 a US-005):
+# es WPF/.NET8 de escritorio + un pipeline de GitHub Actions, cubierto por el
+# catálogo genérico.
+
+equipo:
+
+  - id: devops-pipeline-publicacion
+    rol_base: devops
+    modulo: US-001 — Pipeline de publicación automática
+    stack_context: >
+      GitHub Actions, runner windows-latest (obligatorio: WPF no compila en Linux),
+      PowerShell 7 (pwsh) reutilizando la lógica de comparación/empaquetado/regex de
+      publicar.ps1, GitHub CLI (gh, preinstalado en el runner) para `gh release create`,
+      dotnet SDK 8.0.x, permissions: contents: write a nivel de job, trigger
+      `on: push branches:[main] paths-ignore:[update.xml]`.
+    contrato_referencia: specs/03-architecture.md §4.1 (pasos 1-11, permisos, disparador)
+    notas: >
+      Bloqueado para validación en producción (no para diseño/implementación) por R-1:
+      requiere que el usuario confirme Settings → Actions → General → Workflow permissions
+      = Read and write, y ausencia de branch protection que impida push directo a main.
+      Depende del paso "dotnet test" existiendo (ver test-dev-actualizacion, R-4).
+
+  - id: test-dev-actualizacion
+    rol_base: test-developer
+    modulo: US-001 — Regresión de ActualizacionService + scaffold de tests (proyecto nuevo)
+    stack_context: >
+      xUnit 2.x, .NET 8 (net8.0-windows, sin UseWPF), proyecto nuevo AutoExam.Tests con
+      ProjectReference a AutoExam/AutoExam.csproj, nuevo AutoExam.sln en la raíz
+      (no existe hoy, hay que crearlo), dotnet test.
+    contrato_referencia: >
+      specs/03-architecture.md §1.3 y §6 (R-4); firmas públicas ya existentes en
+      AutoExam/Services/ActualizacionService.cs: EsBucleDeActualizacion(AppConfig,string?),
+      AnotarIntento(AppConfig,string), PaqueteDisponible(string?, out string) — NFR-13/AC-T5.
+    notas: Trabajo contract-first, arranca junto con devops-pipeline-publicacion; es prerequisito del paso "dotnet test" del pipeline.
+
+  - id: dev-dialogos-tema
+    rol_base: developer
+    modulo: US-002 — Diálogos y avisos temáticos
+    stack_context: >
+      .NET 8 / WPF, WPF-UI 4.3.0 (ventana o ContentDialog propio con estilo Fluent/Mica),
+      CommunityToolkit.Mvvm 8.4.0, DynamicResource sobre Theme/Tokens.Claro.xaml /
+      Theme/Tokens.Oscuro.xaml y estilos de Theme/Estilos.xaml (Tarjeta, Txt*).
+    contrato_referencia: >
+      specs/03-architecture.md §4.2 — interfaz IDialogos (AutoExam/Services/DialogoService.cs)
+      sin cambio de firma; §3 (MessageBox.Show de App.xaml.cs y MainWindow.xaml.cs quedan
+      explícitamente fuera de alcance).
+    notas: Punto de inyección sin cambios (App.xaml.cs línea 41, new DialogoService()).
+
+  - id: test-dev-dialogos-tema
+    rol_base: test-developer
+    modulo: US-002
+    stack_context: xUnit, proyecto AutoExam.Tests (compartido, ver test-dev-actualizacion).
+    contrato_referencia: >
+      specs/03-architecture.md §4.2 — pruebas de contrato sobre IDialogos.Confirmar/Aviso/Error
+      (tipo de retorno, no-throw) sin levantar ventana real; AC-T6/AC-T7.
+    notas: Arranca junto con dev-dialogos-tema, contract-first sobre la firma de IDialogos.
+
+  - id: dev-ventana-navegacion
+    rol_base: developer
+    modulo: US-003 + US-004 — Geometría de ventana y navegación por teclado (mismo owner: comparten MainWindow.xaml/.xaml.cs)
+    stack_context: >
+      .NET 8 / WPF, System.Windows.Forms.Screen vía <UseWindowsForms>true</UseWindowsForms>
+      en AutoExam.csproj (ya viene transitivamente por AutoUpdater.NET.Official, sin costo
+      nuevo real), CommunityToolkit.Mvvm 8.4.0 (RelayCommand ya existente ShellViewModel.IrA),
+      JsonStore/AppConfig ya existente.
+    contrato_referencia: >
+      specs/03-architecture.md §4.3 (campos AppConfig VentanaAncho/Alto/X/Y/Estado, tipos y
+      defaults ya fijados) y §4.4 (claves reales de Paginas: libros/nuevo/examen/historial/
+      ajustes; atajos Ctrl+1..Ctrl+5; Window.InputBindings en MainWindow.xaml, no en
+      ExamenView.xaml).
+    notas: No paralelizado en dos instancias a propósito (ver §5 de la arquitectura) — ambas US tocan los mismos dos archivos.
+
+  - id: test-dev-ventana-navegacion
+    rol_base: test-developer
+    modulo: US-003 + US-004
+    stack_context: xUnit, proyecto AutoExam.Tests (compartido).
+    contrato_referencia: >
+      specs/03-architecture.md §4.3/§4.4 — AC-T8/AC-T9 (geometría y fallback fuera de pantalla,
+      extraer la lógica de intersección con Screen.WorkingArea a un método testable) y
+      AC-T10/AC-T11/AC-T12 (suite de regresión de KeyBinding de Views/ExamenView.xaml: 1-4,
+      NumPad1-4, A-D, Right, Enter, Left, S — NFR-09; no disparo en foco de TextBox — NFR-10).
+    notas: La suite de regresión de ExamenView.xaml es crítica y debe existir ANTES de que dev-ventana-navegacion agregue los atajos nuevos.
+
+  - id: dev-tamanio-texto-examen
+    rol_base: developer
+    modulo: US-005 — Tamaño de texto ajustable en examen
+    stack_context: >
+      .NET 8 / WPF, CommunityToolkit.Mvvm 8.4.0, binding directo FontSize en
+      Views/ExamenView.xaml a propiedades de ExamenViewModel (no a Theme/Estilos.xaml).
+    contrato_referencia: >
+      specs/03-architecture.md §4.5 — AppConfig.TamanioTextoExamen (int 0..4, default 2),
+      ExamenViewModel.TamanioTextoPregunta/TamanioTextoOpciones, nivel 2 debe mapear a los
+      tamaños actuales (17pt/14pt) para no romper el look por defecto.
+    notas: No toca Theme/Tokens.* ni TamEnunciado/TamCuerpo globales (se usan en otras vistas).
+
+  - id: test-dev-tamanio-texto-examen
+    rol_base: test-developer
+    modulo: US-005
+    stack_context: xUnit, proyecto AutoExam.Tests (compartido).
+    contrato_referencia: >
+      specs/03-architecture.md §4.5 — mapeo nivel→pt (5 niveles), persistencia de
+      AppConfig.TamanioTextoExamen entre reinicios (AC-T14), ausencia de scroll horizontal
+      es responsabilidad de qa (visual, fuera de alcance de test-developer).
+
+especialista_nuevo: []
+# Ninguno requerido: el alcance completo (US-001 a US-005) es WPF/.NET8 de escritorio +
+# pipeline de GitHub Actions, cubierto por developer/test-developer/devops genéricos.
