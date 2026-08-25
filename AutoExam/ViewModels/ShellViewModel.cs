@@ -86,10 +86,21 @@ public partial class ShellViewModel : ObservableObject, INavegacion
     // ------------------------------------------------------------------
     // Ciclo de vida
     // ------------------------------------------------------------------
-    public async Task IniciarAsync()
+    /// <summary>
+    /// Carga biblioteca y config, y arranca la app. <paramref name="trasCargarConfig"/> se
+    /// invoca justo despues de <c>_sesion.Cargar()</c> y antes de seguir con el resto
+    /// (que incluye pasos async como <see cref="RecuperarHuerfanosAsync"/>): existe para que
+    /// <c>MainWindow.Ventana_Loaded</c> pueda restaurar la geometria de la ventana (US-003)
+    /// leyendo <see cref="Config"/> ya poblado desde disco, y hacerlo antes de que el resto
+    /// de la inicializacion (que puede tardar) demore que la ventana se vea en su posicion
+    /// final. Si se llama sin este parametro, el comportamiento es igual al de siempre.
+    /// </summary>
+    public async Task IniciarAsync(Action? trasCargarConfig = null)
     {
         _biblioteca.Cargar();
         _sesion.Cargar();
+
+        trasCargarConfig?.Invoke();
 
         await RecuperarHuerfanosAsync();
 

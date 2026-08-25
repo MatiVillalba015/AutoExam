@@ -29,8 +29,13 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
 
         try
         {
-            RestaurarGeometria(Vm.Config);
-            await Vm.IniciarAsync();
+            // RestaurarGeometria va como callback DENTRO de IniciarAsync, no antes: la
+            // config recien se carga desde disco en la primera linea de IniciarAsync
+            // (ShellViewModel._sesion.Cargar()). Llamarla antes de await Vm.IniciarAsync()
+            // (como se hacia antes) opera siempre sobre el AppConfig recien construido con
+            // sus defaults (-1), nunca sobre lo guardado: la ventana quedaba siempre en el
+            // centrado por default sin importar que hubiera en config.json (bug de QA).
+            await Vm.IniciarAsync(() => RestaurarGeometria(Vm.Config));
         }
         catch (Exception ex)
         {
@@ -63,11 +68,13 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
 
     /// <summary>
     /// Aplica la geometria guardada en config.json, si hay una y sigue siendo visible.
-    /// Se llama desde <see cref="Ventana_Loaded"/>, antes de que el usuario vea la
-    /// ventana: en ese punto ya se puede pisar sin problema lo que
-    /// <c>WindowStartupLocation="CenterScreen"</c> hubiera calculado. Si nunca se guardo
-    /// nada o el rectangulo guardado no entra en ningun monitor conectado (por ejemplo
-    /// se desconecto uno), se deja el default del XAML (CenterScreen, 1240x820).
+    /// Se llama como callback de <see cref="ShellViewModel.IniciarAsync"/>, justo despues
+    /// de que <c>_sesion.Cargar()</c> poblo <paramref name="config"/> desde disco y antes
+    /// de que el resto de la inicializacion (que incluye pasos async) demore que la
+    /// ventana se vea en su posicion final. En ese punto todavia se puede pisar sin
+    /// problema lo que <c>WindowStartupLocation="CenterScreen"</c> hubiera calculado. Si
+    /// nunca se guardo nada o el rectangulo guardado no entra en ningun monitor conectado
+    /// (por ejemplo se desconecto uno), se deja el default del XAML (CenterScreen, 1240x820).
     /// </summary>
     private void RestaurarGeometria(AppConfig config)
     {
