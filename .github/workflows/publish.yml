@@ -1,0 +1,233 @@
+# Pipeline de publicacion automatica de AutoExam.
+#
+# Reemplaza las dos invocaciones manuales de publicar.ps1 (compilar+empaquetar,
+# y luego -Publicar) por un unico flujo disparado por push a main. publicar.ps1
+# NO se borra: queda como fallback manual documentado (ver README/publicar.ps1).
+#
+# Contrato de referencia: specs/03-architecture.md §4.1 (pasos 1-11, permisos,
+# disparador). No editar la secuencia de pasos sin actualizar ese documento.
+#
+# Prerequisito manual (R-1, specs/03-architecture.md §6): antes del primer run
+# real, confirmar en GitHub -> Settings -> Actions -> General -> Workflow
+# permissions = "Read and write permissions", y que `main` no tenga branch
+# protection que bloquee el push directo de github-actions[bot]. Sin esto,
+# los pasos "Crear GitHub Release" y "Commit y push de update.xml" fallan
+# aunque este YAML este bien escrito. No se puede validar desde este entorno.
+#
+# R-4 (resuelto): AutoExam.sln / AutoExam.Tests ya existen (creados por
+# test-dev-actualizacion en paralelo) y "dotnet test AutoExam.sln" corre en
+# verde localmente al momento de este commit.
+
+name: Publicar release
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - 'update.xml'
+
+# Necesario para: gh release create (paso 8) y git push de update.xml (paso 11).
+permissions:
+  contents: write
+
+env:
+  REPO: MatiVillalba015/AutoExam
+  CSPROJ: AutoExam/AutoExam.csproj
+  PUBLISH_DIR: AutoExam/bin/Release/net8.0-windows/win-x64/publish
+  RELEASE_DIR: release
+  GH_TOKEN: ${{ github.token }}
+
+jobs:
+  publish:
+    runs-on: windows-latest
+    steps:
+      # 1. Checkout ---------------------------------------------------------
+      # fetch-depth 0: historial completo para que `gh release --generate-notes`
+      # arme notas reales y para que el push del paso 11 no choque con un clone
+      # superficial.
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Configurar dotnet SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      # 2-3. Leer versiones y decidir si hay algo que publicar --------------
+      # Compara <Version> del csproj contra <version> de update.xml (mismo
+      # checkout). Si no es mayor, el job termina en exito sin tocar nada mas
+      # (AC-T3/NFR-03: no-op, no es un fallo).
+      - name: Comparar version del proyecto vs. update.xml
+        id: version
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+
+          [xml]$csprojXml = Get-Content $env:CSPROJ
+          $version = ($csprojXml.Project.PropertyGroup.Version | Where-Object { $_ }) -join ''
+          $version = "$version".Trim()
+          if (-not $version) { throw "No se pudo leer <Version> de $env:CSPROJ." }
+
+          $manifiesto = Get-Content 'update.xml' -Raw
+          if ($manifiesto -notmatch '<version>([^<]+)</version>') {
+            throw "No se pudo leer <version> de update.xml."
+          }
+          $versionPublicada = $Matches[1].Trim()
+
+          $esMayor = ([version]$version) -gt ([version]$versionPublicada)
+
+          Write-Host "csproj: $version | update.xml: $versionPublicada | publicar: $esMayor"
+
+          Add-Content -Path $env:GITHUB_OUTPUT -Value "version=$version"
+          Add-Content -Path $env:GITHUB_OUTPUT -Value "tag=v$version"
+          Add-Content -Path $env:GITHUB_OUTPUT -Value "zip=AutoExam-v$version.zip"
+          Add-Content -Path $env:GITHUB_OUTPUT -Value "should_publish=$($esMayor.ToString().ToLower())"
+
+      # 4. Compilar -----------------------------------------------------------
+      - name: dotnet publish
+        if: steps.version.outputs.should_publish == 'true'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if (Test-Path $env:PUBLISH_DIR) { Remove-Item $env:PUBLISH_DIR -Recurse -Force }
+          dotnet publish $env:CSPROJ -c Release --nologo
+
+      # 5. Tests ------------------------------------------------------------
+      - name: dotnet test
+        if: steps.version.outputs.should_publish == 'true'
+        shell: pwsh
+        run: dotnet test AutoExam.sln --configuration Release
+
+      # 6. Verificar que el binario publicado coincide con <Version> ------
+      # Misma logica que publicar.ps1 (lineas 124-135): evita el bucle
+      # infinito de actualizacion si el .exe quedo compilado con una version
+      # vieja dentro de un ZIP con nombre nuevo.
+      - name: Verificar FileVersion del binario publicado
+        if: steps.version.outputs.should_publish == 'true'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+
+          $version = '${{ steps.version.outputs.version }}'
+          $exe = Join-Path $env:PUBLISH_DIR 'AutoExam.exe'
+          if (-not (Test-Path $exe)) { throw "No se encontro $exe tras dotnet publish." }
+
+          $fileVersion = (Get-Item $exe).VersionInfo.FileVersion
+          $esperada = [version]$version
+          $real = [version]$fileVersion
+
+          Write-Host "binario: $fileVersion | csproj: $version"
+
+          if ($real.Major -ne $esperada.Major -or $real.Minor -ne $esperada.Minor -or $real.Build -ne $esperada.Build) {
+            Write-Error "El binario dice $fileVersion pero el proyecto dice $version. Publicarlo asi deja la app pidiendo actualizar en bucle."
+            exit 1
+          }
+
+      # 7. Empaquetar -------------------------------------------------------
+      # Un ZIP, no el .exe suelto: AutoUpdater trata un .exe como instalador
+      # y terminaria abriendo una segunda copia de AutoExam.
+      - name: Empaquetar ZIP
+        if: steps.version.outputs.should_publish == 'true'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          New-Item -ItemType Directory -Path $env:RELEASE_DIR -Force | Out-Null
+          $exe = Join-Path $env:PUBLISH_DIR 'AutoExam.exe'
+          $zip = Join-Path $env:RELEASE_DIR '${{ steps.version.outputs.zip }}'
+          Compress-Archive -Path $exe -DestinationPath $zip -Force
+          Write-Host "ZIP: $zip"
+
+      # 8. Crear el GitHub Release -----------------------------------------
+      # gh CLI viene preinstalado en windows-latest; usa GH_TOKEN=github.token
+      # (el GITHUB_TOKEN del propio job, con permissions.contents=write de
+      # arriba). No se fija una action de terceros con permiso de escritura.
+      - name: Crear GitHub Release
+        if: steps.version.outputs.should_publish == 'true'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $zip = Join-Path $env:RELEASE_DIR '${{ steps.version.outputs.zip }}'
+          gh release create '${{ steps.version.outputs.tag }}' $zip `
+            --repo $env:REPO `
+            --title "AutoExam ${{ steps.version.outputs.version }}" `
+            --generate-notes
+
+      # 9. Verificar que el asset se descarga (HTTP 200) antes de tocar nada
+      # mas. Si esto falla, update.xml NO se toca: si lo moviera ahora, todo
+      # el que tenga AutoExam recibiria un aviso de actualizacion cuya
+      # descarga le fallaria (AC-T2/NFR-04).
+      - name: Verificar que el asset del Release se descarga
+        if: steps.version.outputs.should_publish == 'true'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $url = "https://github.com/$env:REPO/releases/download/${{ steps.version.outputs.tag }}/${{ steps.version.outputs.zip }}"
+
+          $codigo = 0
+          try {
+            $r = Invoke-WebRequest -Uri $url -Method Head -UseBasicParsing -TimeoutSec 30
+            $codigo = [int]$r.StatusCode
+          } catch {
+            if ($_.Exception.Response) { $codigo = [int]$_.Exception.Response.StatusCode }
+          }
+
+          if ($codigo -ne 200) {
+            # Fallback: algunos hosts de asset rechazan HEAD. Un GET con
+            # Range 0-0 pide un solo byte y confirma que el archivo se puede
+            # descargar sin traerlo entero.
+            try {
+              $r = Invoke-WebRequest -Uri $url -Headers @{ Range = 'bytes=0-0' } -UseBasicParsing -TimeoutSec 30
+              $codigo = [int]$r.StatusCode
+            } catch {
+              if ($_.Exception.Response) { $codigo = [int]$_.Exception.Response.StatusCode }
+            }
+          }
+
+          # 200 (HEAD sin soporte de Range) o 206 (GET con Range cumplido)
+          # son ambos prueba de que el asset existe y se puede descargar.
+          if ($codigo -ne 200 -and $codigo -ne 206) {
+            Write-Error "El paquete responde HTTP $codigo, no 200/206. $url -- No se toca update.xml."
+            exit 1
+          }
+
+          Write-Host "HTTP $codigo: el paquete esta disponible."
+
+      # 10. Reescribir update.xml ------------------------------------------
+      # Misma logica regex que publicar.ps1 -Publicar (lineas 88-91): solo
+      # <version>, URL de descarga y <changelog>. <mandatory> no se toca.
+      - name: Actualizar update.xml
+        if: steps.version.outputs.should_publish == 'true'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $version = '${{ steps.version.outputs.version }}'
+          $tag = '${{ steps.version.outputs.tag }}'
+          $zip = '${{ steps.version.outputs.zip }}'
+
+          $manifiesto = 'update.xml'
+          $xml = Get-Content $manifiesto -Raw
+
+          $xml = [regex]::Replace($xml, '<version>[^<]+</version>', "<version>$version</version>")
+          $xml = [regex]::Replace($xml, 'releases/download/v[0-9.]+/AutoExam-v[0-9.]+\.zip',
+                                  "releases/download/$tag/$zip")
+          $xml = [regex]::Replace($xml, 'releases/tag/v[0-9.]+', "releases/tag/$tag")
+
+          Set-Content -Path $manifiesto -Value $xml -Encoding UTF8 -NoNewline
+
+          Write-Host "update.xml -> $version"
+
+      # 11. Commit + push solo de update.xml -------------------------------
+      # [skip ci] + paths-ignore (arriba) son las dos mitigaciones de R-2
+      # (auto-disparo del workflow por su propio commit).
+      - name: Commit y push de update.xml
+        if: steps.version.outputs.should_publish == 'true'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add update.xml
+          git commit -m "update.xml: ${{ steps.version.outputs.version }} [skip ci]"
+          git push
