@@ -203,4 +203,34 @@ public class AppConfig
     /// <summary>Texto editable con una clave por linea, para mostrar en Ajustes.</summary>
     [JsonIgnore]
     public string ClavesComoTexto => string.Join(Environment.NewLine, ClavesDisponibles);
+
+    // ------------------------------------------------------------------
+    // Ventana (US-003)
+    // ------------------------------------------------------------------
+
+    /// <summary>-1 = nunca se guardo: MainWindow usa el tamanio/posicion por defecto del XAML.</summary>
+    public double VentanaAncho { get; set; } = -1;
+
+    /// <summary>-1 = nunca se guardo: MainWindow usa el tamanio/posicion por defecto del XAML.</summary>
+    public double VentanaAlto { get; set; } = -1;
+
+    /// <summary>-1 = nunca se guardo: MainWindow usa el tamanio/posicion por defecto del XAML.</summary>
+    public double VentanaX { get; set; } = -1;
+
+    /// <summary>-1 = nunca se guardo: MainWindow usa el tamanio/posicion por defecto del XAML.</summary>
+    public double VentanaY { get; set; } = -1;
+
+    public System.Windows.WindowState VentanaEstado { get; set; } = System.Windows.WindowState.Normal;
+
+    // ------------------------------------------------------------------
+    // Examen (US-005)
+    // ------------------------------------------------------------------
+
+    /// <summary>
+    /// Nivel de tamanio de texto al rendir un examen. 0..4, donde 2 (Normal) es el
+    /// tamanio de siempre (17pt enunciado / 14pt opciones) para no romper el look
+    /// por defecto. El mapeo nivel-&gt;puntos vive en ExamenViewModel, no aca: este
+    /// campo solo guarda la preferencia del usuario entre reinicios.
+    /// </summary>
+    public int TamanioTextoExamen { get; set; } = 2;
 }

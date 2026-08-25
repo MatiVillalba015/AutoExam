@@ -19,6 +19,23 @@
                  Loaded="Ventana_Loaded"
                  Closing="Ventana_Closing">
 
+    <!--
+        Navegacion por teclado entre secciones (US-004). Van a nivel Window, no en
+        ExamenView.xaml: por estar en un scope distinto (Window vs. UserControl de
+        Examen) y no compartir tecla con sus KeyBinding (1-4, NumPad1-4, A-D, flechas,
+        Enter, S), no interfieren por construccion. Ctrl+1..5 = orden de Paginas
+        (Libros, Nuevo examen, Examen, Historial, Ajustes). El no-disparo con foco en
+        un campo de texto (NFR-10) lo resuelve ShellViewModel.PuedeIrA (CanExecute de
+        IrACommand), no algo declarado aca.
+    -->
+    <ui:FluentWindow.InputBindings>
+        <KeyBinding Modifiers="Ctrl" Key="D1" Command="{Binding IrACommand}" CommandParameter="libros" />
+        <KeyBinding Modifiers="Ctrl" Key="D2" Command="{Binding IrACommand}" CommandParameter="nuevo" />
+        <KeyBinding Modifiers="Ctrl" Key="D3" Command="{Binding IrACommand}" CommandParameter="examen" />
+        <KeyBinding Modifiers="Ctrl" Key="D4" Command="{Binding IrACommand}" CommandParameter="historial" />
+        <KeyBinding Modifiers="Ctrl" Key="D5" Command="{Binding IrACommand}" CommandParameter="ajustes" />
+    </ui:FluentWindow.InputBindings>
+
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />

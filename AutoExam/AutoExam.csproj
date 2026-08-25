@@ -6,6 +6,11 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
+    <!-- Habilitado para System.Windows.Forms.Screen (US-003, fallback multi-monitor).
+         System.Windows.Forms.dll ya se publica hoy, arrastrado transitivamente por
+         AutoUpdater.NET.Official (su ventana de progreso es WinForms): no es una
+         dependencia nueva, solo se habilita su uso directo en este proyecto. -->
+    <UseWindowsForms>true</UseWindowsForms>
     <LangVersion>latest</LangVersion>
 
     <AssemblyName>AutoExam</AssemblyName>
@@ -34,6 +39,17 @@
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
     <PackageReference Include="PdfPig" Version="0.1.15" />
     <PackageReference Include="WPF-UI" Version="4.3.0" />
+  </ItemGroup>
+
+  <!-- UseWindowsForms agrega "global using System.Windows.Forms;" y "global using
+       System.Drawing;" implicitos que chocan con tipos de WPF que ya se usan sin
+       calificar en todo el proyecto (Application, Brush, UserControl, DragEventArgs,
+       IDataObject). Se sacan esos dos usings globales: el unico consumidor de WinForms
+       (GeometriaVentanaService / MainWindow, US-003) ya califica System.Windows.Forms.Screen
+       y System.Drawing.Rectangle explicitamente. -->
+  <ItemGroup>
+    <Using Remove="System.Windows.Forms" />
+    <Using Remove="System.Drawing" />
   </ItemGroup>
 
 </Project>

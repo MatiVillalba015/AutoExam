@@ -54,6 +54,13 @@ public partial class ShellViewModel : ObservableObject, INavegacion
 
     public ObservableCollection<PaginaViewModel> Paginas { get; }
 
+    /// <summary>
+    /// Config actual, expuesta solo para que MainWindow lea/escriba la geometria de la
+    /// ventana (US-003): es la unica forma de que el code-behind llegue a
+    /// SesionUsuarioService sin duplicar el acceso a la config en dos lugares.
+    /// </summary>
+    public AppConfig Config => _sesion.Config;
+
     [ObservableProperty]
     private PaginaViewModel? _pagina;
 
@@ -87,6 +94,7 @@ public partial class ShellViewModel : ObservableObject, INavegacion
         await RecuperarHuerfanosAsync();
 
         Ajustes.CargarDesdeConfig();
+        Examen.CargarDesdeConfig();
         TemaService.Aplicar(_sesion.Config.TemaOscuro);
         Historial.Refrescar();
         RefrescarEstadoApi();
@@ -168,7 +176,17 @@ public partial class ShellViewModel : ObservableObject, INavegacion
     // ------------------------------------------------------------------
     // INavegacion
     // ------------------------------------------------------------------
-    [RelayCommand]
+    /// <summary>
+    /// Guardia de <see cref="IrACommand"/> (US-004, defensa en profundidad para NFR-10):
+    /// no se ejecuta si el foco esta en un control editable. No afecta llamadas directas
+    /// a <see cref="IrA"/> desde otras paginas (por ejemplo Examen/Asistente al terminar),
+    /// que son programaticas y no pasan por el comando.
+    /// </summary>
+    private static bool PuedeIrA(string? clave)
+        => System.Windows.Input.Keyboard.FocusedElement is not (
+            System.Windows.Controls.Primitives.TextBoxBase or System.Windows.Controls.PasswordBox);
+
+    [RelayCommand(CanExecute = nameof(PuedeIrA))]
     public void IrA(string clave)
     {
         var destino = Paginas.FirstOrDefault(p => p.Clave == clave);
