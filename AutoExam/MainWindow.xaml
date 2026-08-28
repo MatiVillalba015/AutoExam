@@ -6,6 +6,7 @@
                  xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
                  xmlns:vm="clr-namespace:AutoExam.ViewModels"
                  xmlns:vistas="clr-namespace:AutoExam.Views"
+                 xmlns:comportamientos="clr-namespace:AutoExam.Behaviors"
                  mc:Ignorable="d"
                  d:DataContext="{d:DesignInstance Type=vm:ShellViewModel}"
                  Title="AutoExam"
@@ -95,7 +96,7 @@
             <!-- Pagina activa: WPF elige la vista por el tipo del ViewModel
                  (los DataTemplate viven en App.xaml). -->
             <ContentControl Grid.Column="1" Content="{Binding Pagina}" Margin="10,10,26,0"
-                            Focusable="False" />
+                            Focusable="False" comportamientos:TransicionContenido.Activa="True" />
         </Grid>
 
         <!-- ============================================================ -->

@@ -59,31 +59,30 @@ jobs:
       # Compara <Version> del csproj contra <version> de update.xml (mismo
       # checkout). Si no es mayor, el job termina en exito sin tocar nada mas
       # (AC-T3/NFR-03: no-op, no es un fallo).
+      #
+      # La logica de comparacion vive en Verificar-Version.ps1 (raiz del repo,
+      # US-006) -- unica fuente de verdad, tambien usada en modo local antes de
+      # pushear. Este step no reimplementa la comparacion, solo la invoca con
+      # -EmitGithubOutput para escribir version/tag/zip/should_publish
+      # (specs/03-architecture.md Incremento 2 §3.1/§3.2).
+      #
+      # Exit codes del script: 0 = supera, 1 = no supera (informativo, NO es
+      # un fallo del step), 2 = error de lectura (real). Solo el 2 debe tumbar
+      # el step: se traduce explicitamente para no romper AC-T3 con un exit 1
+      # "no supera" que de otro modo GitHub Actions marcaria como fallido.
+      #
+      # Se invoca como proceso hijo real (pwsh -File), no con el operador de
+      # llamada (&) dentro del mismo proceso: asi el `exit` interno del script
+      # solo termina a ese proceso hijo y $LASTEXITCODE queda disponible en
+      # el step para el chequeo de abajo, sin depender de la semantica de
+      # scope de `exit` del host que ejecuta este step.
       - name: Comparar version del proyecto vs. update.xml
         id: version
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-
-          [xml]$csprojXml = Get-Content $env:CSPROJ
-          $version = ($csprojXml.Project.PropertyGroup.Version | Where-Object { $_ }) -join ''
-          $version = "$version".Trim()
-          if (-not $version) { throw "No se pudo leer <Version> de $env:CSPROJ." }
-
-          $manifiesto = Get-Content 'update.xml' -Raw
-          if ($manifiesto -notmatch '<version>([^<]+)</version>') {
-            throw "No se pudo leer <version> de update.xml."
-          }
-          $versionPublicada = $Matches[1].Trim()
-
-          $esMayor = ([version]$version) -gt ([version]$versionPublicada)
-
-          Write-Host "csproj: $version | update.xml: $versionPublicada | publicar: $esMayor"
-
-          Add-Content -Path $env:GITHUB_OUTPUT -Value "version=$version"
-          Add-Content -Path $env:GITHUB_OUTPUT -Value "tag=v$version"
-          Add-Content -Path $env:GITHUB_OUTPUT -Value "zip=AutoExam-v$version.zip"
-          Add-Content -Path $env:GITHUB_OUTPUT -Value "should_publish=$($esMayor.ToString().ToLower())"
+          pwsh -NoProfile -File ./Verificar-Version.ps1 -EmitGithubOutput
+          if ($LASTEXITCODE -eq 2) { exit 2 }
 
       # 4. Compilar -----------------------------------------------------------
       - name: dotnet publish

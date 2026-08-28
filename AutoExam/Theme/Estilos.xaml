@@ -11,7 +11,8 @@
 -->
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-                    xmlns:sys="clr-namespace:System;assembly=System.Runtime">
+                    xmlns:sys="clr-namespace:System;assembly=System.Runtime"
+                    xmlns:comportamientos="clr-namespace:AutoExam.Behaviors">
 
     <!-- ============================================================== -->
     <!-- Escalas. Los pinceles y la sombra viven en Theme/Tokens.*.xaml   -->
@@ -30,6 +31,18 @@
     <sys:Double x:Key="TamCuerpo">14</sys:Double>
     <sys:Double x:Key="TamMenor">12.5</sys:Double>
     <sys:Double x:Key="TamMinimo">11</sys:Double>
+
+    <!-- ============================================================== -->
+    <!-- Animacion. Duration/EasingFunction no son Freezables con estado -->
+    <!-- propio (no se "gastan" al compartirlos), asi que una sola       -->
+    <!-- instancia de cada uno alcanza para todos los templates de abajo.-->
+    <!-- ============================================================== -->
+    <Duration x:Key="DuracionHover">0:0:0.14</Duration>
+    <Duration x:Key="DuracionPresion">0:0:0.08</Duration>
+    <QuadraticEase x:Key="SuavizadoSalida" EasingMode="EaseOut" />
+    <!-- Transicion de seccion del shell (US-007, Behaviors/TransicionContenido.cs). Mismo
+         criterio de instancia unica que las dos de arriba. -->
+    <Duration x:Key="DuracionTransicionSeccion">0:0:0.22</Duration>
 
     <!-- ============================================================== -->
     <!-- Tipografia                                                      -->
@@ -157,20 +170,82 @@
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="ToggleButton">
-                    <Border x:Name="Fondo"
-                            Background="{TemplateBinding Background}"
-                            BorderBrush="{TemplateBinding BorderBrush}"
-                            BorderThickness="1"
-                            CornerRadius="{DynamicResource RadioChip}"
-                            Padding="{TemplateBinding Padding}"
-                            SnapsToDevicePixels="True">
-                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"
-                                          RecognizesAccessKey="True" />
-                    </Border>
+                    <Grid x:Name="Raiz" RenderTransformOrigin="0.5,0.5">
+                        <Grid.RenderTransform>
+                            <ScaleTransform x:Name="Escala" ScaleX="1" ScaleY="1" />
+                        </Grid.RenderTransform>
+                        <Border x:Name="Fondo"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="1"
+                                CornerRadius="{DynamicResource RadioChip}"
+                                Padding="{TemplateBinding Padding}"
+                                SnapsToDevicePixels="True">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"
+                                              RecognizesAccessKey="True" />
+                        </Border>
+                        <!-- Overlay de hover: nunca se anima el Brush de "Fondo" directo (rompería
+                             el cambio de tema); se anima la Opacity de esta capa, pintada con el
+                             mismo pincel que antes se asignaba instantáneo por Setter. -->
+                        <Border x:Name="FondoHover" Background="{DynamicResource PincelTarjetaHover}"
+                                CornerRadius="{DynamicResource RadioChip}" Opacity="0"
+                                IsHitTestVisible="False" />
+                    </Grid>
                     <ControlTemplate.Triggers>
-                        <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="Fondo" Property="Background" Value="{DynamicResource PincelTarjetaHover}" />
-                        </Trigger>
+                        <MultiTrigger>
+                            <MultiTrigger.Conditions>
+                                <Condition Property="IsMouseOver" Value="True" />
+                                <Condition Property="IsEnabled" Value="True" />
+                            </MultiTrigger.Conditions>
+                            <MultiTrigger.EnterActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="FondoHover" Storyboard.TargetProperty="Opacity"
+                                                         To="1" Duration="{StaticResource DuracionHover}"
+                                                         EasingFunction="{StaticResource SuavizadoSalida}" />
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </MultiTrigger.EnterActions>
+                            <MultiTrigger.ExitActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="FondoHover" Storyboard.TargetProperty="Opacity"
+                                                         To="0" Duration="{StaticResource DuracionHover}"
+                                                         EasingFunction="{StaticResource SuavizadoSalida}" />
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </MultiTrigger.ExitActions>
+                        </MultiTrigger>
+                        <MultiTrigger>
+                            <MultiTrigger.Conditions>
+                                <Condition Property="IsPressed" Value="True" />
+                                <Condition Property="IsEnabled" Value="True" />
+                            </MultiTrigger.Conditions>
+                            <MultiTrigger.EnterActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="Escala" Storyboard.TargetProperty="ScaleX"
+                                                         To="0.97" Duration="{StaticResource DuracionPresion}"
+                                                         EasingFunction="{StaticResource SuavizadoSalida}" />
+                                        <DoubleAnimation Storyboard.TargetName="Escala" Storyboard.TargetProperty="ScaleY"
+                                                         To="0.97" Duration="{StaticResource DuracionPresion}"
+                                                         EasingFunction="{StaticResource SuavizadoSalida}" />
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </MultiTrigger.EnterActions>
+                            <MultiTrigger.ExitActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="Escala" Storyboard.TargetProperty="ScaleX"
+                                                         To="1" Duration="{StaticResource DuracionPresion}"
+                                                         EasingFunction="{StaticResource SuavizadoSalida}" />
+                                        <DoubleAnimation Storyboard.TargetName="Escala" Storyboard.TargetProperty="ScaleY"
+                                                         To="1" Duration="{StaticResource DuracionPresion}"
+                                                         EasingFunction="{StaticResource SuavizadoSalida}" />
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </MultiTrigger.ExitActions>
+                        </MultiTrigger>
                         <!-- Seleccionado: relleno + borde + texto de marca. El estado no
                              depende solo del color, tambien cambia el peso del texto. -->
                         <Trigger Property="IsChecked" Value="True">
@@ -204,17 +279,78 @@
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="Button">
-                    <Border x:Name="Fondo" Background="Transparent"
-                            BorderBrush="{DynamicResource PincelBorde}" BorderThickness="1"
-                            CornerRadius="{DynamicResource RadioChip}"
-                            Padding="{TemplateBinding Padding}">
-                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
-                    </Border>
+                    <Grid x:Name="Raiz" RenderTransformOrigin="0.5,0.5">
+                        <Grid.RenderTransform>
+                            <ScaleTransform x:Name="Escala" ScaleX="1" ScaleY="1" />
+                        </Grid.RenderTransform>
+                        <Border x:Name="Fondo" Background="Transparent"
+                                BorderBrush="{DynamicResource PincelBorde}" BorderThickness="1"
+                                CornerRadius="{DynamicResource RadioChip}"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <Border x:Name="FondoHover" Background="{DynamicResource PincelTarjetaHover}"
+                                CornerRadius="{DynamicResource RadioChip}" Opacity="0"
+                                IsHitTestVisible="False" />
+                    </Grid>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="Fondo" Property="Background" Value="{DynamicResource PincelTarjetaHover}" />
                             <Setter Property="Foreground" Value="{DynamicResource PincelTexto}" />
                         </Trigger>
+                        <MultiTrigger>
+                            <MultiTrigger.Conditions>
+                                <Condition Property="IsMouseOver" Value="True" />
+                                <Condition Property="IsEnabled" Value="True" />
+                            </MultiTrigger.Conditions>
+                            <MultiTrigger.EnterActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="FondoHover" Storyboard.TargetProperty="Opacity"
+                                                         To="1" Duration="{StaticResource DuracionHover}"
+                                                         EasingFunction="{StaticResource SuavizadoSalida}" />
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </MultiTrigger.EnterActions>
+                            <MultiTrigger.ExitActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="FondoHover" Storyboard.TargetProperty="Opacity"
+                                                         To="0" Duration="{StaticResource DuracionHover}"
+                                                         EasingFunction="{StaticResource SuavizadoSalida}" />
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </MultiTrigger.ExitActions>
+                        </MultiTrigger>
+                        <MultiTrigger>
+                            <MultiTrigger.Conditions>
+                                <Condition Property="IsPressed" Value="True" />
+                                <Condition Property="IsEnabled" Value="True" />
+                            </MultiTrigger.Conditions>
+                            <MultiTrigger.EnterActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="Escala" Storyboard.TargetProperty="ScaleX"
+                                                         To="0.97" Duration="{StaticResource DuracionPresion}"
+                                                         EasingFunction="{StaticResource SuavizadoSalida}" />
+                                        <DoubleAnimation Storyboard.TargetName="Escala" Storyboard.TargetProperty="ScaleY"
+                                                         To="0.97" Duration="{StaticResource DuracionPresion}"
+                                                         EasingFunction="{StaticResource SuavizadoSalida}" />
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </MultiTrigger.EnterActions>
+                            <MultiTrigger.ExitActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="Escala" Storyboard.TargetProperty="ScaleX"
+                                                         To="1" Duration="{StaticResource DuracionPresion}"
+                                                         EasingFunction="{StaticResource SuavizadoSalida}" />
+                                        <DoubleAnimation Storyboard.TargetName="Escala" Storyboard.TargetProperty="ScaleY"
+                                                         To="1" Duration="{StaticResource DuracionPresion}"
+                                                         EasingFunction="{StaticResource SuavizadoSalida}" />
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </MultiTrigger.ExitActions>
+                        </MultiTrigger>
                         <Trigger Property="IsKeyboardFocused" Value="True">
                             <Setter TargetName="Fondo" Property="BorderBrush" Value="{DynamicResource PincelMarca}" />
                         </Trigger>
@@ -238,19 +374,80 @@
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="RadioButton">
-                    <Border x:Name="Fondo"
-                            Background="{DynamicResource PincelTarjeta}"
-                            BorderBrush="{DynamicResource PincelBorde}"
-                            BorderThickness="1"
-                            CornerRadius="{DynamicResource RadioCampo}"
-                            Padding="{TemplateBinding Padding}">
-                        <ContentPresenter />
-                    </Border>
+                    <Grid x:Name="Raiz" RenderTransformOrigin="0.5,0.5">
+                        <Grid.RenderTransform>
+                            <ScaleTransform x:Name="Escala" ScaleX="1" ScaleY="1" />
+                        </Grid.RenderTransform>
+                        <Border x:Name="Fondo"
+                                Background="{DynamicResource PincelTarjeta}"
+                                BorderBrush="{DynamicResource PincelBorde}"
+                                BorderThickness="1"
+                                CornerRadius="{DynamicResource RadioCampo}"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter />
+                        </Border>
+                        <Border x:Name="FondoHover" Background="{DynamicResource PincelTarjetaHover}"
+                                CornerRadius="{DynamicResource RadioCampo}" Opacity="0"
+                                IsHitTestVisible="False" />
+                    </Grid>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="Fondo" Property="Background" Value="{DynamicResource PincelTarjetaHover}" />
                             <Setter TargetName="Fondo" Property="BorderBrush" Value="{DynamicResource PincelBordeFuerte}" />
                         </Trigger>
+                        <MultiTrigger>
+                            <MultiTrigger.Conditions>
+                                <Condition Property="IsMouseOver" Value="True" />
+                                <Condition Property="IsEnabled" Value="True" />
+                            </MultiTrigger.Conditions>
+                            <MultiTrigger.EnterActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="FondoHover" Storyboard.TargetProperty="Opacity"
+                                                         To="1" Duration="{StaticResource DuracionHover}"
+                                                         EasingFunction="{StaticResource SuavizadoSalida}" />
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </MultiTrigger.EnterActions>
+                            <MultiTrigger.ExitActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="FondoHover" Storyboard.TargetProperty="Opacity"
+                                                         To="0" Duration="{StaticResource DuracionHover}"
+                                                         EasingFunction="{StaticResource SuavizadoSalida}" />
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </MultiTrigger.ExitActions>
+                        </MultiTrigger>
+                        <MultiTrigger>
+                            <MultiTrigger.Conditions>
+                                <Condition Property="IsPressed" Value="True" />
+                                <Condition Property="IsEnabled" Value="True" />
+                            </MultiTrigger.Conditions>
+                            <MultiTrigger.EnterActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="Escala" Storyboard.TargetProperty="ScaleX"
+                                                         To="0.97" Duration="{StaticResource DuracionPresion}"
+                                                         EasingFunction="{StaticResource SuavizadoSalida}" />
+                                        <DoubleAnimation Storyboard.TargetName="Escala" Storyboard.TargetProperty="ScaleY"
+                                                         To="0.97" Duration="{StaticResource DuracionPresion}"
+                                                         EasingFunction="{StaticResource SuavizadoSalida}" />
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </MultiTrigger.EnterActions>
+                            <MultiTrigger.ExitActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="Escala" Storyboard.TargetProperty="ScaleX"
+                                                         To="1" Duration="{StaticResource DuracionPresion}"
+                                                         EasingFunction="{StaticResource SuavizadoSalida}" />
+                                        <DoubleAnimation Storyboard.TargetName="Escala" Storyboard.TargetProperty="ScaleY"
+                                                         To="1" Duration="{StaticResource DuracionPresion}"
+                                                         EasingFunction="{StaticResource SuavizadoSalida}" />
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </MultiTrigger.ExitActions>
+                        </MultiTrigger>
                         <Trigger Property="IsChecked" Value="True">
                             <Setter TargetName="Fondo" Property="Background" Value="{DynamicResource PincelMarcaSuave}" />
                             <Setter TargetName="Fondo" Property="BorderBrush" Value="{DynamicResource PincelMarca}" />
@@ -276,9 +473,15 @@
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="Button">
-                    <Grid>
+                    <Grid x:Name="Raiz" RenderTransformOrigin="0.5,0.5">
+                        <Grid.RenderTransform>
+                            <ScaleTransform x:Name="Escala" ScaleX="1" ScaleY="1" />
+                        </Grid.RenderTransform>
                         <Border x:Name="Fondo" Background="{DynamicResource PincelSuperficie}"
                                 CornerRadius="{DynamicResource RadioTarjeta}" />
+                        <Border x:Name="FondoHover" Background="{DynamicResource PincelMarcaSuave}"
+                                CornerRadius="{DynamicResource RadioTarjeta}" Opacity="0"
+                                IsHitTestVisible="False" />
                         <!-- El trazo discontinuo es la senial universal de "solta algo aca". -->
                         <Rectangle x:Name="Trazo" RadiusX="14" RadiusY="14"
                                    StrokeDashArray="5 4" StrokeThickness="1.5"
@@ -287,9 +490,62 @@
                     </Grid>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="Fondo" Property="Background" Value="{DynamicResource PincelMarcaSuave}" />
                             <Setter TargetName="Trazo" Property="Stroke" Value="{DynamicResource PincelMarca}" />
                         </Trigger>
+                        <MultiTrigger>
+                            <MultiTrigger.Conditions>
+                                <Condition Property="IsMouseOver" Value="True" />
+                                <Condition Property="IsEnabled" Value="True" />
+                            </MultiTrigger.Conditions>
+                            <MultiTrigger.EnterActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="FondoHover" Storyboard.TargetProperty="Opacity"
+                                                         To="1" Duration="{StaticResource DuracionHover}"
+                                                         EasingFunction="{StaticResource SuavizadoSalida}" />
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </MultiTrigger.EnterActions>
+                            <MultiTrigger.ExitActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="FondoHover" Storyboard.TargetProperty="Opacity"
+                                                         To="0" Duration="{StaticResource DuracionHover}"
+                                                         EasingFunction="{StaticResource SuavizadoSalida}" />
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </MultiTrigger.ExitActions>
+                        </MultiTrigger>
+                        <MultiTrigger>
+                            <MultiTrigger.Conditions>
+                                <Condition Property="IsPressed" Value="True" />
+                                <Condition Property="IsEnabled" Value="True" />
+                            </MultiTrigger.Conditions>
+                            <MultiTrigger.EnterActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="Escala" Storyboard.TargetProperty="ScaleX"
+                                                         To="0.97" Duration="{StaticResource DuracionPresion}"
+                                                         EasingFunction="{StaticResource SuavizadoSalida}" />
+                                        <DoubleAnimation Storyboard.TargetName="Escala" Storyboard.TargetProperty="ScaleY"
+                                                         To="0.97" Duration="{StaticResource DuracionPresion}"
+                                                         EasingFunction="{StaticResource SuavizadoSalida}" />
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </MultiTrigger.EnterActions>
+                            <MultiTrigger.ExitActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="Escala" Storyboard.TargetProperty="ScaleX"
+                                                         To="1" Duration="{StaticResource DuracionPresion}"
+                                                         EasingFunction="{StaticResource SuavizadoSalida}" />
+                                        <DoubleAnimation Storyboard.TargetName="Escala" Storyboard.TargetProperty="ScaleY"
+                                                         To="1" Duration="{StaticResource DuracionPresion}"
+                                                         EasingFunction="{StaticResource SuavizadoSalida}" />
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </MultiTrigger.ExitActions>
+                        </MultiTrigger>
                         <Trigger Property="IsKeyboardFocused" Value="True">
                             <Setter TargetName="Trazo" Property="Stroke" Value="{DynamicResource PincelMarca}" />
                             <Setter TargetName="Trazo" Property="StrokeThickness" Value="2.5" />
@@ -314,11 +570,17 @@
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="RadioButton">
-                    <Grid>
+                    <Grid x:Name="Raiz" RenderTransformOrigin="0.5,0.5">
+                        <Grid.RenderTransform>
+                            <ScaleTransform x:Name="Escala" ScaleX="1" ScaleY="1" />
+                        </Grid.RenderTransform>
                         <Border x:Name="Fondo" Background="Transparent" CornerRadius="{DynamicResource RadioCampo}"
                                 Padding="{TemplateBinding Padding}">
                             <ContentPresenter VerticalAlignment="Center" />
                         </Border>
+                        <Border x:Name="FondoHover" Background="{DynamicResource PincelTarjetaHover}"
+                                CornerRadius="{DynamicResource RadioCampo}" Opacity="0"
+                                IsHitTestVisible="False" />
                         <!-- Marcador de pagina activa: barra a la izquierda. Es la unica
                              pista posicional del shell, por eso no se pinta en hover. -->
                         <Border x:Name="Marca" Width="3" Height="18" HorizontalAlignment="Left"
@@ -326,9 +588,60 @@
                                 Visibility="Collapsed" />
                     </Grid>
                     <ControlTemplate.Triggers>
-                        <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="Fondo" Property="Background" Value="{DynamicResource PincelTarjetaHover}" />
-                        </Trigger>
+                        <MultiTrigger>
+                            <MultiTrigger.Conditions>
+                                <Condition Property="IsMouseOver" Value="True" />
+                                <Condition Property="IsEnabled" Value="True" />
+                            </MultiTrigger.Conditions>
+                            <MultiTrigger.EnterActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="FondoHover" Storyboard.TargetProperty="Opacity"
+                                                         To="1" Duration="{StaticResource DuracionHover}"
+                                                         EasingFunction="{StaticResource SuavizadoSalida}" />
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </MultiTrigger.EnterActions>
+                            <MultiTrigger.ExitActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="FondoHover" Storyboard.TargetProperty="Opacity"
+                                                         To="0" Duration="{StaticResource DuracionHover}"
+                                                         EasingFunction="{StaticResource SuavizadoSalida}" />
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </MultiTrigger.ExitActions>
+                        </MultiTrigger>
+                        <MultiTrigger>
+                            <MultiTrigger.Conditions>
+                                <Condition Property="IsPressed" Value="True" />
+                                <Condition Property="IsEnabled" Value="True" />
+                            </MultiTrigger.Conditions>
+                            <MultiTrigger.EnterActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="Escala" Storyboard.TargetProperty="ScaleX"
+                                                         To="0.97" Duration="{StaticResource DuracionPresion}"
+                                                         EasingFunction="{StaticResource SuavizadoSalida}" />
+                                        <DoubleAnimation Storyboard.TargetName="Escala" Storyboard.TargetProperty="ScaleY"
+                                                         To="0.97" Duration="{StaticResource DuracionPresion}"
+                                                         EasingFunction="{StaticResource SuavizadoSalida}" />
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </MultiTrigger.EnterActions>
+                            <MultiTrigger.ExitActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="Escala" Storyboard.TargetProperty="ScaleX"
+                                                         To="1" Duration="{StaticResource DuracionPresion}"
+                                                         EasingFunction="{StaticResource SuavizadoSalida}" />
+                                        <DoubleAnimation Storyboard.TargetName="Escala" Storyboard.TargetProperty="ScaleY"
+                                                         To="1" Duration="{StaticResource DuracionPresion}"
+                                                         EasingFunction="{StaticResource SuavizadoSalida}" />
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </MultiTrigger.ExitActions>
+                        </MultiTrigger>
                         <Trigger Property="IsChecked" Value="True">
                             <Setter TargetName="Fondo" Property="Background" Value="{DynamicResource PincelMarcaSuave}" />
                             <Setter TargetName="Marca" Property="Visibility" Value="Visible" />
@@ -354,19 +667,82 @@
         <Setter Property="Margin" Value="0,0,0,8" />
         <Setter Property="Padding" Value="0" />
         <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        <!-- ListBoxItem no tiene IsPressed nativo (a diferencia de los ButtonBase de los
+             otros 6 estilos de esta seccion); Presionable.cs lo suple con la misma
+             semantica para poder usarlo en un MultiTrigger igual que los demas. -->
+        <Setter Property="comportamientos:Presionable.Rastrear" Value="True" />
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="ListBoxItem">
-                    <Border x:Name="Fondo" Background="{DynamicResource PincelTarjeta}"
-                            BorderBrush="{DynamicResource PincelBorde}" BorderThickness="1"
-                            CornerRadius="{DynamicResource RadioCampo}" Padding="16,13"
-                            Cursor="Hand">
-                        <ContentPresenter />
-                    </Border>
+                    <Grid x:Name="Raiz" RenderTransformOrigin="0.5,0.5">
+                        <Grid.RenderTransform>
+                            <ScaleTransform x:Name="Escala" ScaleX="1" ScaleY="1" />
+                        </Grid.RenderTransform>
+                        <Border x:Name="Fondo" Background="{DynamicResource PincelTarjeta}"
+                                BorderBrush="{DynamicResource PincelBorde}" BorderThickness="1"
+                                CornerRadius="{DynamicResource RadioCampo}" Padding="16,13"
+                                Cursor="Hand">
+                            <ContentPresenter />
+                        </Border>
+                        <Border x:Name="FondoHover" Background="{DynamicResource PincelTarjetaHover}"
+                                CornerRadius="{DynamicResource RadioCampo}" Opacity="0"
+                                IsHitTestVisible="False" />
+                    </Grid>
                     <ControlTemplate.Triggers>
-                        <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="Fondo" Property="Background" Value="{DynamicResource PincelTarjetaHover}" />
-                        </Trigger>
+                        <MultiTrigger>
+                            <MultiTrigger.Conditions>
+                                <Condition Property="IsMouseOver" Value="True" />
+                                <Condition Property="IsEnabled" Value="True" />
+                            </MultiTrigger.Conditions>
+                            <MultiTrigger.EnterActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="FondoHover" Storyboard.TargetProperty="Opacity"
+                                                         To="1" Duration="{StaticResource DuracionHover}"
+                                                         EasingFunction="{StaticResource SuavizadoSalida}" />
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </MultiTrigger.EnterActions>
+                            <MultiTrigger.ExitActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="FondoHover" Storyboard.TargetProperty="Opacity"
+                                                         To="0" Duration="{StaticResource DuracionHover}"
+                                                         EasingFunction="{StaticResource SuavizadoSalida}" />
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </MultiTrigger.ExitActions>
+                        </MultiTrigger>
+                        <MultiTrigger>
+                            <MultiTrigger.Conditions>
+                                <Condition Property="comportamientos:Presionable.EstaPresionado" Value="True" />
+                                <Condition Property="IsEnabled" Value="True" />
+                            </MultiTrigger.Conditions>
+                            <MultiTrigger.EnterActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="Escala" Storyboard.TargetProperty="ScaleX"
+                                                         To="0.97" Duration="{StaticResource DuracionPresion}"
+                                                         EasingFunction="{StaticResource SuavizadoSalida}" />
+                                        <DoubleAnimation Storyboard.TargetName="Escala" Storyboard.TargetProperty="ScaleY"
+                                                         To="0.97" Duration="{StaticResource DuracionPresion}"
+                                                         EasingFunction="{StaticResource SuavizadoSalida}" />
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </MultiTrigger.EnterActions>
+                            <MultiTrigger.ExitActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="Escala" Storyboard.TargetProperty="ScaleX"
+                                                         To="1" Duration="{StaticResource DuracionPresion}"
+                                                         EasingFunction="{StaticResource SuavizadoSalida}" />
+                                        <DoubleAnimation Storyboard.TargetName="Escala" Storyboard.TargetProperty="ScaleY"
+                                                         To="1" Duration="{StaticResource DuracionPresion}"
+                                                         EasingFunction="{StaticResource SuavizadoSalida}" />
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </MultiTrigger.ExitActions>
+                        </MultiTrigger>
                         <Trigger Property="IsSelected" Value="True">
                             <Setter TargetName="Fondo" Property="Background" Value="{DynamicResource PincelMarcaSuave}" />
                             <Setter TargetName="Fondo" Property="BorderBrush" Value="{DynamicResource PincelMarca}" />
@@ -395,17 +771,77 @@
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="Button">
+                    <!-- El fondo real varia por pregunta (EstadoAPincel en ExamenView.xaml: sin
+                         responder/correcta/incorrecta/salteada), asi que a diferencia de los
+                         otros 6 estilos el hover no usa una capa overlay con un pincel fijo:
+                         anima la Opacity del propio "Fondo" (1 -> 0.75), que funciona igual de
+                         bien sobre cualquiera de esos colores y sigue sin tocar ningun Brush. -->
                     <Border x:Name="Fondo"
                             Background="{TemplateBinding Background}"
                             BorderBrush="{TemplateBinding BorderBrush}"
                             BorderThickness="{TemplateBinding BorderThickness}"
-                            CornerRadius="8">
+                            CornerRadius="8"
+                            RenderTransformOrigin="0.5,0.5">
+                        <Border.RenderTransform>
+                            <ScaleTransform x:Name="Escala" ScaleX="1" ScaleY="1" />
+                        </Border.RenderTransform>
                         <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
                     </Border>
                     <ControlTemplate.Triggers>
-                        <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="Fondo" Property="Opacity" Value="0.75" />
-                        </Trigger>
+                        <MultiTrigger>
+                            <MultiTrigger.Conditions>
+                                <Condition Property="IsMouseOver" Value="True" />
+                                <Condition Property="IsEnabled" Value="True" />
+                            </MultiTrigger.Conditions>
+                            <MultiTrigger.EnterActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="Fondo" Storyboard.TargetProperty="Opacity"
+                                                         To="0.75" Duration="{StaticResource DuracionHover}"
+                                                         EasingFunction="{StaticResource SuavizadoSalida}" />
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </MultiTrigger.EnterActions>
+                            <MultiTrigger.ExitActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="Fondo" Storyboard.TargetProperty="Opacity"
+                                                         To="1" Duration="{StaticResource DuracionHover}"
+                                                         EasingFunction="{StaticResource SuavizadoSalida}" />
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </MultiTrigger.ExitActions>
+                        </MultiTrigger>
+                        <MultiTrigger>
+                            <MultiTrigger.Conditions>
+                                <Condition Property="IsPressed" Value="True" />
+                                <Condition Property="IsEnabled" Value="True" />
+                            </MultiTrigger.Conditions>
+                            <MultiTrigger.EnterActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="Escala" Storyboard.TargetProperty="ScaleX"
+                                                         To="0.97" Duration="{StaticResource DuracionPresion}"
+                                                         EasingFunction="{StaticResource SuavizadoSalida}" />
+                                        <DoubleAnimation Storyboard.TargetName="Escala" Storyboard.TargetProperty="ScaleY"
+                                                         To="0.97" Duration="{StaticResource DuracionPresion}"
+                                                         EasingFunction="{StaticResource SuavizadoSalida}" />
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </MultiTrigger.EnterActions>
+                            <MultiTrigger.ExitActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="Escala" Storyboard.TargetProperty="ScaleX"
+                                                         To="1" Duration="{StaticResource DuracionPresion}"
+                                                         EasingFunction="{StaticResource SuavizadoSalida}" />
+                                        <DoubleAnimation Storyboard.TargetName="Escala" Storyboard.TargetProperty="ScaleY"
+                                                         To="1" Duration="{StaticResource DuracionPresion}"
+                                                         EasingFunction="{StaticResource SuavizadoSalida}" />
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </MultiTrigger.ExitActions>
+                        </MultiTrigger>
                         <Trigger Property="IsKeyboardFocused" Value="True">
                             <Setter TargetName="Fondo" Property="BorderBrush" Value="{DynamicResource PincelMarcaFuerte}" />
                         </Trigger>

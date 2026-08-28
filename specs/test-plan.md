@@ -64,3 +64,65 @@ en el repo (`AppConfig`, `JsonStore`, `SesionUsuarioService`, `RutasApp`) y solo
 símbolos nuevos (`AppConfig.TamanioTextoExamen`, `ExamenViewModel.PuntosPregunta/PuntosOpciones`)
 que son exactamente lo que falta implementar — ese es el "rojo" esperado de este módulo, no un
 bug de este archivo.
+
+## US-009 — Confiabilidad de generación con Gemini (`test-dev-generacion-gemini`)
+
+### Contrato real (verificado contra la implementación de `dev-generacion-gemini`)
+
+Contract-first sobre `specs/03-architecture.md` §4.1: al momento de escribir esta suite,
+`dev-generacion-gemini` ya había aterrizado en paralelo los dos campos nuevos de
+`DiagnosticoGeneracion` (`LotesTruncados`, `CuotaDiariaDetectada`), la consulta proactiva a
+`ListarModelosAsync` insertada en `GenerarPreguntasAsync` y las dos oraciones de
+`ArmarMensajeSinPreguntas` — verificado por lectura directa (`git diff`), no por suposición; los
+nombres, tipos y el texto exacto de las oraciones coinciden con el contrato ya cerrado en
+arquitectura, sin ajustes.
+
+`ArmarMensajeSinPreguntas` y `CalcularTopeTokens` siguen siendo `private static` (a propósito, ver
+"Restricción transversal de estilo" del tech-spec — no se sube su visibilidad solo para poder
+testearlas). Se invocan por reflection desde `GeminiApiServiceReflexion` en vez de pedirle al
+developer una interfaz/abstracción nueva.
+
+### Matriz de cobertura
+
+| AC / criterio | Caso | Nivel de test | Archivo |
+|---|---|---|---|
+| Contrato de `DiagnosticoGeneracion` | `Resumen()`/`Registrar()` (sin notas, una nota, varias, tope de 12, nota vacía/nula ignorada) — comportamiento ya existente, sin regresión | unit | `DiagnosticoGeneracionTests.cs` |
+| Contrato de `DiagnosticoGeneracion` (campos nuevos) | `LotesTruncados`/`CuotaDiariaDetectada` — default (`0`/`false`) y settable público | unit | `DiagnosticoGeneracionTests.cs` |
+| AC-T30 / NFR-27 | `CuotaDiariaDetectada=true` antepone la oración de cuota externa exacta | unit (reflection sobre método privado) | `GeminiApiServiceArmarMensajeSinPreguntasTests.cs` |
+| AC-T30 / NFR-27 | `LotesTruncados>0` sin cuota antepone la oración de techo de tokens exacta | unit | `GeminiApiServiceArmarMensajeSinPreguntasTests.cs` |
+| AC-T30 (edge, no obvio) | Cuota **y** truncado ocurren juntos → prioriza la oración de cuota, no concatena ni muestra la de truncado (arquitectura lo exige explícito: "cuota prioriza sobre truncado") | unit | `GeminiApiServiceArmarMensajeSinPreguntasTests.cs` |
+| AC-T30 (edge, no obvio) | Ninguna causa detectada → el encabezado genérico actual no cambia (no se antepone ninguna oración nueva) — evita que un futuro refactor rompa el mensaje "de siempre" | unit | `GeminiApiServiceArmarMensajeSinPreguntasTests.cs` |
+| — | El mensaje final sigue incluyendo modelo y `Resumen()` del diagnóstico tras el cambio | unit | `GeminiApiServiceArmarMensajeSinPreguntasTests.cs` |
+| NFR-24 | Sin techo cacheado, `CalcularTopeTokens` usa el default (8192) | unit | `GeminiApiServiceCalcularTopeTokensTests.cs` |
+| NFR-24 | Con techo cacheado (vía `ParsearListaModelos`, sin red) por debajo del máximo de la app, lo usa tal cual | unit | `GeminiApiServiceCalcularTopeTokensTests.cs` |
+| NFR-24 (edge, no obvio) | Techo cacheado por encima de 16384 (`TopeTokensMaximo`) topea ahí — un modelo nuevo con techo de 65536 no debe pedir "de más" | unit | `GeminiApiServiceCalcularTopeTokensTests.cs` |
+| NFR-28 (edge, no obvio) | Tope aprendido en caliente (`_topeTokensVigente`, más bajo que el techo del modelo) sigue ganando — simulado fijando el campo `static` por reflection, sin disparar el 400 real que lo produce | unit | `GeminiApiServiceCalcularTopeTokensTests.cs` |
+| NFR-28 | `ReiniciarAprendizajeDeSesion()` vuelve a dejar que gane el techo del modelo (ya no el tope aprendido) | unit | `GeminiApiServiceCalcularTopeTokensTests.cs` |
+
+### Fuera de alcance de esta suite (documentado, no forzado)
+
+- **AC-T27 / AC-T29 / AC-T31** (tasa de éxito real de un examen de 1 a 30 preguntas contra la API
+  real, reintento en vivo ante 429/truncado, repetibilidad entre corridas): el propio NFR-25 del
+  tech-spec acepta como alternativa válida "la API real o un doble que simule truncado/429 según
+  defina QA". `GeminiApiService.BaseUrl`/`SeparacionEntrePeticiones`/`EsperaBaseReintento` son
+  `public static` justo para habilitar ese doble (comentario del propio código: "settable solo
+  para que las pruebas..."), pero levantar un servidor local que reproduzca correctamente Files
+  API + `generateContent` con el `responseSchema` completo (para no ser un "mock frágil" que se
+  desincroniza del contrato real de Gemini) excede el alcance proporcional de este incremento.
+  Queda como corrida manual/QA contra la API real antes de firmar US-009 (ver
+  `specs/03-architecture.md`, Incremento 3, riesgo R-10, y sugerencia al final de ese documento).
+- **Verificación end-to-end del punto de inserción de la consulta proactiva** (que
+  `GenerarPreguntasAsync` efectivamente llame a `ListarModelosAsync` antes del primer lote, no
+  solo que `CalcularTopeTokens` use bien lo que ya está cacheado): mismo motivo que el punto
+  anterior — requiere el mismo doble HTTP. El wiring se revisó por lectura de código (`git diff`,
+  15 líneas, sin ramas ocultas) en vez de por test automatizado.
+- **NFR-25 (≥95% de éxito en 20 corridas)**: es una métrica estadística contra el modelo real de
+  Gemini, no una propiedad determinística de una función pura — no tiene un test xUnit equivalente
+  razonable; corresponde a QA con corridas reales documentadas.
+
+### Por qué no se duplica ArmarMensajeSinPreguntas contra el flujo completo de `GenerarPreguntasAsync`
+
+El método privado ya aísla toda la lógica de texto que exige AC-T30 (prioridad de causa, oraciones
+exactas, encabezado sin cambios). Probarlo también end-to-end (vía un doble HTTP que fuerce cuota
+o truncado real) solo repetiría el mismo aserto de texto pagando el costo de mantener un servidor
+falso — motivo por el que se dejó fuera de alcance arriba en vez de duplicarlo "por las dudas".

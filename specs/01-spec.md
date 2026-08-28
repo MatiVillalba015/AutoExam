@@ -1,143 +1,155 @@
-# 01 — Spec: Comodidad de interfaz + actualización automática por push
+# 01 — Spec: Confiabilidad de generación con Gemini + housekeeping de repo + rediseño visual (morado, más suave)
 
 ## Contexto de negocio
 
-AutoExam es una app de escritorio WPF (.NET 8, WPF-UI/Fluent) que ya tiene un sistema de
-auto-actualización funcionando (AutoUpdater.NET + `update.xml` + GitHub Releases) y un sistema
-visual propio (`Theme/Tokens.*`, `Theme/Estilos.xaml`) cuidado en detalle. El gap real no es que
-la actualización no exista, sino que publicarla hoy exige pasos manuales (compilar, subir el
-Release a mano en GitHub, correr `publicar.ps1 -Publicar`); y la interfaz, aunque prolija, tiene
-puntos de fricción concretos e identificables en el código actual. Este spec cubre ambos frentes
-sin tocar el stack.
+Incrementos 1 y 2 (US-001 a US-008) ya están implementados y firmados (`specs/uat-signoff.md`);
+este documento no los reabre. Incremento 3: el usuario reporta que generar un examen de hasta 30
+preguntas falla o "se satura" contra la API de Gemini antes de completarse; además quiere dejar el
+repositorio sin rastro de que un asistente de IA participó (antes de resubirlo a GitHub con su
+autoría exclusiva) y renovar la identidad visual del frontend hacia una paleta más suave y variada
+con el morado como color predominante. Son tres frentes independientes entre sí, agrupados en este
+incremento por venir en el mismo pedido.
 
 ## Historias de usuario
 
-**US-001 — Publicación automática de una versión nueva al pushear**
-Como desarrollador único de AutoExam, quiero que al pushear a `main` un cambio que suba
-`<Version>` en `AutoExam.csproj` se dispare solo todo lo que hoy hago a mano con `publicar.ps1`
-(compilar, empaquetar, publicar el Release en GitHub, verificar que el paquete descargue y
-actualizar `update.xml`), para que cualquier PC con AutoExam instalado reciba la versión nueva
-sin que yo suba nada a mano.
+**US-009 — Generar un examen de hasta 30 preguntas sin que falle por saturación**
+Como usuario que arma un examen para estudiar, quiero poder pedir un examen de hasta 30 preguntas
+y que se genere completo de forma confiable, para no toparme con que el proceso se corta o falla
+antes de entregarme las preguntas pedidas.
 
-**US-002 — Diálogos y avisos visualmente coherentes con el tema**
-Como usuario de AutoExam, quiero que las confirmaciones, avisos y errores de la app (salir con un
-examen sin terminar, error al iniciar, "ya estás al día", etc.) se vean con los mismos colores,
-tipografía y bordes redondeados que el resto de las pantallas, para no toparme con una ventana
-gris de Windows genérica en medio de una app con un tema claro/oscuro cuidado.
+**US-010 — Repositorio sin rastro de asistencia de IA antes de resubir a GitHub**
+Como único autor del proyecto, quiero que el repositorio que voy a resubir a GitHub no contenga
+archivos, configuración o metadata que dejen constancia de que un asistente de IA participó en su
+desarrollo, para que quede publicado como trabajo de mi autoría exclusiva.
 
-**US-003 — La ventana recuerda tamaño, posición y si estaba maximizada**
-Como usuario que abre AutoExam seguido, quiero que la ventana vuelva a aparecer con el mismo
-tamaño, posición y estado (maximizada o no) que tenía la última vez que la cerré, para no tener
-que reacomodarla cada vez que abro la app.
-
-**US-004 — Navegación por teclado entre las secciones principales**
-Como usuario, quiero poder moverme entre Libros, Nuevo examen, Examen, Historial y Ajustes con un
-atajo de teclado, para no depender solo del mouse en el riel lateral — igual que ya puedo navegar
-un examen en curso sin tocar el mouse.
-
-**US-005 — Tamaño de texto ajustable al rendir un examen**
-Como usuario que estudia con material de cientos de páginas y exámenes largos, quiero poder
-agrandar o achicar el texto de la pregunta y las opciones, para leer cómodo en sesiones largas sin
-depender del zoom general de Windows.
+**US-011 — Paleta visual más suave y variada, con el morado como color predominante**
+Como usuario de AutoExam, quiero que la interfaz se vea con colores más suaves (menos contraste
+duro) y una paleta más variada donde predomine el morado, en toda la aplicación y en ambos modos
+(claro/oscuro), para tener una experiencia visual más agradable que la actual.
 
 ## Criterios de aceptación
 
-**US-001**
-- Given un push a `main` donde `<Version>` del `.csproj` es mayor a la versión publicada en
-  `update.xml`, When el proceso de publicación corre, Then se compila en modo Release, se verifica
-  que la versión del binario compilado coincide con `<Version>`, se genera el paquete, se publica
-  un Release en GitHub con ese paquete y recién después se actualiza `update.xml` (versión, URL de
-  descarga y changelog) con commit y push automáticos a `main`.
-- Given que el paquete recién publicado no responde con descarga exitosa al verificarlo, When el
-  proceso de publicación lo detecta, Then no se toca `update.xml` y el proceso queda marcado como
-  fallido y visible para el desarrollador, exactamente igual que hoy hace `publicar.ps1 -Publicar`.
-- Given un push a `main` que no cambia `<Version>` (o la deja igual a la ya publicada), When el
-  proceso corre, Then no se crea ningún Release nuevo ni se modifica `update.xml`.
-- Given que la compilación falla o el binario compilado no coincide con `<Version>`, When el
-  proceso corre, Then no se publica ningún Release ni se toca `update.xml`, y el fallo queda
-  registrado de forma visible.
-- Given que el Release y `update.xml` ya se publicaron para una versión, When una PC con una
-  versión anterior abre AutoExam, Then el comportamiento de detección y descarga ya existente
-  (silenciosa al iniciar, con corte de bucle si el paquete resulta no coincidir con lo anunciado)
-  sigue funcionando sin cambios.
+**US-009**
+- Given que pido un examen de una cantidad de preguntas entre 1 y 30, When el sistema genera el
+  examen, Then recibo exactamente la cantidad de preguntas pedida, sin que el proceso termine en
+  error por saturación/límite de la API antes de completarlo.
+- Given que pido un examen de 30 preguntas, When el proceso está en curso, Then puedo ver que
+  avanza (no queda "colgado" ni sin ningún indicio de progreso) aunque tarde más que un examen
+  chico.
+- Given que la API de Gemini responde con un límite o error transitorio durante la generación
+  (cuota del minuto, respuesta cortada, etc.), When eso ocurre, Then el sistema reintenta o ajusta
+  el pedido automáticamente en vez de fallar de inmediato, y solo termina en error si, agotados los
+  reintentos razonables, de verdad no puede completar el examen.
+- Given que, agotados los reintentos razonables, el sistema no logra completar la cantidad pedida,
+  When falla, Then el mensaje que ve el usuario explica en términos entendibles por qué no se pudo
+  (no un error técnico críptico) y qué puede probar (cambiar de modelo, achicar el lote, etc.).
+- Given que ya tengo un examen de 30 preguntas generado con éxito una vez arreglado esto, When lo
+  repito en las mismas condiciones (mismo material, misma clave), Then vuelve a completarse sin
+  fallar por el mismo motivo — no es una mejora de una sola vez, es un comportamiento repetible.
 
-**US-002**
-- Given el tema oscuro o claro activo, When aparece cualquier confirmación, aviso o error de la
-  aplicación, Then el diálogo usa la paleta y tipografía del tema activo, igual que el resto de
-  las vistas, y no una ventana de sistema operativo con estilo distinto al de la app.
-- Given una acción irreversible (salir con examen sin terminar, borrar historial, quitar un libro),
-  When se pide confirmación, Then el usuario sigue teniendo que responder explícitamente antes de
-  que la acción se ejecute (no se automatiza ni se vuelve una notificación pasiva).
+**US-010**
+- Given el estado final del repositorio antes de resubir a GitHub, When se revisa el contenido
+  versionado, Then no queda ningún archivo de configuración, carpeta o metadata que identifique a
+  un asistente de IA como participante (por ejemplo carpetas de configuración de herramientas de
+  IA que hoy están sin trackear, como `.claude/`), salvo que sea necesario para el funcionamiento
+  o la trazabilidad histórica del proyecto (ver regla de negocio de "no vital" abajo).
+- Given el código fuente y los archivos de configuración que sí quedan en el repo, When se
+  inspeccionan comentarios y metadata editable, Then no contienen menciones a Claude ni a que un
+  asistente de IA generó o participó en ese archivo.
+- Given el historial de commits ya existente en la rama, When se resube el repositorio, Then ese
+  historial no se reescribe como parte de esta limpieza (ver "Fuera de alcance") — la limpieza
+  aplica al estado actual de archivos hacia adelante, no a commits pasados.
+- Given que se identifica un archivo con rastro de IA que sí es necesario para que la app compile,
+  corra o se publique, When se hace la limpieza, Then ese archivo no se borra ni se vacía — se le
+  quita únicamente la mención a la IA si la tiene, sin romper su función.
 
-**US-003**
-- Given que cierro AutoExam con la ventana en un tamaño, posición o estado (maximizada o no)
-  distinto al que trae por defecto, When vuelvo a abrir la app, Then la ventana aparece con ese
-  mismo tamaño, posición y estado.
-- Given que la posición guardada queda fuera del área visible actual (por ejemplo, se desconectó
-  un monitor), When abro la app, Then la ventana aparece centrada y completamente visible en la
-  pantalla principal en vez de fuera de vista.
-
-**US-004**
-- Given que estoy en cualquier sección de la app y el foco no está en un campo de texto, When
-  presiono el atajo de navegación correspondiente a una sección, Then la app cambia a esa sección
-  en el mismo orden en que aparece en el riel lateral (Libros, Nuevo examen, Examen, Historial,
-  Ajustes).
-- Given que estoy rindiendo un examen, When uso los atajos ya existentes del examen (1-4, A-D,
-  flechas, Enter, S), Then los nuevos atajos de navegación entre secciones no los interfieren ni
-  los reemplazan.
-- Given que el foco está en un campo de texto editable (por ejemplo el eje temático o una API Key),
-  When escribo, Then los atajos de navegación entre secciones no se disparan por error.
-
-**US-005**
-- Given que estoy rindiendo un examen, When elijo agrandar o achicar el texto, Then el tamaño de
-  la pregunta y de las opciones cambia en consecuencia sin romper el recorte ni obligar a scroll
-  horizontal.
-- Given que ajusté el tamaño de texto, When cierro y vuelvo a abrir AutoExam, Then la preferencia
-  se mantiene (no vuelve al tamaño por defecto en cada sesión).
+**US-011**
+- Given el tema claro y el tema oscuro de la aplicación, When se aplica la nueva paleta, Then en
+  ambos modos el morado es el color predominante de la identidad visual (acentos, elementos de
+  marca, estados activos/seleccionados), y los colores en general se perciben más suaves que la
+  paleta actual (menos contraste duro entre fondo y elementos).
+- Given cualquier pantalla de la aplicación (Libros, Nuevo examen, Examen, Historial, Ajustes,
+  diálogos), When se navega por ella con la paleta nueva, Then se ve consistente con el resto de
+  la app — no hay pantallas que quedaron con la paleta vieja y otras con la nueva.
+- Given la paleta nueva, When se usa la app para tareas normales (leer una pregunta, distinguir una
+  opción correcta de una incorrecta, leer un estado de error), Then el contraste sigue siendo
+  suficiente para leer cómodo — "más suave" no significa perder legibilidad.
+- Given que la app ya distingue estados con color (ej. correcto/incorrecto en la corrección de un
+  examen, error/aviso en diálogos), When se aplica la paleta nueva, Then esos estados se siguen
+  distinguiendo entre sí con claridad, aunque ahora convivan con más variedad de color en el resto
+  de la interfaz.
 
 ## Reglas de negocio
 
-- La versión que dispara una publicación es `<Version>` del `.csproj`; solo se publica si es mayor
-  a la ya anunciada en `update.xml` (nunca igual ni menor).
-- `update.xml` no se modifica hasta confirmar que el paquete recién publicado se puede descargar
-  (mismo criterio HTTP 200 que ya aplica `publicar.ps1 -Publicar` hoy).
-- El paquete publicado debe contener un binario cuya versión coincida exactamente con
-  `<Version>` — condición ya exigida a mano y que ahora pasa a exigirse en cada publicación
-  automática, sin excepción.
-- Un push que no sube `<Version>` es tratado como cambio de código normal: no genera Release ni
-  aviso de actualización para nadie.
-- El mecanismo de detección de bucle de actualización que ya existe en el cliente (dos intentos
-  antes de dejar de insistir con la misma versión) no se modifica ni se debilita.
+- "Hasta 30 preguntas" es el techo de este requerimiento: no se exige que exámenes de más de 30
+  preguntas funcionen sin fallas (aunque tampoco se prohíbe intentarlo); el compromiso de US-009
+  es sobre el rango 1-30.
+- Para US-010, se considera "no vital" (limpiable) todo archivo o metadata que: (a) no es
+  necesario para que la app compile, corra, se publique o se pueda operar/mantener, y (b) su único
+  propósito es dejar constancia de participación de una herramienta de IA (configuración de la
+  herramienta, comentarios que la mencionan, metadata de sesión). Se considera "vital" (no tocar)
+  todo lo que el proyecto necesita para funcionar aunque haya sido generado con ayuda de IA:
+  código de la aplicación, tests, workflows de CI/CD, scripts de publicación, specs técnicas ya
+  congeladas — a esos solo se les quita la mención a la IA si la tuvieran, nunca se borran.
+- El historial de commits ya empujado a `main` no se reescribe ni se fuerza-pushea como parte de
+  esta limpieza; "autoría exclusiva del usuario" en US-010 aplica al estado del código y archivos
+  al momento de resubir, no a una reescritura retroactiva del historial (ver "Fuera de alcance").
+- El morado predominante de US-011 se aplica sobre el mecanismo de tematizado ya existente de la
+  app (tokens de color intercambiables entre modo claro y oscuro); no se introduce una paleta que
+  solo funcione en uno de los dos modos.
+- Todo código nuevo que se escriba para resolver US-009, US-010 y US-011 sigue un lineamiento
+  transversal de estilo: simple y legible, sin abstracciones, capas ni patrones que no sean
+  imprescindibles para resolver el problema — el criterio de referencia es "como lo escribiría un
+  programador trainee". No es una historia de usuario en sí misma (no tiene criterio de aceptación
+  funcional propio) sino una restricción de calidad que aplica a las tres de arriba por igual.
 
 ## Fuera de alcance
 
-- Cambiar el stack tecnológico actual (.NET 8, WPF, WPF-UI, CommunityToolkit.Mvvm,
-  AutoUpdater.NET, PdfPig) o migrar a otro mecanismo de actualización.
-- Rediseñar la ventana propia de progreso/descarga que muestra AutoUpdater.NET: es interfaz de un
-  componente de terceros, no de WPF-UI; evaluar reemplazarla es una decisión de arquitectura aparte.
-- Publicar una versión nueva en cada push sin importar si `<Version>` cambió (rompería la
-  protección anti-bucle que la app ya tiene a propósito).
-- Empaquetar como instalador MSI/MSIX ni publicar en otros canales (Microsoft Store, Winget); se
-  mantiene la distribución actual como `.exe` portable dentro de un ZIP en GitHub Releases.
-- Sincronizar historial, configuración o progreso entre distintas PCs del mismo usuario: cada
-  instalación se actualiza sola, pero sigue siendo independiente en sus datos.
-- Traducción o soporte multi-idioma de la interfaz.
-- Cualquier cambio a la lógica de generación de exámenes, corrección UBA o extracción de PDF
-  (`GeminiApiService`, `EvaluadorUBA`, `PdfExtractorService`): no forman parte de este pedido.
+- Cambiar el stack tecnológico actual (.NET 8, WPF, WPF-UI, integración con la API de Gemini como
+  tal, mecanismo de actualización automática) — este incremento no reabre esas decisiones.
+- Exámenes de más de 30 preguntas: no forman parte del compromiso de confiabilidad de US-009.
+- Cambiar el motor de generación de exámenes por otro proveedor de IA distinto a Gemini.
+- Reescribir o purgar el historial de commits ya publicado (`git filter-branch`, `rebase` masivo,
+  force-push reescribiendo commits pasados): US-010 limpia el estado actual de archivos, no el
+  historial. Si el usuario quisiera además un historial limpio de raíz, es un pedido aparte y más
+  invasivo (reescribe hashes, rompe cualquier clon existente) que no fue pedido explícitamente acá.
+- Borrar o vaciar archivos vitales para el funcionamiento del proyecto en nombre de "sacar rastro
+  de IA" — ver regla de negocio de "vital vs. no vital".
+- Redefinir la navegación, estructura de pantallas o funcionalidad de la aplicación: US-011 es
+  estrictamente paleta de color (más suave, morado predominante), no un rediseño de layout,
+  iconografía o tipografía.
+- Migrar el mecanismo de tematizado a uno distinto del ya existente (tokens intercambiables
+  claro/oscuro): US-011 cambia los valores de color dentro de ese mecanismo, no lo reemplaza.
+- Animaciones o interacciones nuevas de interfaz: ya cubiertas en el incremento anterior
+  (US-007/US-008), no forman parte de este pedido.
 
 ## Supuestos
 
-- "Cada vez que hagas commit y push" se interpreta como el flujo normal de trabajo sobre `main`;
-  la publicación de una versión descargable solo se dispara cuando ese push incluye una suba real
-  de `<Version>`, igual que exige hoy el proceso manual — evita generar releases fantasma en cada
-  commit de código suelto.
-- El repositorio de GitHub (`MatiVillalba015/AutoExam`) admite ejecutar automatización propia del
-  repo (tipo GitHub Actions) con permiso para crear Releases en sí mismo; si esto no fuera así,
-  bloquea US-001 y hay que resolverlo antes de que analista-tecnico diseñe la solución.
-- Los atajos de teclado de navegación (US-004) no chocan con los que WPF-UI o Windows ya reservan
-  a nivel de sistema; la combinación exacta de teclas queda a criterio de diseño técnico.
+- "Se satura antes de generar un examen de 30 preguntas" se interpreta como: el proceso de
+  generación no logra completar de forma confiable la cantidad pedida dentro del rango 1-30,
+  ya sea por error explícito o por entregar un examen incompleto sin avisar con claridad por qué.
+  Si el síntoma real fuera otro (por ejemplo, un tope duro distinto en la configuración que impide
+  siquiera pedir 30), el analista/arquitecto técnico lo ajusta al relevar el estado real del
+  código, sin que eso cambie la intención de negocio de este US.
+- "Sacar rastro de Claude en los archivos" se interpreta como limpieza del estado actual del
+  repositorio (working tree a resubir), no como reescritura del historial de Git ya publicado —
+  ver regla de negocio y "Fuera de alcance". Si el usuario quisiera además el historial reescrito,
+  es una pregunta que sí bloquearía y debería confirmarse antes de ejecutar (acción irreversible
+  para cualquiera que ya haya clonado el repo).
+- "Como si lo programara un programador trainee" se toma como lineamiento de estilo de código
+  (simplicidad, legibilidad, sin sobre-ingeniería), no como una degradación deliberada de la
+  calidad funcional o de la robustez que pide US-009 — confiable y simple no son contradictorios
+  acá: se prioriza que ande bien con el mecanismo más simple posible, no el mecanismo más simple
+  a costa de que ande peor.
+- "Más variedad de colores, predominando el morado" se interpreta como una paleta con distintos
+  tonos/matices de morado (y algún color de apoyo) donde el morado es el que más se percibe, no
+  como una app monocromática ni como agregar colores sin relación entre sí.
 
 ## Preguntas abiertas
 
-Ninguna bloquea el arranque del trabajo técnico. Si el supuesto sobre permisos de automatización
-en el repo de GitHub resultara falso, esa sí sería la única pregunta que bloquearía US-001.
+Ninguna bloquea el arranque del trabajo técnico. Un solo punto queda señalado, no bloqueante: si
+al analizar el código el equipo técnico encuentra que el síntoma de US-009 tiene un componente que
+excede lo que la app controla (por ejemplo, un límite de cuota de la cuenta/clave de Gemini del
+usuario, no de la app), eso se documenta como limitación externa en la spec técnica en vez de
+tratarse como bug de la app — no bloquea este spec, pero sí puede acotar qué tan "confiable" puede
+llegar a ser el resultado.

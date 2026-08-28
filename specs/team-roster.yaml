@@ -105,6 +105,226 @@ equipo:
       AppConfig.TamanioTextoExamen entre reinicios (AC-T14), ausencia de scroll horizontal
       es responsabilidad de qa (visual, fuera de alcance de test-developer).
 
+  # ---------------------------------------------------------------------------
+  # Incremento 2 (US-006 a US-008) — deriva de specs/03-architecture.md,
+  # sección "Incremento 2". US-001 a US-005 ya cerradas arriba, no se reabren.
+  # Dos frentes sin archivos en común, 100% paralelizables entre sí:
+  # "versionado" (US-006, devops) y "animaciones de shell" (US-007+US-008,
+  # developer). No se separan US-007/US-008 en dos developers a propósito:
+  # ambas tocan Theme/Estilos.xaml (ver §4 de la arquitectura, incremento 2).
+  # ---------------------------------------------------------------------------
+
+  - id: devops-verificacion-version
+    rol_base: devops
+    modulo: US-006 — Chequeo local de versión (script) + ajuste puntual de publish.yml para no duplicar lógica
+    stack_context: >
+      PowerShell 7 (pwsh, mismo lenguaje que ya usa publish.yml), sin librerías nuevas;
+      script Verificar-Version.ps1 en la raíz del repo junto a publicar.ps1; edición de
+      un único step existente de .github/workflows/publish.yml (reemplaza el bloque
+      inline por una invocación al script con -EmitGithubOutput, mismo id/outputs).
+    contrato_referencia: >
+      specs/03-architecture.md (Incremento 2) §3.1 (contrato exacto de
+      Verificar-Version.ps1: parámetros, mensajes de consola, códigos de salida 0/1/2,
+      outputs con -EmitGithubOutput) y §3.2 (ajuste al step "Comparar version del
+      proyecto vs. update.xml"); specs/02-tech-spec.md Incremento 2, "Decisiones de
+      diseño" (US-006).
+    notas: >
+      No bloqueado por R-1 del incremento 1 (permisos del repo) — este script no publica
+      ni hace push, corre 100% local/CI sin red. Coordina con
+      test-dev-verificacion-version (contract-first sobre el formato de mensajes/exit
+      codes, ya cerrado en el contrato referenciado).
+
+  - id: test-dev-verificacion-version
+    rol_base: test-developer
+    modulo: US-006
+    stack_context: >
+      xUnit, proyecto AutoExam.Tests ya existente (no se crea uno nuevo ni se suma
+      Pester — ver specs/03-architecture.md Incremento 2 §1.1); invocación de
+      Verificar-Version.ps1 como proceso hijo (System.Diagnostics.Process) contra
+      pares de AutoExam.csproj/update.xml de fixture en un directorio temporal por
+      test, aserciones sobre stdout exacto y exit code.
+    contrato_referencia: >
+      specs/03-architecture.md (Incremento 2) §3.1; specs/02-tech-spec.md Incremento 2
+      AC-T15/AC-T16/AC-T17/AC-T18, NFR-14/NFR-15/NFR-16.
+    notas: Arranca junto con devops-verificacion-version, contract-first sobre el formato de mensaje/exit code ya cerrado en §3.1 — no necesita esperar a que el script esté terminado para empezar a escribir los tests.
+
+  - id: dev-animaciones-shell
+    rol_base: developer
+    modulo: US-007 + US-008 — Transición de sección y feedback de hover/presión (mismo owner: ambas tocan Theme/Estilos.xaml, ver §4 de la arquitectura del incremento 2)
+    stack_context: >
+      .NET 8 / WPF nativo, sin librerías de comportamientos de terceros
+      (Microsoft.Xaml.Behaviors descartado por el tech-spec); DependencyPropertyDescriptor
+      sobre ContentControl.Content (AutoExam/Behaviors/TransicionContenido.cs, ya existe,
+      requiere completarse según tech-spec Incremento 2 "Decisiones de diseño" US-007);
+      Trigger.EnterActions/ExitActions + Storyboard (no VisualStateManager) sobre los 7
+      ControlTemplate de AutoExam/Theme/Estilos.xaml (Chip, ChipAccion, OpcionExamen,
+      BaldosaPregunta, ItemNavegacion, ItemLibro, ZonaSoltar), reusando
+      DuracionHover/DuracionPresion/SuavizadoSalida ya declarados.
+    contrato_referencia: >
+      specs/03-architecture.md (Incremento 2) §3.3/§3.4; specs/02-tech-spec.md Incremento 2
+      "Decisiones de diseño" (US-007 y US-008: mecanismo de overlay hover/ScaleTransform
+      press, MultiTrigger de IsEnabled, restricción dura de no animar Brush/Color directo
+      — NFR-23).
+    notas: >
+      No requiere tocar MainWindow.xaml (wiring de US-007 ya completo). No se paraleliza
+      en dos instancias a propósito: separar US-007 de US-008 en dos developers generaría
+      edición concurrente de Theme/Estilos.xaml sin bajar tiempo real — mismo criterio que
+      el incremento 1 aplicó a MainWindow.xaml (US-003+US-004).
+
+  - id: test-dev-animaciones-shell
+    rol_base: test-developer
+    modulo: US-007 + US-008
+    stack_context: >
+      xUnit, proyecto AutoExam.Tests (compartido); tests estructurales sobre el XAML de
+      Theme/Estilos.xaml y MainWindow.xaml (parseo con System.Xml.Linq, sin runtime WPF
+      headless) — verificables sin levantar ventana.
+    contrato_referencia: >
+      specs/02-tech-spec.md Incremento 2, AC-T19 a AC-T26, NFR-17 a NFR-23. Cobertura
+      automatizable: AC-T22 (ningún ContentControl de Views/ExamenView.xaml usa
+      TransicionContenido.Activa — verificación estructural), NFR-20/NFR-21 (los 7
+      templates referencian {DynamicResource DuracionHover}/{DynamicResource
+      DuracionPresion}, 0 valores hardcodeados), NFR-22 (guardia IsEnabled=True presente
+      en los 7 MultiTrigger de hover/press), NFR-23 (0 ColorAnimation/BrushAnimation sobre
+      Background/Fill/Stroke en los templates tocados). AC-T19/AC-T21/AC-T23/AC-T24
+      (duración real percibida, ausencia de superposición en navegación rápida) quedan
+      fuera de lo automatizable por xUnit — ver riesgo R-8 y sugerencia de QA manual en
+      specs/03-architecture.md (Incremento 2) §5.
+    notas: Arranca junto con dev-animaciones-shell, contract-first sobre los nombres de recursos y la guardia MultiTrigger ya cerrados en el tech-spec.
+
+  # ---------------------------------------------------------------------------
+  # Incremento 3 (US-009 a US-011) — deriva de specs/03-architecture.md,
+  # sección "Incremento 3". Tres frentes SIN archivos en común entre sí
+  # (GeminiApiService.cs / .gitignore+árbol / Tokens.*.xaml), 100%
+  # paralelizables entre sí — a diferencia de los incrementos 1 y 2, ninguno
+  # comparte owner por archivo compartido dentro de este incremento.
+  # ---------------------------------------------------------------------------
+
+  - id: dev-generacion-gemini
+    rol_base: developer
+    modulo: US-009 — Confiabilidad de generación con Gemini (techo de tokens proactivo + mensaje que distingue causa)
+    stack_context: >
+      .NET 8, System.Net.Http/System.Text.Json ya usados por GeminiApiService.cs (sin
+      librerías nuevas); único archivo tocado: AutoExam/Services/GeminiApiService.cs
+      (GenerarPreguntasAsync, DiagnosticoGeneracion, ArmarMensajeSinPreguntas). No se toca
+      lotes adaptativos, rotación de claves, backoff ni semáforo de turno (restricción
+      dura del tech-spec). Estilo trainee: extender métodos/campos existentes, sin
+      interfaces/factories/patrones nuevos.
+    contrato_referencia: >
+      specs/03-architecture.md (Incremento 3) §3 y §4.1 — punto de inserción exacto de la
+      consulta proactiva a ListarModelosAsync (tras ArmarAnillo, antes de
+      SubirPdfSiConvieneAsync), snippet de código, y los dos campos nuevos de
+      DiagnosticoGeneracion (LotesTruncados, CuotaDiariaDetectada) con las oraciones
+      exactas que consume ArmarMensajeSinPreguntas; specs/02-tech-spec.md Incremento 3
+      AC-T27 a AC-T31, NFR-24 a NFR-28.
+    notas: >
+      No persiste el aprendizaje entre sesiones en este incremento (decisión §1.1 de la
+      arquitectura — mejora opcional descartada por costo/beneficio, no bloqueante).
+      IProgress<string> ya está cableado en AsistenteViewModel.cs, no requiere cambios.
+
+  - id: test-dev-generacion-gemini
+    rol_base: test-developer
+    modulo: US-009
+    stack_context: >
+      xUnit, proyecto AutoExam.Tests (compartido); tests unitarios sobre
+      DiagnosticoGeneracion (campos nuevos, Resumen()) y sobre la lógica pura de
+      ArmarMensajeSinPreguntas/CalcularTopeTokens sin llamar a la API real de Gemini
+      (dobles/valores directos sobre los campos static existentes, mismo patrón que
+      permitió el comentario original "Existe para las pruebas, porque son campos
+      estaticos").
+    contrato_referencia: >
+      specs/03-architecture.md (Incremento 3) §4.1; specs/02-tech-spec.md Incremento 3
+      AC-T27 a AC-T31. AC-T27/AC-T29/AC-T31 (tasa de éxito real de 30 preguntas,
+      repetibilidad) requieren corridas contra la API real o un doble que simule
+      truncado/429 — a definir con QA si el doble se arma en este incremento o se deja
+      como prueba manual (ver riesgo NFR-25 del tech-spec, no resuelto por xUnit puro).
+    notas: Arranca junto con dev-generacion-gemini, contract-first sobre los nombres de los dos campos nuevos de DiagnosticoGeneracion.
+
+  - id: devops-housekeeping-repo
+    rol_base: devops
+    modulo: US-010 — Housekeeping de repo (gitignore + auditoría de menciones a IA)
+    stack_context: >
+      Git/PowerShell, sin dependencias nuevas; corrige la línea corrupta de .gitignore
+      (raíz del repo) agrupándola junto a la entrada .agents/ ya existente; ejecuta
+      búsqueda de texto (git grep -i -e claude -e anthropic o equivalente) sobre el árbol
+      completo trackeado y no trackeado, excluyendo .git/, bin/, obj/,
+      AutoExam/publish/, release/. No toca historial de commits (restricción dura).
+    contrato_referencia: >
+      specs/03-architecture.md (Incremento 3) §3 y §4.2 (línea exacta de reemplazo en
+      .gitignore, criterio de verificación git check-ignore/git status --porcelain);
+      specs/02-tech-spec.md Incremento 3, tabla "US-010 — checklist vital vs. no vital"
+      (Decisiones de diseño) — no se reinterpreta acá; AC-T32 a AC-T35, NFR-29/NFR-30/NFR-31.
+    notas: >
+      R-11 (arquitectura): debe repetir la búsqueda de texto con herramienta real como
+      primer paso, documentando el conteo "antes" (ver sugerencia final de la
+      arquitectura, Incremento 3). Cualquier archivo vital con mención a IA se edita para
+      quitar solo la mención, nunca se borra ni se vacía.
+
+  - id: test-dev-housekeeping-repo
+    rol_base: test-developer
+    modulo: US-010
+    stack_context: >
+      xUnit, proyecto AutoExam.Tests (compartido); invocación de `git check-ignore -v
+      .claude` y `git status --porcelain` como proceso hijo (mismo patrón que
+      test-dev-verificacion-version del incremento 2) para verificar NFR-30 de forma
+      repetible; dotnet build/dotnet test como gate de NFR-31 ya lo cubre el pipeline
+      existente (incremento 1), no se duplica acá.
+    contrato_referencia: >
+      specs/03-architecture.md (Incremento 3) §4.2; specs/02-tech-spec.md Incremento 3
+      AC-T32/AC-T35, NFR-29/NFR-30. AC-T33 (0 resultados de búsqueda de texto amplia)
+      queda a cargo de devops-housekeeping-repo, no es un test automatizado permanente en
+      CI — es un paso de verificación puntual antes de cerrar la US.
+    notas: Arranca junto con devops-housekeeping-repo, sobre el contrato de .gitignore ya cerrado en §4.2.
+
+  - id: dev-paleta-morada
+    rol_base: developer
+    modulo: US-011 — Rediseño visual morado/suave (superficie/borde + contraste)
+    stack_context: >
+      .NET 8 / WPF, XAML puro; único archivo tocado por diseñador: valores Color de
+      AutoExam/Theme/Tokens.Claro.xaml y AutoExam/Theme/Tokens.Oscuro.xaml (20 claves
+      existentes, mismos nombres, sin agregar claves nuevas — decisión §1.2 de la
+      arquitectura); no toca Theme/Estilos.xaml ni TemaService.Aplicar; no mueve el matiz
+      de PincelAcierto*/PincelError*/PincelPendiente* hacia el violeta.
+    contrato_referencia: >
+      specs/03-architecture.md (Incremento 3) §4.3 — tabla de pares de contraste a
+      cumplir (NFR-32/NFR-33/NFR-34), restricción dura de no mover el hue semántico;
+      specs/02-tech-spec.md Incremento 3, "Decisiones de diseño" US-011, AC-T36 a AC-T39.
+    notas: >
+      Re-tonaliza las 6 claves de superficie/borde existentes (Fondo, Superficie, Tarjeta,
+      TarjetaHover, Borde, BordeFuerte) hacia un gris con temperatura violeta sutil, en
+      ambos diccionarios en paralelo (mismo developer, ver §5 de la arquitectura — evita
+      desincronizar NFR-35). Itera valores hasta que el test de contraste de
+      test-dev-paleta-morada pase.
+
+  - id: test-dev-paleta-morada
+    rol_base: test-developer
+    modulo: US-011
+    stack_context: >
+      xUnit, proyecto AutoExam.Tests (compartido); parseo de Tokens.Claro.xaml/
+      Tokens.Oscuro.xaml con System.Xml.Linq (mismo enfoque que test-dev-animaciones-shell
+      del incremento 2 para XAML estructural, sin runtime WPF); función pura de contraste
+      WCAG 2.1 (luminancia relativa) escrita en el propio proyecto de test, sin librería
+      nueva.
+    contrato_referencia: >
+      specs/03-architecture.md (Incremento 3) §4.3 — tabla exacta de pares y umbrales a
+      testear (NFR-32/NFR-33/NFR-34/NFR-35), restricción de hue semántico (AC-T39);
+      specs/02-tech-spec.md Incremento 3 AC-T36 a AC-T39.
+    notas: >
+      Este test es el gate objetivo de accesibilidad de US-011 — arranca junto con
+      dev-paleta-morada, contract-first sobre la tabla de pares (no necesita esperar los
+      valores finales de color para escribir la función de contraste y las aserciones).
+
 especialista_nuevo: []
-# Ninguno requerido: el alcance completo (US-001 a US-005) es WPF/.NET8 de escritorio +
-# pipeline de GitHub Actions, cubierto por developer/test-developer/devops genéricos.
+# Incremento 1 (US-001..005): ninguno requerido — WPF/.NET8 de escritorio + pipeline de
+# GitHub Actions, cubierto por el catálogo genérico.
+# Incremento 2 (US-006..008): tampoco. Evaluado explícitamente: US-006 es tooling
+# PowerShell/CI (mismo lenguaje que ya usa publish.yml, dentro de la expertise esperable
+# de un devops genérico); US-007/US-008 son WPF/XAML nativo sin librería nueva, mecanismo
+# ya cerrado por el tech-spec. Ninguno cae en las categorías que ameritan
+# especialista_nuevo (ML/Data Engineering, mobile nativo, embebido, blockchain,
+# integraciones regulatorias complejas).
+# Incremento 3 (US-009..011): tampoco. US-009 es C#/HTTP sobre un servicio ya existente,
+# sin tocar el mecanismo de reintentos (no requiere expertise de ML — no se entrena ni
+# ajusta ningún modelo, solo se consume un endpoint REST ya integrado); US-010 es
+# housekeeping de repo (git/PowerShell); US-011 es XAML/color, dentro de la expertise
+# esperable de un developer WPF genérico. Ninguno cae en las categorías que ameritan
+# especialista_nuevo.

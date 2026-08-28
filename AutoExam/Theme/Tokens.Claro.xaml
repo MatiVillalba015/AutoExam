@@ -7,13 +7,14 @@
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
-    <!-- Superficies -->
-    <SolidColorBrush x:Key="PincelFondo" Color="#F4F5F8" />
-    <SolidColorBrush x:Key="PincelSuperficie" Color="#FFFFFF" />
-    <SolidColorBrush x:Key="PincelTarjeta" Color="#FFFFFF" />
-    <SolidColorBrush x:Key="PincelTarjetaHover" Color="#F1F3F8" />
-    <SolidColorBrush x:Key="PincelBorde" Color="#E1E4EC" />
-    <SolidColorBrush x:Key="PincelBordeFuerte" Color="#C4CAD8" />
+    <!-- Superficies: gris con temperatura violeta sutil (mismo matiz que PincelMarca), para
+         que el morado predomine tambien fuera de los acentos -->
+    <SolidColorBrush x:Key="PincelFondo" Color="#E6E4EF" />
+    <SolidColorBrush x:Key="PincelSuperficie" Color="#F5F4F8" />
+    <SolidColorBrush x:Key="PincelTarjeta" Color="#FAFAFB" />
+    <SolidColorBrush x:Key="PincelTarjetaHover" Color="#DFDDEB" />
+    <SolidColorBrush x:Key="PincelBorde" Color="#CDCADD" />
+    <SolidColorBrush x:Key="PincelBordeFuerte" Color="#A5A0C5" />
 
     <!-- Texto -->
     <SolidColorBrush x:Key="PincelTexto" Color="#1A1D26" />
@@ -26,13 +27,18 @@
     <SolidColorBrush x:Key="PincelMarcaSuave" Color="#EEEAFB" />
     <SolidColorBrush x:Key="PincelSobreMarca" Color="#FFFFFF" />
 
-    <!-- Semantica de correccion: fija, nunca se reutiliza para decorar -->
-    <SolidColorBrush x:Key="PincelAcierto" Color="#12855A" />
+    <!-- Semantica de correccion: fija, nunca se reutiliza para decorar. Mismo matiz que antes
+         (verde/rojo/ambar, nunca corrido hacia el violeta) — solo se ajusto luminancia/
+         saturacion para que Acierto/Error/Pendiente se distingan entre si (NFR-33/AC-T39).
+         PincelPendienteSuave se oscurecio (dejo de ser un pastel casi blanco) porque Pendiente
+         necesita ser el mas claro de los tres para separarse de Acierto y Error; contra un
+         "Suave" casi blanco esa combinacion no llegaba a 3:1. -->
+    <SolidColorBrush x:Key="PincelAcierto" Color="#018453" />
     <SolidColorBrush x:Key="PincelAciertoSuave" Color="#E4F5EC" />
-    <SolidColorBrush x:Key="PincelError" Color="#C4373C" />
+    <SolidColorBrush x:Key="PincelError" Color="#570003" />
     <SolidColorBrush x:Key="PincelErrorSuave" Color="#FCEAEA" />
-    <SolidColorBrush x:Key="PincelPendiente" Color="#8A5D06" />
-    <SolidColorBrush x:Key="PincelPendienteSuave" Color="#FCF2DC" />
+    <SolidColorBrush x:Key="PincelPendiente" Color="#FFCA65" />
+    <SolidColorBrush x:Key="PincelPendienteSuave" Color="#88661D" />
 
     <!-- Sombra unica. Sobre papel tiene que ser apenas perceptible. -->
     <DropShadowEffect x:Key="SombraTarjeta" BlurRadius="18" ShadowDepth="2" Direction="270"

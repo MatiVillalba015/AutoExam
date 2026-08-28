@@ -32,6 +32,12 @@ public class DiagnosticoGeneracion
 
     public IReadOnlyList<string> Notas => _notas;
 
+    /// <summary>Cuantos lotes volvieron con la respuesta cortada por techo de tokens (MAX_TOKENS).</summary>
+    public int LotesTruncados { get; set; }
+
+    /// <summary>Se agoto la cuota diaria de alguna clave durante la generacion (limite externo, no de la app).</summary>
+    public bool CuotaDiariaDetectada { get; set; }
+
     public void Registrar(string nota)
     {
         if (!string.IsNullOrWhiteSpace(nota) && _notas.Count < 12)
@@ -548,6 +554,24 @@ public class GeminiApiService
             throw new GeminiException("No hay API Key configurada. Carga tu clave de Gemini en la pestania Ajustes.");
         }
 
+        // Consulta proactiva del techo de tokens del modelo, antes de gastar ninguna peticion
+        // de generateContent: sin esto el primer lote arranca con el default conservador
+        // (TopeTokensPorDefecto = 8192) aunque el modelo admita mucho mas, lo que aumenta la
+        // chance de truncado temprano. Si falla (red, clave sin permiso de ListModels) se
+        // sigue igual con el default: es una mejora del caso feliz, no un requisito nuevo.
+        if (TechoDeSalidaConocido(solicitud.Modelo) == 0)
+        {
+            try
+            {
+                await ListarModelosAsync(claves.Actual, ct).ConfigureAwait(false);
+            }
+            catch
+            {
+                // Sin techo conocido se sigue con el default conservador (TopeTokensPorDefecto).
+                // No bloquea el examen: es una mejora del caso feliz, no un requisito nuevo.
+            }
+        }
+
         // El PDF subido es material por si mismo: con el, un alcance sin texto extraible ya
         // no es un callejon sin salida, porque Gemini le lee las paginas del lado de Google.
         var pdfRemoto = await SubirPdfSiConvieneAsync(solicitud, claves, progreso, ct).ConfigureAwait(false);
@@ -691,12 +715,31 @@ public class GeminiApiService
                 lote--;
                 continue;
             }
+            catch (GeminiException ex) when (ex.EsCuotaDiaria)
+            {
+                // Se agoto la cuota diaria de todas las claves disponibles: seguir pidiendo
+                // lotes no la va a recuperar. Se corta aca, con lo que ya se junto, en vez de
+                // dejar que la excepcion se escape sin dejar rastro en el diagnostico.
+                diagnostico.CuotaDiariaDetectada = true;
+                diagnostico.Registrar($"Lote {lote + 1}: se agoto la cuota diaria de Gemini.");
+                RutasApp.RegistrarError($"GenerarLote {lote + 1} (cuota diaria)", ex);
+                progreso?.Report($"Se agoto la cuota diaria de Gemini. Se corta con {preguntas.Count} pregunta(s) generadas.");
+                break;
+            }
             catch (Exception ex) when (preguntas.Count > 0)
             {
                 // Con preguntas ya generadas se prefiere entregar un examen mas corto antes que fallar entero.
                 RutasApp.RegistrarError($"GenerarLote {lote + 1}", ex);
                 progreso?.Report($"El lote {lote + 1} fallo ({ex.Message}). Se continua con las preguntas obtenidas.");
                 break;
+            }
+
+            // Cuenta cada lote que llego cortado por el techo de tokens, sin importar si
+            // todavia se pudo achicar el lote o no: es lo que despues distingue en el mensaje
+            // final "se corto por cuota" de "se corto por truncado".
+            if (generadas.Truncado)
+            {
+                diagnostico.LotesTruncados++;
             }
 
             // La respuesta no entro en el cupo de salida. Insistir con el mismo tamanio de
@@ -1131,6 +1174,27 @@ public class GeminiApiService
     private static string ArmarMensajeSinPreguntas(SolicitudGeneracion solicitud, DiagnosticoGeneracion diagnostico)
     {
         var sb = new StringBuilder();
+
+        // La causa manda el encabezado: cuota diaria no se arregla reintentando (es un limite
+        // externo de la cuenta de Google), truncado si se arregla desde Ajustes (es techo de
+        // tokens, controlable por la app). Cuota prioriza sobre truncado si pasaron las dos.
+        if (diagnostico.CuotaDiariaDetectada)
+        {
+            sb.AppendLine(
+                "No se pudo completar el examen porque se agoto la cuota diaria de Gemini de tu " +
+                "clave — esto no se arregla reintentando en la app; cargá otra clave en Ajustes o " +
+                "esperá al día siguiente.");
+            sb.AppendLine();
+        }
+        else if (diagnostico.LotesTruncados > 0)
+        {
+            sb.AppendLine(
+                "No se pudo completar el examen porque varias respuestas de Gemini llegaron " +
+                "cortadas antes de terminar — bajar la cantidad de preguntas por peticion en " +
+                "Ajustes suele resolverlo.");
+            sb.AppendLine();
+        }
+
         sb.Append("Gemini no devolvio ninguna pregunta valida con el modelo \"")
           .Append(solicitud.Modelo)
           .AppendLine("\".");
