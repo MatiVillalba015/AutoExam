@@ -10,9 +10,10 @@ namespace AutoExam.Tests.Housekeeping;
 /// test-dev-housekeeping-repo.
 ///
 /// Alcance deliberado (contrato ya cerrado, no a criterio de este test): solo se verifica que
-/// <c>.gitignore</c> excluye <c>.claude/</c> de forma repetible (NFR-30), invocando
-/// <c>git check-ignore -v</c> / <c>git status --porcelain</c> como proceso hijo — mismo patrón
-/// que ya usa <c>AutoExam.Tests/Scripts/VerificarVersionProceso.cs</c> (increment 2). La
+/// <c>.gitignore</c> excluye <c>.claude/</c> de forma repetible (NFR-30), leyendo el archivo y
+/// consultando <c>git check-ignore -v</c> sobre una ruta interna. Ninguna de las dos cosas
+/// depende de que el directorio exista en el disco: no existe en el checkout de CI, porque
+/// justamente está ignorado, y esa dependencia hacía fallar la suite ahí y pasar en local. La
 /// búsqueda amplia de menciones a "claude"/"anthropic" en el árbol (AC-T33) es responsabilidad
 /// puntual de devops-housekeeping-repo, no un test permanente de CI (specs/team-roster.yaml,
 /// notas de test-dev-housekeeping-repo). El gate de dotnet build/dotnet test (NFR-31) ya lo
@@ -31,28 +32,73 @@ public class GitignoreClaudeExclusionTests
     // ------------------------------------------------------------------
 
     [Fact]
-    public void ClaudeDirectory_EstaIgnorado_CheckIgnoreDevuelveReglaRealDeGitignore()
+    public void Gitignore_TieneUnaEntradaActivaQueExcluyeElDirectorioClaude()
     {
-        var r = GitProceso.Ejecutar("check-ignore", "-v", ".claude");
+        // Se lee .gitignore directamente en vez de preguntarle a 'git check-ignore .claude'.
+        //
+        // Por qué: el patrón del contrato es '.claude/', y en gitignore una barra final matchea
+        // SOLO directorios. Si la carpeta no está en el disco, git no puede saber que la ruta
+        // es un directorio y el patrón no matchea: 'check-ignore' devuelve exit 1 y no imprime
+        // nada. Eso hacía que el test pasara en una máquina de desarrollo (donde .claude/
+        // existe) y fallara en GitHub Actions (donde el checkout no la trae, porque
+        // justamente está ignorada). El test medía el sistema de archivos del runner, no el
+        // contenido del .gitignore, que es lo único que el contrato §4.2 fija.
+        var entradas = EntradasEfectivas();
 
-        Assert.True(r.CodigoSalida == 0,
-            $"'.claude' debería estar ignorado por .gitignore (exit code 0). " +
-            $"Exit: {r.CodigoSalida}\nStdout: {r.Stdout}\nStderr: {r.Stderr}");
+        var exclusiones = entradas
+            .Where(e => e.Patron is ".claude/" or ".claude")
+            .ToList();
 
-        // Formato de 'git check-ignore -v': "<archivo>:<linea>:<patron>\t<ruta>". Se exige que
-        // la regla venga de .gitignore (no de un .git/info/exclude ni de una regla global ajena
-        // al repo) y que el patrón sea el esperado por el contrato (§4.2): entrada '.claude/'.
-        Assert.Matches(new Regex(@"^\.gitignore:\d+:\.claude/?\t"), r.Stdout);
+        Assert.True(exclusiones.Count > 0,
+            "No hay ninguna entrada activa que excluya '.claude/' en .gitignore. " +
+            "Entradas leídas: " + string.Join(", ", entradas.Select(e => $"{e.Numero}:{e.Patron}")));
+
+        // Una negación posterior volvería a incluir el directorio y dejaría la exclusión sin
+        // efecto, aunque la línea de arriba siga estando.
+        var negaciones = entradas
+            .Where(e => e.Patron is "!.claude/" or "!.claude")
+            .ToList();
+
+        Assert.True(negaciones.Count == 0,
+            "Hay una negación que reactiva '.claude/' en .gitignore, línea " +
+            string.Join(", ", negaciones.Select(e => e.Numero)) + ".");
+    }
+
+    /// <summary>
+    /// Líneas de .gitignore que git realmente evalúa: sin vacías y sin comentarios. Se
+    /// conserva el número de línea para que un fallo diga dónde mirar.
+    /// </summary>
+    private static List<(int Numero, string Patron)> EntradasEfectivas()
+    {
+        string ruta = Path.Combine(GitProceso.RaizRepo, ".gitignore");
+
+        return File.ReadAllLines(ruta)
+            .Select((texto, indice) => (Numero: indice + 1, Patron: texto.Trim()))
+            .Where(e => e.Patron.Length > 0 && !e.Patron.StartsWith('#'))
+            .ToList();
     }
 
     [Fact]
-    public void ClaudeDirectory_NoApareceEnGitStatusPorcelain()
+    public void GitAplicaLaRegla_SobreUnaRutaDentroDeClaude()
     {
-        // '.claude/skills' tiene contenido real (symlinks) en este checkout — si la exclusión
-        // no funcionara, 'git status --porcelain' listaría entradas '??' para ese contenido.
-        var r = GitProceso.Ejecutar("status", "--porcelain", "--", ".claude");
+        // Complementa al test de arriba: aquel lee el archivo, este comprueba que git de verdad
+        // aplique la regla. Se pregunta por una ruta DENTRO del directorio y no por el
+        // directorio mismo, porque un archivo bajo '.claude/' matchea el patrón exista o no en
+        // el disco — a diferencia de '.claude' a secas, que necesita existir para que git
+        // sepa que es un directorio.
+        //
+        // Antes acá se corría 'git status --porcelain -- .claude', que sin la carpeta devuelve
+        // vacío y por lo tanto pasaba sin comprobar nada en CI.
+        var r = GitProceso.Ejecutar("check-ignore", "-v", ".claude/settings.json");
 
-        Assert.Equal(string.Empty, r.Stdout.Trim());
+        Assert.True(r.CodigoSalida == 0,
+            "Una ruta dentro de '.claude/' debería estar ignorada (exit code 0). " +
+            $"Exit: {r.CodigoSalida}\nStdout: {r.Stdout}\nStderr: {r.Stderr}");
+
+        // Formato de 'git check-ignore -v': "<archivo>:<linea>:<patron>\t<ruta>". Se exige que
+        // la regla venga de .gitignore y no de un .git/info/exclude o una config global, que
+        // son locales de una máquina y no viajan con el repositorio.
+        Assert.Matches(new Regex(@"^\.gitignore:\d+:\.claude/?\t"), r.Stdout);
     }
 
     // ------------------------------------------------------------------
