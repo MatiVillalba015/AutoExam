@@ -191,7 +191,7 @@ jobs:
             exit 1
           }
 
-          Write-Host "HTTP $codigo: el paquete esta disponible."
+          Write-Host "HTTP ${codigo}: el paquete esta disponible."
 
       # 10. Reescribir update.xml ------------------------------------------
       # Misma logica regex que publicar.ps1 -Publicar (lineas 88-91): solo
