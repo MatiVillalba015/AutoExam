@@ -230,8 +230,15 @@ public class VerificarVersionScriptTests
     public void CsprojSinEtiquetaVersion_ExitCode2()
     {
         using var tmp = new DirectorioTemporal();
-        string csproj = FixtureVersion.CrearCsprojSinVersion(tmp.Ruta);
+
+        // El orden importa y estaba al reves: los dos fixtures escriben el MISMO
+        // AutoExam.csproj, asi que Crear() pisaba el csproj sin <Version> con uno que si la
+        // tenia. El script leia 1.0.2, salia 0 y el test fallaba pidiendo 2 — no por un
+        // defecto del script, sino porque el archivo bajo prueba ya no era el que decia ser.
+        // Primero el par valido, y despues se rompe solo el csproj: igual que en
+        // ManifiestoSinEtiquetaVersion_ExitCode2, aca abajo.
         var (_, manifiesto) = FixtureVersion.Crear(tmp.Ruta, "1.0.2", "1.0.1");
+        string csproj = FixtureVersion.CrearCsprojSinVersion(tmp.Ruta);
 
         var r = VerificarVersionProceso.Ejecutar(
             new[] { "-CsprojPath", csproj, "-ManifiestoPath", manifiesto }, tmp.Ruta);

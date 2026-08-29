@@ -25,6 +25,59 @@ internal static class VerificarVersionProceso
     /// <summary>Ruta esperada de Verificar-Version.ps1, junto a publicar.ps1 (§3.1).</summary>
     public static readonly string RutaScript = Path.Combine(RaizRepo, "Verificar-Version.ps1");
 
+    /// <summary>
+    /// Interprete de PowerShell con el que se lanza el script.
+    ///
+    /// Se prefiere <c>pwsh</c> (PowerShell 7) porque es el que usa el pipeline, y asi la suite
+    /// mide exactamente lo mismo que corre en CI. Pero pwsh NO viene con Windows: sin
+    /// alternativa, estos 22 tests fallan enteros en cualquier maquina que solo tenga Windows
+    /// PowerShell, y eso deja al desarrollador sin poder reproducir localmente lo que falla en
+    /// CI, que es justo cuando mas falta hace.
+    /// </summary>
+    private static readonly string Interprete = ResolverInterprete();
+
+    private static string ResolverInterprete()
+    {
+        foreach (string candidato in new[] { "pwsh", "powershell" })
+        {
+            if (EstaEnElPath(candidato))
+            {
+                return candidato;
+            }
+        }
+
+        // Ninguno: se devuelve pwsh para que el fallo sea el mensaje original y explicito
+        // ("no se encuentra el archivo"), en vez de un error raro mas adelante.
+        return "pwsh";
+    }
+
+    private static bool EstaEnElPath(string ejecutable)
+    {
+        string? path = Environment.GetEnvironmentVariable("PATH");
+
+        if (string.IsNullOrEmpty(path))
+        {
+            return false;
+        }
+
+        foreach (string directorio in path.Split(Path.PathSeparator))
+        {
+            try
+            {
+                if (File.Exists(Path.Combine(directorio, ejecutable + ".exe")))
+                {
+                    return true;
+                }
+            }
+            catch
+            {
+                // Una entrada invalida del PATH no puede tumbar la resolucion.
+            }
+        }
+
+        return false;
+    }
+
     private static string ResolverRaizRepo([CallerFilePath] string archivoFuente = "")
     {
         string directorioScripts = Path.GetDirectoryName(archivoFuente)!;          // .../AutoExam.Tests/Scripts
@@ -57,7 +110,7 @@ internal static class VerificarVersionProceso
     {
         var psi = new ProcessStartInfo
         {
-            FileName = "pwsh",
+            FileName = Interprete,
             UseShellExecute = false,
             CreateNoWindow = true,
             RedirectStandardOutput = true,

@@ -31,6 +31,12 @@ param(
     [switch]$EmitGithubOutput
 )
 
+# El texto de salida lleva tildes y un em dash. pwsh escribe UTF-8 por defecto, pero Windows
+# PowerShell usa la code page de la consola y los mutila cuando la salida esta redirigida, que
+# es como la leen los tests y el pipeline. Fijarlo aca hace que el script diga lo mismo sin
+# importar con cual de los dos se lo invoque.
+try { [Console]::OutputEncoding = [System.Text.Encoding]::UTF8 } catch { }
+
 function Escribir($texto, $color = 'Gray') { Write-Host $texto -ForegroundColor $color }
 
 # Codigos de salida: 0 = supera (publicaria), 1 = no supera (informativo, no es error),
