@@ -40,15 +40,15 @@
             -->
             <Button Grid.Row="0" Style="{StaticResource ZonaSoltar}" Margin="0,0,0,16"
                     Command="{Binding ElegirArchivoCommand}"
-                    AutomationProperties.Name="Agregar un PDF: solta el archivo aca o hace click para elegirlo"
+                    AutomationProperties.Name="Agregar material: PDF, Word, Excel, PowerPoint o imagenes. Solta los archivos aca o hace click para elegirlos"
                     beh:SoltarArchivo.Comando="{Binding SoltarCommand}"
-                    beh:SoltarArchivo.Extension=".pdf">
+                    beh:SoltarArchivo.Extensiones=".pdf .docx .xlsx .pptx .jpg .jpeg .png .heic .heif">
                 <StackPanel HorizontalAlignment="Center">
                     <ui:SymbolIcon Symbol="ArrowUpload24" FontSize="26" HorizontalAlignment="Center"
                                    Foreground="{DynamicResource PincelMarca}" />
-                    <TextBlock Text="Solta un PDF aca" Style="{StaticResource TxtCuerpo}"
+                    <TextBlock Text="Solta PDF, Word, Excel, PowerPoint o varias imagenes" Style="{StaticResource TxtCuerpo}"
                                HorizontalAlignment="Center" Margin="0,10,0,2" />
-                    <TextBlock Text="o hace click para elegirlo" Style="{StaticResource TxtTenue}"
+                    <TextBlock Text="o hace click para elegirlos" Style="{StaticResource TxtTenue}"
                                HorizontalAlignment="Center" />
                 </StackPanel>
             </Button>

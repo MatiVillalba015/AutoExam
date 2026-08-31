@@ -54,43 +54,74 @@ public static class ImagenUtil
     {
         try
         {
-            using var ms = new MemoryStream(original);
-            var decodificador = BitmapDecoder.Create(ms, BitmapCreateOptions.PreservePixelFormat, BitmapCacheOption.OnLoad);
-            BitmapSource cuadro = decodificador.Frames[0];
-
-            int lado = Math.Max(cuadro.PixelWidth, cuadro.PixelHeight);
-            if (lado > maxLado)
-            {
-                double escala = (double)maxLado / lado;
-                cuadro = new TransformedBitmap(cuadro, new ScaleTransform(escala, escala));
-            }
-
-            // El JPEG no admite 1 bit por pixel, que es justo el formato de un escaneo
-            // en blanco y negro: sin esta conversion el encoder tira una excepcion.
-            if (cuadro.Format != PixelFormats.Bgr24 && cuadro.Format != PixelFormats.Bgra32)
-            {
-                cuadro = new FormatConvertedBitmap(cuadro, PixelFormats.Bgr24, null, 0);
-            }
-
-            // Una cadena TransformedBitmap/FormatConvertedBitmap no siempre se puede
-            // congelar; congelarla es una optimizacion, no un requisito para encodear.
-            if (cuadro.CanFreeze)
-            {
-                cuadro.Freeze();
-            }
-
-            var encoder = new JpegBitmapEncoder { QualityLevel = 85 };
-            encoder.Frames.Add(BitmapFrame.Create(cuadro));
-
-            using var salida = new MemoryStream();
-            encoder.Save(salida);
-            return (salida.ToArray(), "image/jpeg");
+            return PrepararNucleo(original, maxLado);
         }
         catch (Exception ex)
         {
+            // El rescate de paginas de PDF (PdfExtractorService) quiere seguir con los bytes
+            // crudos si el reencode falla; para el caso de una foto suelta que hay que validar,
+            // usar TryPrepararParaLectura en su lugar.
             RutasApp.RegistrarError("ImagenUtil.PrepararParaLectura", ex);
             return (original, "image/png");
         }
+    }
+
+    /// <summary>
+    /// Igual que <see cref="PrepararParaLectura"/>, pero distingue el fallo de decodificacion en
+    /// vez de tragarlo: devuelve <c>false</c> (out con los bytes originales) si los datos no son
+    /// una imagen que WPF Imaging pueda abrir. Lo usa <see cref="ImagenExtractor"/> (US-010) para
+    /// descartar una foto ilegible o truncada y avisar, en lugar de mandar bytes corruptos a la
+    /// IA etiquetados como imagen valida (AC-T50 / NFR-41 / NFR-42).
+    /// </summary>
+    public static bool TryPrepararParaLectura(byte[] original, out byte[] bytes, out string mime, int maxLado = 1600)
+    {
+        try
+        {
+            (bytes, mime) = PrepararNucleo(original, maxLado);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            RutasApp.RegistrarError("ImagenUtil.TryPrepararParaLectura", ex);
+            bytes = original;
+            mime = "image/png";
+            return false;
+        }
+    }
+
+    private static (byte[] bytes, string mime) PrepararNucleo(byte[] original, int maxLado)
+    {
+        using var ms = new MemoryStream(original);
+        var decodificador = BitmapDecoder.Create(ms, BitmapCreateOptions.PreservePixelFormat, BitmapCacheOption.OnLoad);
+        BitmapSource cuadro = decodificador.Frames[0];
+
+        int lado = Math.Max(cuadro.PixelWidth, cuadro.PixelHeight);
+        if (lado > maxLado)
+        {
+            double escala = (double)maxLado / lado;
+            cuadro = new TransformedBitmap(cuadro, new ScaleTransform(escala, escala));
+        }
+
+        // El JPEG no admite 1 bit por pixel, que es justo el formato de un escaneo
+        // en blanco y negro: sin esta conversion el encoder tira una excepcion.
+        if (cuadro.Format != PixelFormats.Bgr24 && cuadro.Format != PixelFormats.Bgra32)
+        {
+            cuadro = new FormatConvertedBitmap(cuadro, PixelFormats.Bgr24, null, 0);
+        }
+
+        // Una cadena TransformedBitmap/FormatConvertedBitmap no siempre se puede
+        // congelar; congelarla es una optimizacion, no un requisito para encodear.
+        if (cuadro.CanFreeze)
+        {
+            cuadro.Freeze();
+        }
+
+        var encoder = new JpegBitmapEncoder { QualityLevel = 85 };
+        encoder.Frames.Add(BitmapFrame.Create(cuadro));
+
+        using var salida = new MemoryStream();
+        encoder.Save(salida);
+        return (salida.ToArray(), "image/jpeg");
     }
 
     /// <summary>Carga un archivo de imagen sin dejar el archivo bloqueado (OnLoad + Freeze).</summary>

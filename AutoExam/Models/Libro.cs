@@ -97,19 +97,52 @@ public class Libro : ObservableBase
         }
     }
 
-    /// <summary>Ruta del PDF ya copiado dentro de AppData\Local\AppEstudioUBA\Biblioteca.</summary>
+    /// <summary>
+    /// Familia de la fuente. Los registros viejos de libros.json no lo traen: al
+    /// deserializar cae en el default <see cref="TipoFuente.Pdf"/> (valor 0), y
+    /// <see cref="Services.BibliotecaService.Cargar"/> completa el resto.
+    /// </summary>
+    public TipoFuente Tipo { get; set; } = TipoFuente.Pdf;
+
+    /// <summary>
+    /// Ruta del archivo (PDF/Office) o de la primera imagen ya copiada dentro de
+    /// AppData\Local\AppEstudioUBA\Biblioteca. Para tipos de archivo unico coincide
+    /// con <see cref="Archivos"/>[0]. Se conserva por compatibilidad de deserializacion.
+    /// </summary>
     public string RutaArchivo { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Rutas internas de todos los archivos de la fuente, en orden. Un unico elemento
+    /// para PDF/Office; N imagenes ordenadas para <see cref="TipoFuente.SetImagenes"/>.
+    /// Los registros viejos (sin este campo) se rellenan con [<see cref="RutaArchivo"/>]
+    /// en <see cref="Services.BibliotecaService.Cargar"/>.
+    /// </summary>
+    public List<string> Archivos { get; set; } = new();
 
     public string NombreArchivoOriginal { get; set; } = string.Empty;
 
     public int CantidadPaginas { get; set; }
 
+    /// <summary>
+    /// Medida de tamanio en texto libre segun el formato ("34 diapositivas",
+    /// "5 hojas · ~1.2k filas", "8 imagenes", "documento unico"). La puebla
+    /// <see cref="Services.BibliotecaService.AgregarFuenteAsync"/> via el contrato
+    /// <c>IExtractorContenido.MedirAsync</c> (arquitectura Inc-4 §4.1).
+    /// </summary>
+    public string MedidaTamanio { get; set; } = string.Empty;
+
     public DateTime FechaAgregado { get; set; } = DateTime.Now;
 
     public List<Modulo> Modulos { get; set; } = new();
 
+    /// <summary>true para las familias que se guardan como un unico archivo (todo salvo el set de imagenes).</summary>
     [JsonIgnore]
-    public string Resumen => $"{Materia} · {CantidadPaginas} pags. · {Modulos.Count} modulos";
+    public bool EsArchivoUnico => Tipo != TipoFuente.SetImagenes;
+
+    [JsonIgnore]
+    public string Resumen => Tipo == TipoFuente.Pdf
+        ? $"{Materia} · {CantidadPaginas} pags. · {Modulos.Count} modulos"
+        : $"{Materia} · {(string.IsNullOrWhiteSpace(MedidaTamanio) ? "material" : MedidaTamanio)}";
 
     [JsonIgnore]
     public bool ArchivoDisponible => !string.IsNullOrWhiteSpace(RutaArchivo) && File.Exists(RutaArchivo);

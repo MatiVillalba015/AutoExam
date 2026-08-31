@@ -17,7 +17,11 @@ public interface IDialogos
 
     void Error(string titulo, string mensaje);
 
-    string? ElegirPdf();
+    /// <summary>
+    /// Selector multi-formato y multi-seleccion de fuentes (US-008/US-010, arquitectura
+    /// Inc-4 §4.3). Devuelve las rutas elegidas, o null si el usuario cancelo.
+    /// </summary>
+    string[]? ElegirFuentes();
 
     void AbrirCarpeta(string ruta);
 }
@@ -26,8 +30,7 @@ public class DialogoService : IDialogos
 {
     // Confirmar/Aviso/Error usan una ventana propia (DialogoVentana, Fluent/Mica)
     // en vez de MessageBox.Show para que respeten el tema claro/oscuro de la app
-    // (US-002). ElegirPdf y AbrirCarpeta quedan fuera de alcance de US-002 y
-    // siguen igual.
+    // (US-002). ElegirFuentes y AbrirCarpeta quedan fuera de alcance de US-002.
     public bool Confirmar(string mensaje, string titulo = "AutoExam")
         => Mostrar(TipoDialogo.Pregunta, titulo, mensaje);
 
@@ -44,16 +47,33 @@ public class DialogoService : IDialogos
         return dialogo.Resultado;
     }
 
-    public string? ElegirPdf()
+    public string[]? ElegirFuentes()
     {
         var dialogo = new OpenFileDialog
         {
-            Title = "Elegi el PDF del libro",
-            Filter = "Documentos PDF (*.pdf)|*.pdf",
-            Multiselect = false
+            Title = "Elegi el material: PDF, Word, Excel, PowerPoint o imagenes",
+            Filter = FiltroFuentes(),
+            Multiselect = true
         };
 
-        return dialogo.ShowDialog() == true ? dialogo.FileName : null;
+        return dialogo.ShowDialog() == true ? dialogo.FileNames : null;
+    }
+
+    // Filtro combinado a partir de la lista unica de extensiones admitidas
+    // (FactoriaExtractores.ExtensionesAdmitidas) para no repetirla aca.
+    private static string FiltroFuentes()
+    {
+        static string Patron(params string[] exts) => string.Join(";", exts.Select(e => "*" + e));
+
+        string todas = Patron(FactoriaExtractores.ExtensionesAdmitidas.ToArray());
+
+        return string.Join("|",
+            $"Todos los materiales ({todas})|{todas}",
+            "PDF (*.pdf)|*.pdf",
+            "Word (*.docx)|*.docx",
+            "Excel (*.xlsx)|*.xlsx",
+            "PowerPoint (*.pptx)|*.pptx",
+            $"Imagenes ({Patron(".jpg", ".jpeg", ".png", ".heic", ".heif")})|{Patron(".jpg", ".jpeg", ".png", ".heic", ".heif")}");
     }
 
     public void AbrirCarpeta(string ruta)

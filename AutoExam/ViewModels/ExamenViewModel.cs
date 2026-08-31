@@ -154,6 +154,21 @@ public partial class ExamenViewModel : PaginaViewModel
     private bool PuedeDisminuirTextoExamen() => NivelTextoExamen > NivelTextoMinimo;
 
     // ---------- Resultados ----------
+
+    /// <summary>
+    /// Texto literal de felicitacion (US-013 / RN-5). Constante de codigo a proposito: no es
+    /// recurso de tema intercambiable ni AppConfig, y no hay camino para ocultarlo o editarlo
+    /// (NFR-52). Se distribuye tal cual en el release.
+    /// </summary>
+    public const string MensajeFelicitacion = "FELICIDADES CULONA TE ROMPO BIEN EL CULO";
+
+    /// <summary>
+    /// true si y solo si la nota UBA es &gt;= 7 y el resultado es del intento original (no
+    /// revancha). Se fija en <see cref="MostrarResultados"/>. Sin flag ni config para ocultarlo.
+    /// </summary>
+    [ObservableProperty]
+    private bool _mostrarFelicitacion;
+
     [ObservableProperty]
     private int _nota;
 
@@ -205,6 +220,35 @@ public partial class ExamenViewModel : PaginaViewModel
     }
 
     public bool HayIntentoAbierto => Examen is not null && Vista == VistaExamen.Rindiendo;
+
+    // ------------------------------------------------------------------
+    // Borrado del examen desde Historial (US-012)
+    // ------------------------------------------------------------------
+
+    /// <summary>Id del registro persistido al que pertenece el intento/ronda en curso, o "".</summary>
+    public string RegistroActualId => Examen?.Registro?.Id ?? string.Empty;
+
+    /// <summary>
+    /// Lo invoca el shell cuando se borra un examen del historial (evento
+    /// <c>HistorialViewModel.ExamenBorrado</c>). Si el intento o la ronda de revancha en curso
+    /// pertenece a ese examen, se descarta sin registrar: la revancha ya no puede reanclarse a
+    /// nada (AC-T59 / NFR-51).
+    /// </summary>
+    public void AlBorrarseExamen(string id)
+    {
+        if (!HayIntentoAbierto || Examen is not ExamenEnCurso examen || examen.Registro?.Id != id)
+        {
+            return;
+        }
+
+        examen.Registro = null;
+
+        if (examen.EsRevancha)
+        {
+            Cerrar();
+            _nav.Estado("Se borro el examen original: la revancha en curso se descarto.");
+        }
+    }
 
     /// <summary>
     /// Trae el nivel de tamanio de texto guardado. Se llama despues de <c>SesionUsuarioService.Cargar()</c>
@@ -491,6 +535,7 @@ public partial class ExamenViewModel : PaginaViewModel
         Nota = resultado.Nota;
         Aprobado = resultado.Aprobado;
         Pendientes = resultado.Pendientes;
+        MostrarFelicitacion = !examen.EsRevancha && resultado.Nota >= 7;
 
         Condicion = examen.EsRevancha
             ? $"Revancha ronda {examen.Ronda}: {resultado.Correctas}/{resultado.Total} correctas"
@@ -613,6 +658,7 @@ public partial class ExamenViewModel : PaginaViewModel
         Opciones.Clear();
         Correccion.Clear();
         Insignia = string.Empty;
+        MostrarFelicitacion = false;
 
         Vista = VistaExamen.SinExamen;
     }

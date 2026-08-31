@@ -66,10 +66,23 @@
                                                    Foreground="{DynamicResource PincelTextoSuave}" />
                                     </Grid>
 
-                                    <!-- La linea es el indicador de avance: se pinta entera
-                                         cuando el paso esta activo o ya quedo atras. -->
-                                    <Border x:Name="Linea" Height="3" CornerRadius="2"
-                                            Background="{DynamicResource PincelBorde}" />
+                                    <!-- Indicador de avance (US-011 superficie 3 de RN-7). La base
+                                         gris se pinta siempre; encima, LineaAvance (color marca)
+                                         "crece" de izquierda a derecha via ScaleTransform.X cuando
+                                         el paso queda activo o atras. No se anima Brush (restriccion
+                                         del tech-spec): solo la escala. Con "reducir movimiento" del
+                                         SO activo, ScaleX salta a 1 sin animar (NFR-47). -->
+                                    <Grid Height="3">
+                                        <Border x:Name="Linea" CornerRadius="2"
+                                                Background="{DynamicResource PincelBorde}" />
+                                        <Border x:Name="LineaAvance" CornerRadius="2"
+                                                Background="{DynamicResource PincelMarca}"
+                                                RenderTransformOrigin="0,0.5">
+                                            <Border.RenderTransform>
+                                                <ScaleTransform x:Name="EscalaAvance" ScaleX="0" />
+                                            </Border.RenderTransform>
+                                        </Border>
+                                    </Grid>
 
                                     <TextBlock Text="{Binding Resumen}" Style="{StaticResource TxtTenue}"
                                                Margin="0,8,12,0" TextTrimming="CharacterEllipsis"
@@ -78,19 +91,82 @@
 
                                 <ControlTemplate.Triggers>
                                     <DataTrigger Binding="{Binding Completado}" Value="True">
-                                        <Setter TargetName="Linea" Property="Background" Value="{DynamicResource PincelMarca}" />
                                         <Setter TargetName="Circulo" Property="BorderBrush" Value="{DynamicResource PincelMarca}" />
                                         <Setter TargetName="Circulo" Property="Background" Value="{DynamicResource PincelMarcaSuave}" />
                                         <Setter TargetName="Numero" Property="Foreground" Value="{DynamicResource PincelMarcaFuerte}" />
+                                        <!-- Linea llena para un paso ya hecho: sin animar (al llegar aca
+                                             viniendo de "actual" ya estaba en 1; si se salto directo, un
+                                             snap es aceptable). -->
+                                        <DataTrigger.EnterActions>
+                                            <BeginStoryboard x:Name="AvanceCompletado">
+                                                <Storyboard>
+                                                    <DoubleAnimation Storyboard.TargetName="EscalaAvance"
+                                                                     Storyboard.TargetProperty="ScaleX"
+                                                                     To="1" Duration="0" />
+                                                </Storyboard>
+                                            </BeginStoryboard>
+                                        </DataTrigger.EnterActions>
+                                        <DataTrigger.ExitActions>
+                                            <RemoveStoryboard BeginStoryboardName="AvanceCompletado" />
+                                        </DataTrigger.ExitActions>
                                     </DataTrigger>
                                     <DataTrigger Binding="{Binding EsActual}" Value="True">
-                                        <Setter TargetName="Linea" Property="Background" Value="{DynamicResource PincelMarca}" />
                                         <Setter TargetName="Circulo" Property="Background" Value="{DynamicResource PincelMarca}" />
                                         <Setter TargetName="Circulo" Property="BorderBrush" Value="{DynamicResource PincelMarca}" />
                                         <Setter TargetName="Numero" Property="Foreground" Value="{DynamicResource PincelSobreMarca}" />
                                         <Setter TargetName="Titulo" Property="Foreground" Value="{DynamicResource PincelTexto}" />
                                         <Setter TargetName="Titulo" Property="FontWeight" Value="SemiBold" />
                                     </DataTrigger>
+
+                                    <!-- US-011 superficie 3 / NFR-47. La linea de avance (LineaAvance)
+                                         se controla SOLO por Storyboard sobre EscalaAvance.ScaleX
+                                         (un ScaleTransform es Freezable: no se puede apuntar con un
+                                         Setter, solo con Storyboard.TargetName). Tres casos:
+                                         · paso actual + reducir-movimiento OFF -> crece 0->1 con la
+                                           duracion/suavizado centralizados de Theme/Estilos.xaml;
+                                         · paso actual + reducir-movimiento ON -> salta a 1 (Duration 0);
+                                         · paso completado -> queda en 1 (Duration 0), sin re-animar al
+                                           avanzar de actual a completado.
+                                         Al retroceder, el ExitActions quita el Storyboard y la linea
+                                         vuelve a ScaleX=0 (base gris). No se anima Brush/Color. -->
+                                    <MultiDataTrigger>
+                                        <MultiDataTrigger.Conditions>
+                                            <Condition Binding="{Binding EsActual}" Value="True" />
+                                            <Condition Binding="{Binding Source={x:Static beh:Animaciones.Reducidas}}" Value="False" />
+                                        </MultiDataTrigger.Conditions>
+                                        <MultiDataTrigger.EnterActions>
+                                            <BeginStoryboard x:Name="AvanceActualAnimado">
+                                                <Storyboard>
+                                                    <DoubleAnimation Storyboard.TargetName="EscalaAvance"
+                                                                     Storyboard.TargetProperty="ScaleX"
+                                                                     From="0" To="1"
+                                                                     Duration="{StaticResource DuracionTransicionSeccion}"
+                                                                     EasingFunction="{StaticResource SuavizadoSalida}" />
+                                                </Storyboard>
+                                            </BeginStoryboard>
+                                        </MultiDataTrigger.EnterActions>
+                                        <MultiDataTrigger.ExitActions>
+                                            <RemoveStoryboard BeginStoryboardName="AvanceActualAnimado" />
+                                        </MultiDataTrigger.ExitActions>
+                                    </MultiDataTrigger>
+                                    <MultiDataTrigger>
+                                        <MultiDataTrigger.Conditions>
+                                            <Condition Binding="{Binding EsActual}" Value="True" />
+                                            <Condition Binding="{Binding Source={x:Static beh:Animaciones.Reducidas}}" Value="True" />
+                                        </MultiDataTrigger.Conditions>
+                                        <MultiDataTrigger.EnterActions>
+                                            <BeginStoryboard x:Name="AvanceActualDirecto">
+                                                <Storyboard>
+                                                    <DoubleAnimation Storyboard.TargetName="EscalaAvance"
+                                                                     Storyboard.TargetProperty="ScaleX"
+                                                                     To="1" Duration="0" />
+                                                </Storyboard>
+                                            </BeginStoryboard>
+                                        </MultiDataTrigger.EnterActions>
+                                        <MultiDataTrigger.ExitActions>
+                                            <RemoveStoryboard BeginStoryboardName="AvanceActualDirecto" />
+                                        </MultiDataTrigger.ExitActions>
+                                    </MultiDataTrigger>
                                 </ControlTemplate.Triggers>
                             </ControlTemplate>
                         </Button.Template>
@@ -118,7 +194,7 @@
                         </Style>
                     </StackPanel.Style>
 
-                    <TextBlock Text="¿De que libro?" Style="{StaticResource TxtCuerpo}" Margin="0,0,0,14" />
+                    <TextBlock Text="¿De que material?" Style="{StaticResource TxtCuerpo}" Margin="0,0,0,14" />
 
                     <ListBox ItemsSource="{Binding Libros}" MaxHeight="300"
                              SelectedItem="{Binding Libro, Mode=TwoWay}"
@@ -143,7 +219,7 @@
 
                                     <TextBlock Grid.Column="1" Style="{StaticResource TxtDato}"
                                                VerticalAlignment="Center"
-                                               Text="{Binding CantidadPaginas, StringFormat='{}{0} pag.'}" />
+                                               Text="{Binding MedidaTamanio}" />
                                 </Grid>
                             </DataTemplate>
                         </ListBox.ItemTemplate>
@@ -151,13 +227,13 @@
 
                     <Button Style="{StaticResource ZonaSoltar}"
                             Command="{Binding ElegirArchivoCommand}"
-                            AutomationProperties.Name="Agregar un PDF nuevo: solta el archivo o hace click"
+                            AutomationProperties.Name="Agregar material nuevo: PDF, Word, Excel, PowerPoint o imagenes. Solta los archivos o hace click"
                             beh:SoltarArchivo.Comando="{Binding SoltarCommand}"
-                            beh:SoltarArchivo.Extension=".pdf">
+                            beh:SoltarArchivo.Extensiones=".pdf .docx .xlsx .pptx .jpg .jpeg .png .heic .heif">
                         <StackPanel HorizontalAlignment="Center">
-                            <TextBlock Text="Solta otro PDF para sumarlo" Style="{StaticResource TxtCuerpo}"
+                            <TextBlock Text="Solta un PDF, Word, Excel, PowerPoint o varias imagenes" Style="{StaticResource TxtCuerpo}"
                                        HorizontalAlignment="Center" />
-                            <TextBlock Text="o hace click para elegirlo" Style="{StaticResource TxtTenue}"
+                            <TextBlock Text="o hace click para elegirlos" Style="{StaticResource TxtTenue}"
                                        HorizontalAlignment="Center" Margin="0,2,0,0" />
                         </StackPanel>
                     </Button>
@@ -165,7 +241,7 @@
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,14,0,0"
                                 Visibility="{Binding Agregando, Converter={StaticResource BoolToVis}}">
                         <ui:ProgressRing IsIndeterminate="True" Width="16" Height="16" />
-                        <TextBlock Text="Leyendo el PDF..." Style="{StaticResource TxtSuave}"
+                        <TextBlock Text="Analizando el material..." Style="{StaticResource TxtSuave}"
                                    VerticalAlignment="Center" Margin="8,0,0,0" />
                     </StackPanel>
                 </StackPanel>
@@ -183,6 +259,14 @@
                         </Style>
                     </StackPanel.Style>
 
+                    <!-- Capitulos y rango de paginas son solo para PDF (US-009 AC-T45). Para
+                         Word/Excel/PowerPoint/imagenes el examen toma el material completo y
+                         solo se acota con el eje tematico. -->
+                    <TextBlock Style="{StaticResource TxtSuave}" Margin="0,0,0,4"
+                               Visibility="{Binding EsFuentePdf, Converter={StaticResource BoolToVis}, ConverterParameter=invertir}"
+                               Text="Este material se toma completo. Para acotar el examen, usa el eje tematico de abajo." />
+
+                    <StackPanel Visibility="{Binding EsFuentePdf, Converter={StaticResource BoolToVis}}">
                     <TextBlock Text="CAPITULOS" Style="{StaticResource TxtRotulo}" />
                     <TextBlock Style="{StaticResource TxtTenue}" Margin="0,0,0,12"
                                Text="Toca los que quieras y se combinan, salteados incluidos (1, 2, 5, 7...). Sin ninguno marcado entra el libro entero." />
@@ -266,6 +350,7 @@
                                       Width="110" ClearButtonEnabled="False"
                                       AutomationProperties.Name="Pagina hasta" />
                     </StackPanel>
+                    </StackPanel>
 
                     <TextBlock Text="EJE TEMATICO (OPCIONAL)" Style="{StaticResource TxtRotulo}" />
                     <ui:TextBox Text="{Binding Tema, UpdateSourceTrigger=PropertyChanged}"
@@ -309,7 +394,7 @@
                     </WrapPanel>
 
                     <CheckBox IsChecked="{Binding IncluirImagenes, Mode=TwoWay}" Margin="0,14,0,24"
-                              Content="Incluir preguntas sobre graficos e imagenes del PDF" />
+                              Content="Incluir preguntas sobre graficos e imagenes del material" />
 
                     <!-- Resumen antes de gastar cuota: que entra, cuanto y con que -->
                     <Border Style="{StaticResource Tarjeta}" Margin="0,0,0,20">
@@ -324,6 +409,7 @@
 
                             <TextBlock Text="{Binding ResumenAlcance}" Style="{StaticResource TxtSuave}" />
                             <TextBlock Style="{StaticResource TxtDato}" Margin="0,6,0,0"
+                                       Visibility="{Binding EsFuentePdf, Converter={StaticResource BoolToVis}}"
                                        Text="{Binding PaginasDelAlcance, StringFormat='~{0} paginas de material'}" />
                         </StackPanel>
                     </Border>

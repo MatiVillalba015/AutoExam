@@ -58,6 +58,17 @@ public static class TransicionContenido
             control.RenderTransform = desplazamiento;
         }
 
+        // "Reducir movimiento" del SO (US-011, NFR-47): se aplica el estado final directo,
+        // sin Storyboard. El cambio de seccion sigue siendo instantaneo y funcional.
+        if (Animaciones.Reducidas)
+        {
+            control.BeginAnimation(UIElement.OpacityProperty, null);
+            desplazamiento.BeginAnimation(TranslateTransform.YProperty, null);
+            control.Opacity = 1;
+            desplazamiento.Y = 0;
+            return;
+        }
+
         var duracion = ObtenerDuracion();
         var suavizado = ObtenerSuavizado();
 

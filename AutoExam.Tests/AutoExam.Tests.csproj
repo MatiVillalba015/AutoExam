@@ -6,6 +6,10 @@
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
     <LangVersion>latest</LangVersion>
+    <!-- AutoExam referencia Magick.NET-Q8-x64 (nativo AMD64, US-010): el proyecto de test
+         se alinea a x64 para evitar MSB3270 y para que ConversorHeic corra bien al probar
+         la conversion HEIC. AutoExam.csproj ya es x64. -->
+    <PlatformTarget>x64</PlatformTarget>
     <!-- Necesario para referenciar tipos de System.Windows.* (UserControl, KeyBinding,
          HwndSource, Keyboard...) al probar Views/ExamenView.xaml (AC-T10/AC-T11/AC-T12).
          AutoExam.csproj ya lo habilita, pero UseWPF no se propaga via ProjectReference. -->

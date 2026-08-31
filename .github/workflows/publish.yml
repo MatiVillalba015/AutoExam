@@ -124,6 +124,53 @@ jobs:
             exit 1
           }
 
+      # 6b. Medir el tamano del .exe contra NFR-A1 -----------------------
+      # specs/03-architecture.md Inc-4 §6 (NFR-A1) y §7 (R-15): tras sumar
+      # Magick.NET-Q8-x64 (nativo libheif/libde265 embebido en el single-file
+      # por IncludeNativeLibrariesForSelfExtract), el .exe no puede crecer mas
+      # de 35 MB respecto de v1.0.3. La medicion es responsabilidad del
+      # pipeline, no manual.
+      #
+      # Baseline: AutoExam.exe de v1.0.3 = 71.482.498 bytes (self-contained
+      # single-file win-x64, sin Magick.NET), medido por devops-empaque-
+      # multiformato al integrar el Incremento 4. Si se vuelve a subir la
+      # version base del stack (nuevo runtime .NET, WPF-UI mayor, etc.),
+      # reajustar este numero con una medicion nueva del release anterior.
+      #
+      # Falla si el crecimiento supera el presupuesto: atrapa una regresion
+      # de empaque (Q16-HDRI en vez de Q8, paquete -AnyCPU, trimming roto,
+      # segundo nativo colado) antes de publicar, no despues.
+      - name: Verificar tamano del binario (NFR-A1)
+        if: steps.version.outputs.should_publish == 'true'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+
+          $baseline = 71482498      # AutoExam.exe v1.0.3 (bytes)
+          $presupuesto = 35000000   # NFR-A1: crecimiento maximo permitido (bytes)
+
+          $exe = Join-Path $env:PUBLISH_DIR 'AutoExam.exe'
+          if (-not (Test-Path $exe)) { throw "No se encontro $exe tras dotnet publish." }
+
+          $bytes = (Get-Item $exe).Length
+          $delta = $bytes - $baseline
+          $mb    = [math]::Round($bytes / 1MB, 1)
+          $dMb   = [math]::Round($delta / 1MB, 1)
+
+          Write-Host ".exe: $bytes bytes ($mb MB) | v1.0.3: $baseline | crecimiento: $delta bytes ($dMb MB) | presupuesto: 35 MB"
+
+          # Sigue siendo un unico archivo: el publish dir no debe tener DLLs sueltas.
+          $sueltas = Get-ChildItem $env:PUBLISH_DIR -Filter *.dll -ErrorAction SilentlyContinue
+          if ($sueltas) {
+            Write-Error "El publish dir tiene DLLs fuera del .exe ($($sueltas.Name -join ', ')). El single-file dejo de ser unico."
+            exit 1
+          }
+
+          if ($delta -gt $presupuesto) {
+            Write-Error "El .exe crecio $dMb MB respecto de v1.0.3, supera el presupuesto de 35 MB de NFR-A1. Revisar el paquete nativo (Q8 vs Q16, -x64 vs -AnyCPU) antes de publicar."
+            exit 1
+          }
+
       # 7. Empaquetar -------------------------------------------------------
       # Un ZIP, no el .exe suelto: AutoUpdater trata un .exe como instalador
       # y terminaria abriendo una segunda copia de AutoExam.

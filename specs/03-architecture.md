@@ -739,3 +739,438 @@ partir `MainWindow.xaml` entre dos developers.
 Sugerencia: correr `git grep -i -e claude -e anthropic` (o equivalente) sobre el árbol completo
 como primer paso de `devops-housekeeping-repo`, antes de tocar `.gitignore` — así el conteo de
 "antes" queda documentado para comparar contra el "después" exigido por NFR-29/AC-T33.
+
+---
+
+# Incremento 4 — Arquitectura: fuentes multi-formato + pulido de UX + historial/resultado (US-008 a US-013)
+
+Diseño sobre `specs/02-tech-spec.md` (US-008 a US-013 del `01-spec.md` **vigente**). Stack de
+aplicación restricción dura sin excepción: `net8.0-windows` / WPF / WPF-UI 4.3.0 /
+CommunityToolkit.Mvvm 8.4.0 / PdfPig 0.1.15 / Gemini vía `HttpClient` / publicación
+self-contained single-file `win-x64`, `PublishTrimmed=false`,
+`IncludeNativeLibrariesForSelfExtract=true`. No se propone reescritura. Este incremento decide
+las 4 piezas que el tech-spec dejó abiertas (decodificación HEIC embebible, parser de Office,
+manejo de imágenes sin `System.Drawing`, anclaje `ExamenRendido`↔carpeta de imágenes) y cierra
+los contratos internos de `IExtractorContenido`.
+
+## 1. Decisión de stack (incremento 4)
+
+### 1.1 Decodificación HEIC/HEIF embebible sin códec del SO (US-010, NFR-42)
+
+Excluidas por restricción dura (no decodifican HEIC/HEIF sin la extensión HEIF + códec HEVC del
+SO, que NFR-42 prohíbe asumir): WPF Imaging / WIC, `System.Drawing`, SkiaSharp (su decode HEIF
+en Windows delega en WIC). No entran a la tabla.
+
+| Opción | Pros | Contras | Decisión |
+|---|---|---|---|
+| **Magick.NET-Q8-x64** (ImageMagick, Apache-2.0) | Único NuGet que trae `libheif`+`libde265` **ya compilados** para win-x64 y los resuelve el SDK sin vendorear DLLs; decodifica HEIC/HEIF 100% offline sin códec del SO; API `MagickImage` propia, **no** arrastra `System.Drawing`; compatible con `PublishSingleFile` + `IncludeNativeLibrariesForSelfExtract` (ya activo); uso acotado a 1 método (decode → PNG en memoria), el resto sigue en WPF Imaging | +~20-30 MB al `.exe` self-contained; superficie grande para un solo formato | **Elegida** |
+| LibHeifSharp + `libheif` nativo vendoreado a mano | Wrapper P/Invoke chico (BSD-3), footprint ~3-5 MB, decoder-only | Sin NuGet nativo oficial para Windows: hay que vendorear/versionar `libheif.dll`/`libde265.dll` en `runtimes/win-x64/native`, garantizar el self-extract y mantenerlos — la fricción que el lineamiento del tech-spec pide evitar | Descartada |
+
+Justificación (≤5 líneas): NFR-42 obliga a una dependencia nueva y el tech-spec la previó como
+única excepción. Entre las dos que sí decodifican HEIC sin el SO, Magick.NET es la que no exige
+vendorear ni mantener binarios nativos: el SDK resuelve el runtime de win-x64 y
+`IncludeNativeLibrariesForSelfExtract` (ya activo) lo mete en el single-file. Se paga ~25 MB de
+`.exe`, aceptable frente al costo de mantener DLLs propias. El uso queda encapsulado en
+`ConversorHeic` (decode → PNG), sin tocar el resto del pipeline ni reintroducir `System.Drawing`.
+
+Paquete exacto: `Magick.NET-Q8-x64` (RID fijo win-x64; menor que `-AnyCPU`; Q8 alcanza para
+foto→JPEG). Fallback si el `restore` falla en CI: `Magick.NET-Q8-AnyCPU`.
+
+### 1.2 Parser de Office `.docx` / `.xlsx` / `.pptx` (US-008, NFR-38/39/40)
+
+| Opción | Pros | Contras | Decisión |
+|---|---|---|---|
+| **ZIP + `XmlReader` (sin dependencia nueva)** | `System.IO.Compression.ZipArchive` + `System.Xml.XmlReader` ya están en el framework; abre **una** parte del OPC por vez (`entry.Open()`), nunca descomprime el contenedor entero → NFR-39 por construcción, mismo criterio que `PdfExtractorService` por bloques; sólo hace falta texto (`w:t`, `a:t`, `sharedStrings`, celdas) + contadores; encaja con "una sola dependencia forzada (HEIC), extender lo que existe, código simple" | ~200-250 líneas de parsing propio en 3 formatos; casos de borde (inline vs shared strings, `w:txbxContent`); sin validación de esquema | **Elegida** |
+| `DocumentFormat.OpenXml` (Microsoft, MIT, managed) | Canónico, robusto, menos código propio | Dependencia nueva **no** forzada (el tech-spec limita libs nuevas a lo que HEIC obligue, y HEIC ya gastó esa excepción); su API DOM tiende a materializar la parte entera — para un `.xlsx` grande hay que bajar a `OpenXmlReader` de streaming, que no es más simple que un `XmlReader` directo; arrastra `System.IO.Packaging` | Descartada |
+
+`NPOI` y equivalentes: descartados por el tech-spec (peso/licencia) — sin fila.
+
+Justificación (≤5 líneas): OOXML es un ZIP y el framework ya lo abre parte por parte; leer sólo
+los nodos de texto con `XmlReader` forward-only es la vía natural para NFR-38/39 (sin límite
+propio, sin materializar el contenedor) y no suma una dependencia que el lineamiento pide no
+sumar. `DocumentFormat.OpenXml` no baja el costo real: para archivos grandes igual hay que
+streamear. Se prioriza cero dependencia nueva + fit con NFR-39 sobre ahorrar ~200 líneas de
+parsing testeable. `.doc`/`.xls`/`.ppt` (OLE2) se rechazan sin parser (RN-8).
+
+### 1.3 Manejo de imágenes sin `System.Drawing`
+
+Sin cambio de política: `Services/ImagenUtil.cs` sigue 100% WPF Imaging. Lo único nuevo es
+`ConversorHeic` (Magick.NET) que produce un `byte[]` PNG en memoria desde el HEIC; ese `byte[]`
+entra al pipeline existente (`ImagenUtil.PrepararParaLectura` → JPEG q85, reescalado a
+`LadoMaximoPaginaEscaneada`). Magick.NET no referencia `System.Drawing`. `UseWindowsForms=true`
+ya expone `System.Drawing` en el proyecto (para `Rectangle`, US-003) pero **no** se usa para
+imágenes — se mantiene la regla del `.csproj`.
+
+### 1.4 Anclaje `ExamenRendido` ↔ carpeta de imágenes (US-012, NFR-50)
+
+| Opción | Pros | Contras | Decisión |
+|---|---|---|---|
+| **`ExamenEnCurso.Id = examenId`** (el mismo GUID que ya nombra `Imagenes\{examenId}`) | 1 línea en `AsistenteViewModel.GenerarAsync` (`Id` es `init`); `ExamenViewModel.Finalizar` **ya** hace `registro.Id = examen.Id`, así `registro.Id` pasa a nombrar la carpeta; **0** cambios de esquema, **0** migración de `perfil.json`; `Id` es un GUID opaco, no visible | Acopla `Id` del registro al nombre de carpeta (implícito, se documenta acá) | **Elegida** |
+| `ExamenRendido.CarpetaImagenesId` nuevo | Explícito | Campo nuevo a poblar por toda la cadena Asistente→ExamenEnCurso→ExamenRendido; migración de registros viejos; más superficie para el mismo resultado | Descartada |
+
+Justificación (≤5 líneas): hoy `Finalizar` ya copia `examen.Id` a `registro.Id`; el único hueco
+es que `GenerarAsync` genera un `examenId` para la carpeta y lo descarta al crear el
+`ExamenEnCurso` (que toma un `Id` propio). Igualar ambos cierra el hueco sin tocar el modelo
+persistido ni migrar. US-012 borra entonces `Imagenes\{registro.Id}` best-effort. Registros
+viejos: su carpeta ya no existe (borrada tras generar por `BorrarPaginasEscaneadas` o por
+`LimpiarImagenesAntiguas(7)`) → el borrado es un no-op inofensivo.
+
+## 2. Componentes (incremento 4)
+
+```mermaid
+flowchart TB
+    subgraph Ingesta["Ingesta — US-008/009/010 (M4)"]
+        DLG["IDialogos.ElegirFuentes()\nSoltarArchivo (multi-archivo)"]
+        AVM["AsistenteViewModel / BibliotecaViewModel\n(FactoriaExtractores, no new PdfExtractorService)"]
+    end
+    subgraph Modelo["Modelo + biblioteca — US-008/009/010 (M3)"]
+        BIB["BibliotecaService.AgregarFuenteAsync\n(1..N archivos, copia interna)"]
+        LIB["Libro: Tipo, Archivos[], MedidaTamanio"]
+    end
+    subgraph Extraccion["Pipeline de extraccion — nuevo, interno (M1)"]
+        FAC["FactoriaExtractores.Para(ext)"]
+        IEC{{"IExtractorContenido\nSoporta / MedirAsync / ExtraerAsync"}}
+        PEX["PdfExtractor (adapter, PdfExtractorService intacto)"]
+        OEX["OfficeExtractor (ZipArchive + XmlReader)"]
+    end
+    subgraph Imagen["Fuentes-imagen + HEIC — US-010 (M2)"]
+        IEX["ImagenExtractor (jpg/png/heic/heif)"]
+        HEIC["ConversorHeic (Magick.NET)"]
+        CFG["AppConfig.MaxImagenesPorMaterial"]
+    end
+    subgraph Gen["Generacion — existente, sin cambio de contrato"]
+        GEM["GeminiApiService\nFragmentos / Imagenes / PaginasEscaneadas"]
+    end
+    subgraph Resultado["Resultado, historial y animaciones — US-011/012/013 (M5)"]
+        EVM["ExamenViewModel\nMostrarFelicitacion + AlBorrarseExamen"]
+        EV["ExamenView.xaml\nfelicitacion + entrada de Resultados"]
+        HVM["HistorialViewModel.BorrarExamenCommand"]
+        SES["SesionUsuarioService.BorrarExamen(id)"]
+        ANIM["Theme/Estilos.xaml + TransicionContenido + Animaciones.Reducidas"]
+    end
+
+    DLG --> AVM --> BIB --> LIB
+    AVM --> FAC --> IEC
+    IEC -.-> PEX
+    IEC -.-> OEX
+    IEC -.-> IEX
+    IEX --> HEIC
+    IEX --> CFG
+    BIB --> FAC
+    AVM -->|"ExtraccionResultado"| GEM
+    EVM --> EV
+    HVM --> SES
+    HVM -->|"ExamenBorrado(id)"| EVM
+    HVM -->|"best-effort Directory.Delete Imagenes\\{id}"| SES
+    ANIM -.-> EV
+```
+
+Responsabilidades:
+
+- **`IExtractorContenido` + `FactoriaExtractores` + `PdfExtractor` + `OfficeExtractor` +
+  `MedidaFuente` + `RecorteFuente`** (nuevos, `Services/`): pipeline de extracción
+  multi-formato. `PdfExtractor` **envuelve** `PdfExtractorService` sin reescribirlo.
+- **`ImagenExtractor` + `ConversorHeic`** (nuevos, `Services/`): familia de imágenes; HEIC/HEIF →
+  PNG antes de cualquier reescalado.
+- **`Libro` / `BibliotecaService`** (existentes, se extienden): generalización a fuente
+  multi-formato/multi-archivo; `libros.json` extendido, sin segundo mecanismo.
+- **`IDialogos` / `SoltarArchivo` / `AsistenteViewModel` / `BibliotecaViewModel` / vistas de
+  ingesta / `App.xaml.cs`** (existentes, se extienden): selección y arrastre
+  multi-formato/multi-imagen, ramificación por `Libro.Tipo` en el paso Alcance, DI de la factory.
+- **`SesionUsuarioService` / `HistorialViewModel` / `HistorialView.xaml` / `ExamenViewModel` /
+  `ExamenView.xaml` / `ShellViewModel`** (existentes, se extienden): borrado individual del
+  historial (US-012), mensaje de felicitación (US-013).
+- **`Theme/Estilos.xaml` / `Behaviors/TransicionContenido.cs` / `Behaviors/Animaciones.cs`
+  (nuevo)**: pulido de las 8 superficies de RN-7 + compuerta de "reducir movimiento" (US-011).
+- **`AutoExam.csproj`**: `PackageReference` a `Magick.NET-Q8-x64`.
+- **`AutoExam.Tests`** (existente, se extiende): fixtures de los 3 formatos Office + imágenes +
+  HEIC; contrato de `IExtractorContenido`; regresión de Resultados; persistencia de borrado.
+
+## 3. Decisiones de diseño que cierran ambigüedad de la tech-spec
+
+- **`IExtractorContenido.ExtraerAsync` recibe `RecorteFuente`**, que lleva un
+  `IReadOnlyList<RangoPaginas>? Paginas` (poblado **sólo** para PDF) + `string TemaLibre`.
+  `PdfExtractor` lee `.Paginas` y delega en `PdfExtractorService.ExtraerAsync` sin tocarlo;
+  `OfficeExtractor`/`ImagenExtractor` lo ignoran. `SolicitudGeneracion.Rangos` sigue recibiendo
+  la misma `List<RangoPaginas>` directo desde `AsistenteViewModel` (camino Files API intacto,
+  sólo PDF).
+- **La factory `new`ea los adapters internamente** (`PdfExtractorService` es efectivamente
+  stateless — regex estáticas). No requiere DI de `PdfExtractorService`. `App.OnStartup`
+  construye `new FactoriaExtractores()` y lo pasa a `ShellViewModel` → `AsistenteViewModel` /
+  `BibliotecaViewModel`. Se **mantiene** el parámetro `PdfExtractorService` de
+  `BibliotecaViewModel` para `DetectarCapitulosAsync` (feature PDF-only, US-009 AC-T45).
+- **US-009 subset de estructura (diapositivas/hojas/secciones) = fuera de v1** (01-spec lo marca
+  "deseable, no bloqueante"). `OfficeExtractor` procesa siempre el material completo; el eje
+  temático libre acota vía `GeminiApiService.FiltrarPorTema` (ya format-agnóstico sobre
+  `Fragmentos`) para Office con texto y vía prompt (`SolicitudGeneracion.TemaLibre`, ya existe)
+  para imágenes. AC-T46/AC-T47 se cumplen sin recorte estructural.
+- **`AsistenteViewModel`: rama por `Libro.Tipo`.** Si `!= Pdf`: no llama
+  `DetectarCapitulosAsync`, oculta la UI de módulos/rango, `ConstruirRangos` no aplica y
+  `RecorteFuente` lleva sólo `TemaLibre`. Si `== Pdf`: camino actual sin cambios.
+- **Multi-selección (US-010)** — la regla de negocio vive en el VM, no en el diálogo: todos
+  imágenes → 1 fuente `SetImagenes` con orden = orden del array; 1 archivo Office/PDF → 1 fuente
+  de ese tipo; mezcla de tipos o más de 1 archivo no-imagen → rechazo con aviso ("no se combinan
+  tipos · un examen = una fuente"). `SoltarArchivo` ejecuta el comando con `string[]` siempre
+  (array de 1 para formatos de archivo único).
+- **`SoltarArchivo`**: `Extension` (singular, `.pdf`) → `Extensiones` (string, lista separada
+  por espacios); `PrimerArchivoValido` → `ArchivosValidos` (devuelve `string[]`); `Drop` ejecuta
+  el comando con todas las rutas válidas soltadas.
+- **`Libro`** (persistido en `libros.json`): + `TipoFuente Tipo` (en `Models/Enums.cs`, default
+  `Pdf`), + `List<string> Archivos` (rutas internas ordenadas). `RutaArchivo` se conserva; para
+  tipos de archivo único = `Archivos[0]`. Migración en `BibliotecaService.Cargar`: registro sin
+  `Archivos` → `Archivos = [RutaArchivo]`; sin `Tipo` → `Pdf`. `Modulos` sólo para PDF con
+  índice (ya es así). `MedidaTamanio` (string) lo setea `AgregarFuenteAsync` con `MedirAsync`.
+- **Copia interna**: PDF/Office → `Biblioteca\{Id}{ext}` (sin cambio para PDF); imágenes →
+  `Biblioteca\{Id}\01.ext`, `02.ext`… (preserva orden). `EliminarLibro` borra archivo o carpeta
+  según `Tipo`.
+- **HEIC → PNG antes de cualquier reescalado.** `ImagenExtractor.ExtraerAsync`: por archivo, si
+  ext ∈ {`.heic`,`.heif`} → `ConversorHeic.AConvertir(bytes)` → PNG; luego
+  `ImagenUtil.PrepararParaLectura` → JPEG q85; `ImagenExtraida.YaPreparada = true`. **0** bytes
+  HEIC/HEIF en `inline_data` (NFR-42). Si `ConversorHeic` falla → esa imagen se descarta y se
+  informa; si fallan todas → `FuenteIlegibleException`.
+- **Límite de imágenes**: `AppConfig.MaxImagenesPorMaterial` (default 12, alineado con
+  `MaxPaginasEscaneadas`). Superado → aviso con el número concreto y recorte al límite
+  respetando el orden (NFR-43). Lado/tamaño por imagen: se reusan `LadoMaximoPaginaEscaneada` /
+  `MaxBytesImagen` ya existentes; superado → aviso con el límite.
+- **NFR-44 (costo)**: se reusan los `progreso?.Report(...)` de "se mandan N páginas como
+  imagen… puede tardar más y consumir más cuota". `ImagenExtractor` y `OfficeExtractor`-sin-texto
+  emiten el mismo aviso.
+- **`examenId`**: en `GenerarAsync`, `var examen = new ExamenEnCurso { Id = examenId, ... }`
+  (usar el GUID que ya nombra la carpeta de imágenes).
+- **US-012 revancha en curso**: `ShellViewModel` cablea
+  `Historial.HayRevanchaEnCursoDe = id => Examen.HayIntentoAbierto && Examen.RegistroActualId == id`
+  y `Historial.ExamenBorrado += Examen.AlBorrarseExamen`. `AlBorrarseExamen(id)`: si
+  `HayIntentoAbierto && Examen?.Registro?.Id == id` → `Examen.Registro = null` y, si
+  `Examen.EsRevancha`, `Cerrar()` (descarta la ronda sin registrar). `SesionUsuarioService.
+  ActualizarExamen` ya no recrea el registro (`FindIndex == -1` → no-op) — sólo hay que
+  verificar que ninguna rama de `Finalizar` con `Ronda > 0` asuma `Registro != null` (hoy usa
+  `else if (examen.Registro is ExamenRendido registro)` → ya seguro).
+- **Limpieza de imágenes de US-012**: la hace `HistorialViewModel` (best-effort sobre
+  `Imagenes\{id}`), **no** `SesionUsuarioService` — mantiene esa clase sin dependencia de IO de
+  carpetas.
+- **US-013**: `ExamenViewModel.MostrarFelicitacion` (bool, fijado en `MostrarResultados`) =
+  `!examen.EsRevancha && Nota >= 7`. `MensajeFelicitacion` = `const string` en mayúsculas (texto
+  literal en `01-spec.md` US-013, no se reproduce acá). `ExamenView.xaml`: `TextBlock` en el
+  `Border` de encabezado de Resultados, `Visibility` atada a `MostrarFelicitacion` (`BoolToVis`),
+  `FontWeight=Bold`, color por `DynamicResource` ya tematizado. Sin `AppConfig`, sin recurso
+  intercambiable, sin binding configurable (RN-5 / NFR-52).
+- **US-011**: `Behaviors/Animaciones.cs` — `public static bool Reducidas =>
+  !SystemParameters.ClientAreaAnimation || RenderCapability.Tier == 0`. Consultado por
+  `TransicionContenido` (aplica estado final sin `Storyboard`) y por los estilos (guardia en el
+  `MultiTrigger` / condicionando el `BeginStoryboard`). Timing/easing **sólo** de
+  `Theme/Estilos.xaml`. 2 superficies hoy sin animación (entrada de Resultados; alta/baja de
+  `ListBox` en Historial/Libros) se agregan respetando la restricción: sólo `Opacity` de capa
+  overlay ya tematizada o `ScaleTransform`, nunca `Brush`/`Color`.
+
+## 4. Contratos de interfaz entre componentes
+
+### 4.1 `IExtractorContenido` + `FactoriaExtractores` (nuevo, interno) — M1
+
+```csharp
+public enum TipoFuente { Pdf, Word, Excel, PowerPoint, SetImagenes }   // Models/Enums.cs
+
+public sealed record MedidaFuente(TipoFuente Tipo, string Texto);
+// Texto: "34 páginas" | "34 diapositivas" | "5 hojas · ~1.2k filas" | "8 imágenes" | "documento único"
+
+public sealed class RecorteFuente
+{
+    public IReadOnlyList<RangoPaginas>? Paginas { get; init; }   // sólo PDF
+    public string TemaLibre { get; init; } = string.Empty;
+    public bool MaterialCompleto => Paginas is null || Paginas.Count == 0;
+}
+
+public interface IExtractorContenido
+{
+    bool Soporta(string extension);                              // ".pdf", ".docx", ".heic", ...
+    Task<MedidaFuente> MedirAsync(IReadOnlyList<string> rutas, CancellationToken ct);
+    Task<ExtraccionResultado> ExtraerAsync(
+        IReadOnlyList<string> rutas, RecorteFuente recorte,
+        OpcionesExtraccion opciones, IProgress<string>? progreso, CancellationToken ct);
+}
+
+public static class FactoriaExtractores
+{
+    public static IExtractorContenido? Para(string extension);   // null => FormatoNoSoportadoException
+    public static readonly IReadOnlyList<string> ExtensionesAdmitidas;   // para el filtro del diálogo
+}
+
+public sealed class FormatoNoSoportadoException : Exception { }  // nombra .pdf/.docx/.xlsx/.pptx/imágenes + "reguardá en el formato actual"
+public sealed class FuenteIlegibleException : Exception { }      // password / dañado / HEIC no decodificable; .Message = causa
+```
+
+- `ExtraccionResultado` y `OpcionesExtraccion`: **se reutilizan tal cual** (ya format-agnósticos).
+- `PdfExtractor`: adapter. `rutas[0]` = PDF; `recorte.Paginas` → `PdfExtractorService.ExtraerAsync`.
+  `MedirAsync` → `ContarPaginasAsync` → `"{n} páginas"`. **No toca `PdfExtractorService.cs`.**
+- `OfficeExtractor`: `ZipArchive` sobre `rutas[0]`, **una `ZipArchiveEntry` por vez** con
+  `XmlReader` forward-only.
+  - Word → `word/document.xml`, `w:t` agrupados por `w:p`; medida `"documento único"`.
+  - Excel → `xl/sharedStrings.xml` (una pasada) + `xl/worksheets/sheet*.xml` uno por vez, celdas
+    `t="s"`→shared / `t="inlineStr"` / `<v>`; medida `"{h} hojas · ~{filas} filas"`.
+  - PowerPoint → `ppt/slides/slide*.xml` uno por vez, `a:t`; medida `"{n} diapositivas"`.
+  - Cada parte = 1 `FragmentoTexto` con `Etiqueta` (hoja/diapositiva/"documento"). Sin texto en
+    ninguna parte → `ExtraccionResultado` sin material → el llamador avisa (NFR-41).
+    `InvalidDataException` / entrada requerida faltante → `FuenteIlegibleException`.
+- `ImagenExtractor`: por archivo, en orden. HEIC/HEIF → `ConversorHeic`; luego
+  `ImagenUtil.PrepararParaLectura`; cada imagen → `ImagenExtraida { YaPreparada = true,
+  Identificador = "img_{NN}.jpg", Pagina = NN }` en `ExtraccionResultado.PaginasEscaneadas`.
+  Recorta a `opciones`/`MaxImagenesPorMaterial` (aviso vía `progreso`). `MedirAsync` →
+  `"{n} imágenes"`.
+- **NFR-39**: prohibido `ZipFile.ExtractToDirectory` o leer todas las entries a memoria.
+
+### 4.2 `BibliotecaService` — M3
+
+```csharp
+Task<Libro> AgregarFuenteAsync(IReadOnlyList<string> rutasOrigen, string titulo, string materia,
+                               IEnumerable<Modulo>? modulos = null, CancellationToken ct = default);
+Task<Libro> AgregarLibroAsync(string rutaOrigen, ...);   // se mantiene: wrapper => AgregarFuenteAsync(new[]{ ruta }, ...)
+```
+
+- Deriva `Tipo` de la extensión; si las rutas no son de la misma familia → `ArgumentException`
+  (el VM la traduce a aviso "no se combinan tipos").
+- Copia según §3; `Archivos` = rutas copiadas; `RutaArchivo = Archivos[0]`.
+- `MedidaTamanio = (await FactoriaExtractores.Para(ext)!.MedirAsync(Archivos, ct)).Texto`.
+- `FuenteIlegibleException` → borra lo copiado y re-lanza con causa (patrón actual de
+  `AgregarLibroAsync`). `Modulos` sólo para PDF con índice.
+- `Cargar()`: back-fill de `Archivos` / `Tipo` para registros viejos (§3).
+
+### 4.3 `IDialogos` — M4
+
+```csharp
+string[]? ElegirFuentes();   // reemplaza  string? ElegirPdf()
+```
+
+- `OpenFileDialog`, `Multiselect = true`, filtro combinado desde
+  `FactoriaExtractores.ExtensionesAdmitidas` con grupos ("Todos los materiales", "PDF", "Word",
+  "Excel", "PowerPoint", "Imágenes").
+- `ElegirPdf()` se elimina; `AutoExam.Tests` (`IDialogosContractTests`,
+  `DialogosDeSimulacion`, `DialogosDeSimulacionContractTests`) se actualizan.
+- `Confirmar` / `Aviso` / `Error` / `AbrirCarpeta`: sin cambios.
+
+### 4.4 `SoltarArchivo` (behavior) — M4
+
+```csharp
+// Extension (string ".pdf")  ->  Extensiones (string ".pdf .docx .xlsx .pptx .jpg .jpeg .png .heic .heif")
+// El comando se ejecuta con string[] (todas las rutas válidas soltadas); nunca con un string suelto.
+```
+
+Las vistas `AsistenteView.xaml` / `BibliotecaView.xaml` pasan `beh:SoltarArchivo.Extensiones` con
+la lista completa; `SoltarCommand` (VM) pasa a `[RelayCommand] Task SoltarAsync(string[] rutas)`.
+
+### 4.5 `AsistenteViewModel` / `BibliotecaViewModel` — M4
+
+- Ctor: + `FactoriaExtractores factoria`. `BibliotecaViewModel` conserva `PdfExtractorService`
+  para `DetectarCapitulosAsync`.
+- `SoltarAsync(string[] rutas)`, `ElegirArchivoCommand` → `ElegirFuentes()`. Validación de
+  "1 fuente / no se combinan tipos" antes de `AgregarFuenteAsync`.
+- `GenerarAsync`: `new ExamenEnCurso { Id = examenId, ... }`; extracción vía
+  `factoria.Para(ext)!.ExtraerAsync(libro.Archivos, recorte, opciones, progreso, ct)` con
+  `recorte = new RecorteFuente { Paginas = (libro.Tipo == TipoFuente.Pdf ? ConstruirRangos(out _)
+  : null), TemaLibre = Tema.Trim() }`. `SolicitudGeneracion.Rangos` = mismos `rangos` (vacío
+  para no-PDF; `SubirPdfSiConviene` ya corta si `RutaPdf` vacío / `!File.Exists`).
+- Paso Alcance: `libro.Tipo != Pdf` ⇒ oculta módulos y detección de capítulos, deja sólo el eje
+  temático (US-009 AC-T45/46).
+
+### 4.6 US-012 — historial — M5
+
+```csharp
+// SesionUsuarioService
+void BorrarExamen(string id);   // Perfil.Historial.RemoveAll(e => e.Id == id) -> GuardarPerfil() -> RefrescarHistorial()
+
+// HistorialViewModel
+IAsyncRelayCommand<ExamenRendido> BorrarExamenCommand;   // Confirmar (texto cambia si HayRevanchaEnCursoDe) ->
+                                                        // BorrarExamen -> best-effort Directory.Delete(Imagenes\{id}) -> Refrescar -> ExamenBorrado(id)
+Func<string,bool>? HayRevanchaEnCursoDe;
+event Action<string>? ExamenBorrado;
+
+// ExamenViewModel
+string RegistroActualId { get; }        // Examen?.Registro?.Id ?? ""
+void AlBorrarseExamen(string id);       // descarta intento/ronda en curso sin registrar
+```
+
+- `ShellViewModel` agrega 2 líneas junto a los `+=` existentes (líneas ~43-45).
+- `BorrarCommand` global ("Borrar historial") sin cambios. Estado vacío ya cubierto por
+  `HayExamenes` / `Refrescar()`.
+- `HistorialView.xaml`: `ui:Button` iconográfico por ítem, `Command="{Binding
+  DataContext.BorrarExamenCommand, RelativeSource=...}" CommandParameter="{Binding}"`.
+
+### 4.7 US-011 / US-013 — M5
+
+- `Behaviors/Animaciones.cs` (nuevo): `public static bool Reducidas`.
+- `Behaviors/TransicionContenido.cs`: sin cambio de firma; si `Animaciones.Reducidas` → estado
+  final directo (Opacity=1, Y=0), sin `Storyboard`.
+- `Theme/Estilos.xaml`: las 8 superficies de RN-7 (mapa en `02-tech-spec.md` §US-011) leen
+  `DuracionHover` / `DuracionPresion` / `DuracionTransicionSeccion` / `SuavizadoSalida`; las 2
+  superficies nuevas usan esos recursos (o uno nuevo declarado en el bloque "Animación"). Guardia
+  `Animaciones.Reducidas` en el disparo.
+- `ExamenView.xaml`: (a) `TextBlock` de felicitación (`MostrarFelicitacion`); (b) animación de
+  entrada del `Grid` de Resultados (`Opacity` + `TranslateY`, ≤ 250 ms, no bloqueante). El
+  `UserControl` sigue `Focusable=False` — no se toca el árbol de foco.
+- `ExamenViewModel`: `MostrarFelicitacion` + `MensajeFelicitacion` (const), fijados en
+  `MostrarResultados`.
+
+## 5. Coordinación de módulos que comparten archivo (incremento 4)
+
+| Archivo | Módulos | Resolución |
+|---|---|---|
+| `Models/Enums.cs` | M1 agrega `TipoFuente`; M3 lo consume | owner M1 |
+| `Models/Libro.cs`, `Services/BibliotecaService.cs` | M3 | owner único |
+| `AutoExam/AutoExam.csproj`, `Models/PerfilUsuario.cs` (`AppConfig.MaxImagenesPorMaterial`) | M2 | owner único |
+| `Services/ImagenUtil.cs` | M2 (lo consume; sólo un helper opcional) | owner M2 |
+| `ViewModels/AsistenteViewModel.cs`, `ViewModels/BibliotecaViewModel.cs`, `Views/AsistenteView.xaml`, `Views/BibliotecaView.xaml`, `Services/DialogoService.cs`, `Behaviors/SoltarArchivo.cs`, `App.xaml.cs` | M4 | owner único |
+| `ViewModels/ShellViewModel.cs` | M4 (DI de `FactoriaExtractores` en el bloque ctor) + M5 (2 líneas de `+=` en el bloque de eventos, ~43-45) | contrato cerrado en §3/§4.6: regiones distintas, merge trivial — mismo criterio que Inc-1 §5 (`AppConfig`) |
+| `ViewModels/ExamenViewModel.cs`, `Views/ExamenView.xaml`, `Views/HistorialView.xaml` | M5 (US-011 + US-012 + US-013 juntos) | owner único — precedente Inc-1 §5 (US-003+US-004) e Inc-2 §4 (US-007+US-008): no se parte un archivo compartido entre dos developers |
+
+M1, M2, M3 no comparten ningún archivo entre sí. M2/M3/M4 dependen del **contrato**
+`IExtractorContenido` (§4.1), no del código de M1 → trabajo contract-first.
+
+## 6. NFR de arquitectura (incremento 4)
+
+| ID | Requisito | Umbral medible |
+|---|---|---|
+| NFR-A1 | Tamaño del `.exe` tras `Magick.NET-Q8-x64` | crecimiento ≤ 35 MB respecto de `v1.0.3`; sigue siendo **un único** `.exe` (NFR de publicación de Inc-1 intacto); devops lo mide en el paso de empaquetado del pipeline |
+| NFR-A2 | Carga diferida del nativo HEIC | Magick.NET no se invoca salvo que haya un `.heic`/`.heif` en la fuente; arranque de la app y generación PDF/Office/JPG sin coste de tiempo ni RAM por la dependencia |
+| NFR-A3 | Extracción Office sin materializar el contenedor | pico de RAM del proceso no proporcional al tamaño del `.docx`/`.xlsx`/`.pptx`; verificable con un archivo ≥ 500 páginas equivalentes (NFR-38/39) |
+| NFR-A4 | 100% offline | conversión HEIC y parsing Office sin ninguna llamada de red (NFR-37: rechazo/proceso "sin red", < 200 ms para el rechazo) |
+| NFR-A5 | Call-sites de `PdfExtractorService` intactos | los 4 usos con `new` (`BibliotecaService`, 2 VMs por ctor, `GeminiApiService.SubirPdfSiConviene`) siguen compilando y funcionando; el PDF conserva su implementación, sólo se lo envuelve |
+| NFR-A6 | Contrato hacia Gemini sin cambios | `SolicitudGeneracion` no cambia de forma; Office/imágenes llenan `Fragmentos`/`PaginasEscaneadas` por los canales existentes; **0** endpoint nuevo (NFR de US-010) |
+| NFR-A7 | Extracción en background | toda `ExtraerAsync`/`MedirAsync` corre fuera del hilo de UI (`Task.Run`), `IProgress<string>` marshaleado como hoy; la UI no se congela |
+| NFR-A8 | Persistencia única | sólo `JsonStore` + `RutasApp` (`libros.json` extendido); fallos de guardado best-effort + `RutasApp.RegistrarError`, nunca excepción que tumbe arranque/cierre |
+
+## 7. Riesgos técnicos principales (incremento 4)
+
+1. **R-15 — Peso del `.exe` por `Magick.NET-Q8-x64`.** ~20-30 MB de nativo. Mitigación: paquete
+   `-x64` (no `-AnyCPU`), Q8 (no Q16-HDRI), `EnableCompressionInSingleFile` ya activo. devops
+   compara el `.exe` publicado contra NFR-A1. Plan B si excede: `LibHeifSharp` + nativo
+   vendoreado (más trabajo, menos peso).
+2. **R-16 — Magick.NET + `PublishSingleFile` en PC destino limpia.** `libheif`/`libde265` pueden
+   depender del runtime de Visual C++. Mitigación: probar en una VM Windows limpia (sin VS, sin
+   la extensión HEIF del SO) que un `.heic` real se convierte — tarea de devops/QA antes de
+   cerrar US-010; si falla, el self-contained ya arrastra la mayoría de las DLLs de VC++ del
+   runtime .NET, confirmarlo.
+3. **R-17 — Casos de borde del parser Office propio.** `sharedStrings` enorme, celdas
+   `inlineStr`, fórmulas (`<f>` vs `<v>`), texto en cuadros/tablas anidadas de Word, notas del
+   orador en `.pptx`. Alcance v1: texto de cuerpo + celdas + diapositivas; notas/cuadros quedan
+   como mejora. test-developer arma fixtures reales (chico, grande ≥ 500 págs equiv., sin texto,
+   protegido con contraseña) para los 3 formatos.
+4. **R-18 — `RecorteFuente.Paginas = null` en el camino Files API.** Para Office/imágenes
+   `SolicitudGeneracion.Rangos` queda vacío; verificar que ninguna rama de
+   `SubirPdfSiConvieneAsync` / `RecortarAsync` asuma `Rangos.Count > 0`. Bajo (el código ya
+   chequea `RutaPdf` / `File.Exists`).
+5. **R-19 — Igualar `ExamenEnCurso.Id` al `examenId` de la carpeta.** Si algún punto asume que
+   `ExamenEnCurso.Id` es único por *instancia* y no por *intento persistido*, podría colisionar
+   con dos generaciones seguidas sin finalizar. Bajo: hoy el `Id` sólo alimenta la carpeta y
+   `registro.Id`, y una generación nueva descarta la anterior (`HayExamenSinTerminar`).
+   test-developer cubre "generar dos veces seguidas → la carpeta vieja se limpia".
+
+## 8. Definition of Done (incremento 4)
+
+- Todo componente de §2 tiene owner en `specs/team-roster.yaml` (incremento 4): cumplido.
+- Ningún developer bloqueado: `IExtractorContenido` / `FactoriaExtractores` / `MedidaFuente` /
+  `RecorteFuente` (§4.1), forma de `Libro` (§3/§4.2), `IDialogos.ElegirFuentes` (§4.3), contrato
+  de `SoltarArchivo` (§4.4) y los hooks de historial/examen (§4.6/§4.7) están cerrados acá.
+  M2/M3/M4 trabajan contra el contrato de M1 sin esperar su código.
+- Decisión de stack justificada, no sólo enunciada: §1 (4 decisiones con tabla y justificación
+  costo/beneficio).
+
+Sugerencia: correr la conversión HEIC y el parser Office en una VM Windows limpia (R-16, R-17)
+antes del sign-off — ninguno de los dos es verificable sólo con xUnit en el runner.

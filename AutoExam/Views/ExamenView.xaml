@@ -6,6 +6,7 @@
              xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
              xmlns:modelos="clr-namespace:AutoExam.Models"
              xmlns:vm="clr-namespace:AutoExam.ViewModels"
+             xmlns:comportamientos="clr-namespace:AutoExam.Behaviors"
              mc:Ignorable="d"
              d:DataContext="{d:DesignInstance Type=vm:ExamenViewModel}">
 
@@ -267,7 +268,40 @@
         <!-- ============================================================ -->
         <!-- Resultados                                                    -->
         <!-- ============================================================ -->
-        <Grid Visibility="{Binding EnResultados, Converter={StaticResource BoolToVis}}">
+        <!-- US-011 superficie 5 (RN-7): entrada de Resultados. Fundido + deslizamiento sutil,
+             <= 250 ms, no bloqueante (solo Opacity/TranslateY, nunca Brush). Timing centralizado
+             en Theme/Estilos.xaml. No dispara con "reducir movimiento" del SO (NFR-47). -->
+        <Grid Visibility="{Binding EnResultados, Converter={StaticResource BoolToVis}}"
+              RenderTransformOrigin="0.5,0">
+            <Grid.RenderTransform>
+                <TranslateTransform />
+            </Grid.RenderTransform>
+            <Grid.Style>
+                <Style TargetType="Grid">
+                    <Style.Triggers>
+                        <MultiDataTrigger>
+                            <MultiDataTrigger.Conditions>
+                                <Condition Binding="{Binding EnResultados}" Value="True" />
+                                <Condition Binding="{Binding Source={x:Static comportamientos:Animaciones.Reducidas}}" Value="False" />
+                            </MultiDataTrigger.Conditions>
+                            <MultiDataTrigger.EnterActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetProperty="Opacity"
+                                                         From="0" To="1"
+                                                         Duration="{StaticResource DuracionTransicionSeccion}"
+                                                         EasingFunction="{StaticResource SuavizadoSalida}" />
+                                        <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(TranslateTransform.Y)"
+                                                         From="10" To="0"
+                                                         Duration="{StaticResource DuracionTransicionSeccion}"
+                                                         EasingFunction="{StaticResource SuavizadoSalida}" />
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </MultiDataTrigger.EnterActions>
+                        </MultiDataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Grid.Style>
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="*" />
@@ -295,6 +329,12 @@
                     </Border>
 
                     <StackPanel Grid.Column="1" Margin="22,0,16,0" VerticalAlignment="Center">
+                        <!-- US-013 / RN-5: literal fijo, tomado de la constante del ViewModel.
+                             Visible solo con Nota >= 7 en el intento original. Sin opcion de ocultarlo. -->
+                        <TextBlock Text="{x:Static vm:ExamenViewModel.MensajeFelicitacion}"
+                                   Visibility="{Binding MostrarFelicitacion, Converter={StaticResource BoolToVis}}"
+                                   FontWeight="Bold" FontSize="16" TextWrapping="Wrap"
+                                   Foreground="{DynamicResource PincelAcierto}" Margin="0,0,0,8" />
                         <TextBlock Text="{Binding Condicion}" Style="{StaticResource TxtSeccion}" FontSize="19" />
                         <TextBlock Text="{Binding ResumenResultado}" Style="{StaticResource TxtSuave}"
                                    Margin="0,6,0,0" />

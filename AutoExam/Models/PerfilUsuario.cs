@@ -233,4 +233,16 @@ public class AppConfig
     /// campo solo guarda la preferencia del usuario entre reinicios.
     /// </summary>
     public int TamanioTextoExamen { get; set; } = 2;
+
+    // ------------------------------------------------------------------
+    // Fuentes-imagen (US-010)
+    // ------------------------------------------------------------------
+
+    /// <summary>
+    /// Tope de imagenes que se envian por material cuando la fuente es un set de fotos
+    /// (apuntes manuscritos). Superado el limite, <c>ImagenExtractor</c> recorta al valor
+    /// respetando el orden de alta y lo informa (NFR-43). Default 12, alineado con
+    /// <c>OpcionesExtraccion.MaxImagenes</c> y con <see cref="MaxImagenesPorExamen"/>.
+    /// </summary>
+    public int MaxImagenesPorMaterial { get; set; } = 12;
 }

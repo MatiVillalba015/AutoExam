@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.IO;
 using AutoExam.Models;
 using AutoExam.Services;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -89,4 +90,68 @@ public partial class HistorialViewModel : PaginaViewModel
         Refrescar();
         _nav.Estado("Historial borrado.");
     }
+
+    // ------------------------------------------------------------------
+    // Borrado individual (US-012)
+    // ------------------------------------------------------------------
+
+    /// <summary>
+    /// Lo cablea el shell: responde true si hay una ronda de revancha en curso del examen
+    /// <c>id</c>. Se consulta antes de pedir confirmacion para advertir que al borrar se
+    /// descarta esa ronda (AC-T59 / NFR-51).
+    /// </summary>
+    public Func<string, bool>? HayRevanchaEnCursoDe { get; set; }
+
+    /// <summary>
+    /// Se dispara despues de borrar un examen. Lo escucha <c>ExamenViewModel</c> para
+    /// descartar el intento/ronda en curso de ese examen sin registrarlo.
+    /// </summary>
+    public event Action<string>? ExamenBorrado;
+
+    [RelayCommand]
+    private async Task BorrarExamen(ExamenRendido? examen)
+    {
+        if (examen is null)
+        {
+            return;
+        }
+
+        bool revanchaEnCurso = HayRevanchaEnCursoDe?.Invoke(examen.Id) == true;
+
+        string mensaje = revanchaEnCurso
+            ? $"Estas rindiendo una revancha de \"{examen.TituloTexto}\".\n\n" +
+              "Si borras este examen, esa revancha en curso se descarta sin registrarse.\n\n¿Borrar igual?"
+            : $"¿Borrar el examen \"{examen.TituloTexto}\" del historial?\n\nEsta accion no se puede deshacer.";
+
+        if (!_dialogos.Confirmar(mensaje))
+        {
+            return;
+        }
+
+        _sesion.BorrarExamen(examen.Id);
+        await LimpiarImagenesAsync(examen.Id);
+        ExamenBorrado?.Invoke(examen.Id);
+        Refrescar();
+        _nav.Estado("Examen borrado del historial.");
+    }
+
+    /// <summary>
+    /// Borra best-effort la carpeta de imagenes del examen (NFR-50). Un fallo de IO no
+    /// puede cortar el borrado: queda anotado en errores.log.
+    /// </summary>
+    private static Task LimpiarImagenesAsync(string examenId) => Task.Run(() =>
+    {
+        try
+        {
+            string carpeta = Path.Combine(RutasApp.Imagenes, examenId);
+            if (Directory.Exists(carpeta))
+            {
+                Directory.Delete(carpeta, recursive: true);
+            }
+        }
+        catch (Exception ex)
+        {
+            RutasApp.RegistrarError($"Historial.LimpiarImagenes({examenId})", ex);
+        }
+    });
 }

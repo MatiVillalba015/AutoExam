@@ -43,6 +43,10 @@ public partial class ShellViewModel : ObservableObject, INavegacion
         Asistente.ExamenGenerado += Examen.Iniciar;
         Asistente.HayExamenSinTerminar = () => Examen.HayIntentoAbierto;
         Examen.HistorialCambio += Historial.Refrescar;
+
+        // US-012: borrar el examen original desde Historial descarta la revancha en curso.
+        Historial.HayRevanchaEnCursoDe = id => Examen.HayIntentoAbierto && Examen.RegistroActualId == id;
+        Historial.ExamenBorrado += Examen.AlBorrarseExamen;
     }
 
     public OnboardingViewModel Onboarding { get; }

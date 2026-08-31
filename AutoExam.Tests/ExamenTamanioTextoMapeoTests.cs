@@ -135,7 +135,7 @@ public class ExamenTamanioTextoMapeoTests
         public bool Confirmar(string mensaje, string titulo = "AutoExam") => true;
         public void Aviso(string titulo, string mensaje) { }
         public void Error(string titulo, string mensaje) { }
-        public string? ElegirPdf() => null;
+        public string[]? ElegirFuentes() => null;
         public void AbrirCarpeta(string ruta) { }
     }
 

@@ -18,8 +18,8 @@ public class DialogosDeSimulacion : IDialogos
     /// <summary>Valor que devuelve <see cref="Confirmar"/> en la próxima llamada.</summary>
     public bool RespuestaConfirmar { get; set; } = true;
 
-    /// <summary>Valor que devuelve <see cref="ElegirPdf"/>.</summary>
-    public string? RutaPdfAElegir { get; set; }
+    /// <summary>Valor que devuelve <see cref="ElegirFuentes"/> (null = el usuario cancelo).</summary>
+    public string[]? RutasFuentesAElegir { get; set; }
 
     public int LlamadasConfirmar { get; private set; }
     public int LlamadasAviso { get; private set; }
@@ -50,7 +50,7 @@ public class DialogosDeSimulacion : IDialogos
         ErroresMostrados.Add((titulo, mensaje));
     }
 
-    public string? ElegirPdf() => RutaPdfAElegir;
+    public string[]? ElegirFuentes() => RutasFuentesAElegir;
 
     public void AbrirCarpeta(string ruta)
     {

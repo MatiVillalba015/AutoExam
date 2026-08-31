@@ -130,57 +130,87 @@ public partial class BibliotecaViewModel : PaginaViewModel
     [RelayCommand]
     private async Task ElegirArchivoAsync()
     {
-        string? ruta = _dialogos.ElegirPdf();
-        if (ruta is not null)
+        string[]? rutas = _dialogos.ElegirFuentes();
+        if (rutas is not null)
         {
-            await AgregarAsync(ruta);
+            await AgregarAsync(rutas);
         }
     }
 
-    /// <summary>Recibe la ruta que suelta el usuario sobre la zona de arrastre.</summary>
+    /// <summary>
+    /// Recibe las rutas que suelta el usuario sobre la zona de arrastre (multi-imagen).
+    /// El behavior no filtra por extension: las no admitidas se descartan aca con un
+    /// aviso que nombra los formatos validos (NFR-37), igual que hace el selector.
+    /// </summary>
     [RelayCommand]
-    private async Task SoltarAsync(string? ruta)
+    private async Task SoltarAsync(string[]? rutas)
     {
-        if (!string.IsNullOrWhiteSpace(ruta))
+        if (rutas is { Length: > 0 })
         {
-            await AgregarAsync(ruta);
+            await AgregarAsync(rutas);
         }
     }
 
-    private async Task AgregarAsync(string ruta)
+    /// <summary>true si la extension del archivo la cubre algun extractor (arquitectura Inc-4 §4.1).</summary>
+    private static bool EsFormatoAdmitido(string ruta)
+        => FactoriaExtractores.Para(Path.GetExtension(ruta)) is not null;
+
+    private async Task AgregarAsync(string[] rutas)
     {
-        if (!File.Exists(ruta))
+        var admitidas = rutas.Where(EsFormatoAdmitido).ToArray();
+        int ignoradas = rutas.Length - admitidas.Length;
+
+        if (admitidas.Length == 0)
         {
-            Avisar("Ese archivo ya no esta donde estaba.", error: true);
+            Avisar(new FormatoNoSoportadoException().Message, error: true);
+            return;
+        }
+
+        if (admitidas.Any(r => !File.Exists(r)))
+        {
+            Avisar("Alguno de los archivos ya no esta donde estaba.", error: true);
             return;
         }
 
         Ocupado = true;
-        _nav.Estado("Copiando y analizando el PDF...");
+        _nav.Estado("Copiando y analizando el material...");
 
         try
         {
-            // El titulo sale del nombre del archivo: casi siempre alcanza y evita
-            // que el alta arranque con un formulario vacio.
-            string sugerido = Path.GetFileNameWithoutExtension(ruta);
+            // El titulo sale del nombre del archivo (o de la cantidad, para un set de
+            // imagenes): casi siempre alcanza y evita arrancar con un formulario vacio.
+            string sugerido = admitidas.Length == 1
+                ? Path.GetFileNameWithoutExtension(admitidas[0])
+                : $"Material ({admitidas.Length} imagenes)";
             string materia = MateriasConocidas.FirstOrDefault() ?? "Sin materia";
 
-            var libro = await _biblioteca.AgregarLibroAsync(ruta, sugerido, materia);
+            var libro = await _biblioteca.AgregarFuenteAsync(admitidas, sugerido, materia);
 
             LibroSeleccionado = libro;
             OnPropertyChanged(nameof(MateriasConocidas));
 
-            _nav.Estado($"Libro agregado: {libro.Titulo} ({libro.CantidadPaginas} paginas).");
+            _nav.Estado($"Material agregado: {libro.Titulo} ({libro.MedidaTamanio}).");
+
+            string ignoradasNota = ignoradas > 0
+                ? $" Se ignoraron {ignoradas} archivo(s) con un formato no admitido."
+                : string.Empty;
+
+            if (libro.Tipo != TipoFuente.Pdf)
+            {
+                Avisar($"Listo: {libro.MedidaTamanio}. Revisa el titulo y la materia, y guarda. " +
+                       "Los capitulos y el rango de paginas son solo para PDF." + ignoradasNota);
+                return;
+            }
 
             // Los capitulos se traen solos del indice del PDF: sin esto el usuario tendria
             // que cargar veinte rangos a mano antes de poder pedir "capitulos 1, 2 y 5".
             int capitulos = await PoblarCapitulosAsync(libro);
 
-            Avisar(capitulos > 0
+            Avisar((capitulos > 0
                 ? $"Listo: {libro.CantidadPaginas} paginas y {capitulos} capitulos leidos del indice del PDF. " +
                   "Revisa el titulo y la materia, y guarda."
                 : $"Listo: {libro.CantidadPaginas} paginas. Este PDF no trae indice, asi que no hay capitulos: " +
-                  "podes dividirlo en partes iguales o cargarlos a mano.");
+                  "podes dividirlo en partes iguales o cargarlos a mano.") + ignoradasNota);
         }
         catch (Exception ex)
         {

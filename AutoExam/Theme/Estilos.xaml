@@ -196,6 +196,8 @@
                             <MultiTrigger.Conditions>
                                 <Condition Property="IsMouseOver" Value="True" />
                                 <Condition Property="IsEnabled" Value="True" />
+                                <!-- US-011 / NFR-47: no dispara con "reducir movimiento" del SO activo. -->
+                                <Condition Property="comportamientos:Animaciones.MovimientoReducido" Value="False" />
                             </MultiTrigger.Conditions>
                             <MultiTrigger.EnterActions>
                                 <BeginStoryboard>
@@ -301,6 +303,8 @@
                             <MultiTrigger.Conditions>
                                 <Condition Property="IsMouseOver" Value="True" />
                                 <Condition Property="IsEnabled" Value="True" />
+                                <!-- US-011 / NFR-47: no dispara con "reducir movimiento" del SO activo. -->
+                                <Condition Property="comportamientos:Animaciones.MovimientoReducido" Value="False" />
                             </MultiTrigger.Conditions>
                             <MultiTrigger.EnterActions>
                                 <BeginStoryboard>
@@ -398,6 +402,8 @@
                             <MultiTrigger.Conditions>
                                 <Condition Property="IsMouseOver" Value="True" />
                                 <Condition Property="IsEnabled" Value="True" />
+                                <!-- US-011 / NFR-47: no dispara con "reducir movimiento" del SO activo. -->
+                                <Condition Property="comportamientos:Animaciones.MovimientoReducido" Value="False" />
                             </MultiTrigger.Conditions>
                             <MultiTrigger.EnterActions>
                                 <BeginStoryboard>
@@ -496,6 +502,8 @@
                             <MultiTrigger.Conditions>
                                 <Condition Property="IsMouseOver" Value="True" />
                                 <Condition Property="IsEnabled" Value="True" />
+                                <!-- US-011 / NFR-47: no dispara con "reducir movimiento" del SO activo. -->
+                                <Condition Property="comportamientos:Animaciones.MovimientoReducido" Value="False" />
                             </MultiTrigger.Conditions>
                             <MultiTrigger.EnterActions>
                                 <BeginStoryboard>
@@ -592,6 +600,8 @@
                             <MultiTrigger.Conditions>
                                 <Condition Property="IsMouseOver" Value="True" />
                                 <Condition Property="IsEnabled" Value="True" />
+                                <!-- US-011 / NFR-47: no dispara con "reducir movimiento" del SO activo. -->
+                                <Condition Property="comportamientos:Animaciones.MovimientoReducido" Value="False" />
                             </MultiTrigger.Conditions>
                             <MultiTrigger.EnterActions>
                                 <BeginStoryboard>
@@ -689,10 +699,37 @@
                                 IsHitTestVisible="False" />
                     </Grid>
                     <ControlTemplate.Triggers>
+                        <!-- US-011 superficie 8 (RN-7): alta de items en Historial y Libros.
+                             Fundido de entrada, solo Opacity (nunca Brush), duracion centralizada
+                             (DuracionHover, el recurso compartido de esta seccion), no bloqueante.
+                             Mismo patron que la entrada de Resultados en ExamenView.xaml: se dispara
+                             cuando el contenedor pasa a visible Y "reducir movimiento" del SO esta
+                             apagado (NFR-47/AC-T53) — con reducir-movimiento activo el item aparece
+                             directo en Opacity=1, sin animar. La baja de items no se anima: WPF
+                             descarta el contenedor antes de poder animarlo, y esa machinery
+                             excede RN-7. -->
+                        <MultiDataTrigger>
+                            <MultiDataTrigger.Conditions>
+                                <Condition Binding="{Binding IsVisible, RelativeSource={RelativeSource TemplatedParent}}" Value="True" />
+                                <Condition Binding="{Binding Source={x:Static comportamientos:Animaciones.Reducidas}}" Value="False" />
+                            </MultiDataTrigger.Conditions>
+                            <MultiDataTrigger.EnterActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="Raiz" Storyboard.TargetProperty="Opacity"
+                                                         From="0" To="1"
+                                                         Duration="{StaticResource DuracionHover}"
+                                                         EasingFunction="{StaticResource SuavizadoSalida}" />
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </MultiDataTrigger.EnterActions>
+                        </MultiDataTrigger>
                         <MultiTrigger>
                             <MultiTrigger.Conditions>
                                 <Condition Property="IsMouseOver" Value="True" />
                                 <Condition Property="IsEnabled" Value="True" />
+                                <!-- US-011 / NFR-47: no dispara con "reducir movimiento" del SO activo. -->
+                                <Condition Property="comportamientos:Animaciones.MovimientoReducido" Value="False" />
                             </MultiTrigger.Conditions>
                             <MultiTrigger.EnterActions>
                                 <BeginStoryboard>
@@ -792,6 +829,8 @@
                             <MultiTrigger.Conditions>
                                 <Condition Property="IsMouseOver" Value="True" />
                                 <Condition Property="IsEnabled" Value="True" />
+                                <!-- US-011 / NFR-47: no dispara con "reducir movimiento" del SO activo. -->
+                                <Condition Property="comportamientos:Animaciones.MovimientoReducido" Value="False" />
                             </MultiTrigger.Conditions>
                             <MultiTrigger.EnterActions>
                                 <BeginStoryboard>

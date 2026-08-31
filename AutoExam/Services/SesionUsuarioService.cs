@@ -99,6 +99,23 @@ public class SesionUsuarioService
         RefrescarHistorial();
     }
 
+    /// <summary>
+    /// Borra un unico intento del historial (US-012). Las estadisticas de
+    /// <see cref="PerfilUsuario"/> son getters calculados sobre <c>Historial</c>, asi que
+    /// se recalculan solas. Id inexistente = no-op sin excepcion.
+    /// </summary>
+    public void BorrarExamen(string id)
+    {
+        int quitados = Perfil.Historial.RemoveAll(e => e.Id == id);
+        if (quitados == 0)
+        {
+            return;
+        }
+
+        GuardarPerfil();
+        RefrescarHistorial();
+    }
+
     private void RefrescarHistorial()
     {
         Historial.Clear();

@@ -76,6 +76,7 @@
                             <ColumnDefinition Width="52" />
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
 
                         <Border Grid.Column="0" Width="38" Height="38" CornerRadius="19"
@@ -96,6 +97,16 @@
 
                         <TextBlock Grid.Column="2" Text="{Binding FechaTexto}" Style="{StaticResource TxtDato}"
                                    FontSize="11" VerticalAlignment="Center" Margin="16,0,0,0" />
+
+                        <!-- US-012: borrar este examen del historial -->
+                        <ui:Button Grid.Column="3" Appearance="Secondary" Padding="7" Margin="12,0,0,0"
+                                   VerticalAlignment="Center"
+                                   Icon="{ui:SymbolIcon Delete24}"
+                                   ToolTip="Borrar este examen del historial"
+                                   AutomationProperties.Name="Borrar este examen"
+                                   Command="{Binding DataContext.BorrarExamenCommand,
+                                             RelativeSource={RelativeSource AncestorType=ListBox}}"
+                                   CommandParameter="{Binding}" />
                     </Grid>
                 </DataTemplate>
             </ListBox.ItemTemplate>

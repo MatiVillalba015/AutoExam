@@ -313,6 +313,254 @@ equipo:
       dev-paleta-morada, contract-first sobre la tabla de pares (no necesita esperar los
       valores finales de color para escribir la función de contraste y las aserciones).
 
+  # ---------------------------------------------------------------------------
+  # Incremento 4 (US-008 a US-013 del 01-spec.md VIGENTE) — deriva de
+  # specs/03-architecture.md, sección "Incremento 4". 5 módulos de developer:
+  #   M1 extraccion-multiformato · M2 fuentes-imagen-heic · M3 modelo-fuente-biblioteca
+  #   M4 ingesta-y-alcance · M5 resultado-historial-animaciones
+  # M1/M2/M3 no comparten archivos entre sí; M2/M3/M4 trabajan contra el CONTRATO
+  # de M1 (IExtractorContenido, §4.1), no contra su código → contract-first.
+  # M5 concentra US-011+US-012+US-013 en un solo owner porque comparten
+  # ExamenView.xaml / ExamenViewModel.cs / HistorialView.xaml (precedente Inc-1 §5,
+  # Inc-2 §4). ShellViewModel.cs lo tocan M4 y M5 en regiones distintas ya cerradas
+  # (arquitectura §5, incremento 4).
+  # ---------------------------------------------------------------------------
+
+  - id: dev-extraccion-multiformato
+    rol_base: developer
+    modulo: US-008 + US-009 (M1) — Pipeline de extracción multi-formato (interfaz, factory, adapter PDF, OfficeExtractor)
+    stack_context: >
+      .NET 8, C#; SIN dependencias nuevas. System.IO.Compression.ZipArchive +
+      System.Xml.XmlReader (forward-only, una ZipArchiveEntry por vez — NFR-39) para
+      .docx (word/document.xml), .xlsx (xl/sharedStrings.xml + xl/worksheets/sheet*.xml),
+      .pptx (ppt/slides/slide*.xml). Archivos NUEVOS en AutoExam/Services/:
+      IExtractorContenido, FactoriaExtractores, PdfExtractor (adapter que envuelve el
+      PdfExtractorService actual SIN tocarlo), OfficeExtractor, MedidaFuente, RecorteFuente,
+      FormatoNoSoportadoException, FuenteIlegibleException. Reusa ExtraccionResultado /
+      OpcionesExtraccion / RangoPaginas / ImagenExtraida tal cual. Agrega el enum
+      TipoFuente a AutoExam/Models/Enums.cs. Estilo: código imperativo directo, factory
+      por extensión (no motor de plugins), extender lo que existe.
+    contrato_referencia: >
+      specs/03-architecture.md (Incremento 4) §1.2, §3, §4.1, §6 (NFR-A3/A5/A7), §7 (R-17,
+      R-18); specs/02-tech-spec.md "Contratos de integración" US-008/009/010 y
+      "Restricciones técnicas" (parsing de Office); NFR-38/NFR-39/NFR-40/NFR-41, AC-T40 a
+      AC-T47.
+    notas: >
+      Publica el contrato de §4.1 (ya cerrado en la arquitectura) el día 1 para desbloquear
+      a M2/M3/M4. PdfExtractorService.cs es intocable — sólo se lo envuelve. Los 4
+      call-sites que hoy hacen `new PdfExtractorService()` deben seguir compilando (NFR-A5).
+
+  - id: test-dev-extraccion-multiformato
+    rol_base: test-developer
+    modulo: US-008 + US-009 (M1)
+    stack_context: >
+      xUnit, proyecto AutoExam.Tests (compartido); fixtures reales .docx/.xlsx/.pptx
+      (chico, grande ≥ 500 páginas equivalentes, sin texto extraíble, protegido con
+      contraseña) generados o versionados como recurso de test; helper ArchivoFuenteHelper
+      ya existente; medición de pico de RAM del proceso para NFR-39 (comparar archivo
+      chico vs. grande). Sin runtime WPF.
+    contrato_referencia: >
+      specs/03-architecture.md (Incremento 4) §4.1, §6 (NFR-A3); specs/02-tech-spec.md
+      NFR-38/NFR-39/NFR-40/NFR-41, AC-T41/AC-T42/AC-T43/AC-T44/AC-T47. Cubre:
+      MedirAsync devuelve una medida por formato (0 fuentes sin medida), .doc/.xls/.ppt y
+      extensión desconocida → FormatoNoSoportadoException con mensaje esperado, archivo
+      protegido/dañado → FuenteIlegibleException con causa, Office sin texto → resultado
+      sin material, RecorteFuente.MaterialCompleto cuando no hay recorte.
+    notas: Arranca junto con dev-extraccion-multiformato, contract-first sobre §4.1.
+
+  - id: dev-fuentes-imagen-heic
+    rol_base: developer
+    modulo: US-010 (M2) — Fuentes-imagen (.jpg/.jpeg/.png/.heic/.heif) + conversión HEIC embebible
+    stack_context: >
+      .NET 8 / WPF. UNA dependencia nueva: PackageReference Magick.NET-Q8-x64 en
+      AutoExam/AutoExam.csproj (fallback Magick.NET-Q8-AnyCPU si falla el restore en CI).
+      Archivos NUEVOS en AutoExam/Services/: ImagenExtractor (implementa IExtractorContenido
+      de M1), ConversorHeic (único consumidor de Magick.NET: MagickImage.Read(bytes) →
+      Format=Png → ToByteArray(), nada más). El resto del pipeline de imagen sigue en
+      AutoExam/Services/ImagenUtil.cs (WPF Imaging, sin System.Drawing) — ConversorHeic le
+      entrega un byte[] PNG y ImagenUtil.PrepararParaLectura hace el reescalado+JPEG q85.
+      Agrega AppConfig.MaxImagenesPorMaterial (int, default 12) a AutoExam/Models/PerfilUsuario.cs.
+    contrato_referencia: >
+      specs/03-architecture.md (Incremento 4) §1.1, §1.3, §3 (HEIC→PNG antes de reescalar,
+      límite de imágenes, NFR-44), §4.1 (contrato IExtractorContenido de M1), §6
+      (NFR-A1/A2/A4), §7 (R-15, R-16); specs/02-tech-spec.md "US-010 — Contrato hacia el
+      servicio de IA (visión)"; NFR-42/NFR-43/NFR-44, AC-T48/AC-T49/AC-T50/AC-T51.
+    notas: >
+      Trabaja contra el CONTRATO de IExtractorContenido (§4.1), no espera el código de M1.
+      Requisito duro: 0 bytes HEIC/HEIF en inline_data (NFR-42); orden de envío = orden de
+      alta (NFR-43). Coordina con devops-empaque-multiformato para R-15/R-16 (peso del
+      .exe, VM Windows limpia).
+
+  - id: test-dev-fuentes-imagen-heic
+    rol_base: test-developer
+    modulo: US-010 (M2)
+    stack_context: >
+      xUnit, proyecto AutoExam.Tests (compartido); fixture .heic real (foto de iPhone),
+      .jpg/.png de control; aserción de que la salida de ConversorHeic es PNG/JPEG válido
+      y que ninguna ImagenExtraida resultante conserva mime image/heic o bytes con firma
+      HEIC ('ftypheic'). Verificación de orden (N imágenes → Identificador/Pagina en el
+      orden de entrada) y de recorte al superar MaxImagenesPorMaterial. Persistencia de
+      AppConfig.MaxImagenesPorMaterial entre reinicios.
+    contrato_referencia: >
+      specs/03-architecture.md (Incremento 4) §3, §4.1; specs/02-tech-spec.md
+      NFR-42/NFR-43, AC-T49/AC-T51. La conversión HEIC en una VM Windows limpia (R-16) NO
+      es cubrible por xUnit en el runner — queda para devops-empaque-multiformato/qa.
+    notas: Arranca junto con dev-fuentes-imagen-heic, contract-first sobre §4.1 y el nombre AppConfig.MaxImagenesPorMaterial.
+
+  - id: dev-modelo-fuente-biblioteca
+    rol_base: developer
+    modulo: US-008 + US-009 + US-010 (M3) — Generalización de Libro a fuente multi-formato/multi-archivo + BibliotecaService
+    stack_context: >
+      .NET 8, C#; sin dependencias nuevas. AutoExam/Models/Libro.cs: + TipoFuente Tipo
+      (default Pdf), + List<string> Archivos (rutas internas ordenadas), + string
+      MedidaTamanio; RutaArchivo se conserva (= Archivos[0] para tipos de archivo único).
+      AutoExam/Services/BibliotecaService.cs: nuevo AgregarFuenteAsync(IReadOnlyList<string>
+      rutasOrigen, ...); AgregarLibroAsync se mantiene como wrapper; copia interna PDF/Office
+      → Biblioteca/{Id}{ext}, imágenes → Biblioteca/{Id}/01.ext,02.ext...; EliminarLibro
+      borra archivo o carpeta según Tipo; Cargar() back-fillea Archivos/Tipo de registros
+      viejos de libros.json. Persistencia: JsonStore + RutasApp, sin segundo mecanismo.
+    contrato_referencia: >
+      specs/03-architecture.md (Incremento 4) §3 (forma de Libro, migración, copia interna),
+      §4.1 (MedidaFuente/MedirAsync de M1), §4.2, §6 (NFR-A8); specs/02-tech-spec.md
+      "Entidades de datos y relaciones" (Fuente/Material, generalización de Libro);
+      NFR-40, AC-T41.
+    notas: >
+      Publica la forma final de Libro el día 1 para desbloquear a M4 (que la consume).
+      Depende del contrato IExtractorContenido.MedirAsync de M1 (§4.1), no de su código.
+      No comparte ningún archivo con M1/M2/M4/M5.
+
+  - id: test-dev-modelo-fuente-biblioteca
+    rol_base: test-developer
+    modulo: US-008 + US-009 + US-010 (M3)
+    stack_context: >
+      xUnit, proyecto AutoExam.Tests (compartido); RutasAisladasFixture ya existente
+      (AUTOEXAM_DATOS redirigido a carpeta descartable). Cubre: alta de fuente de cada
+      Tipo, copia interna correcta (archivo único vs. carpeta de imágenes ordenada),
+      MedidaTamanio poblada, migración de un libros.json "viejo" (sin Archivos/Tipo →
+      Pdf + [RutaArchivo]), EliminarLibro borra archivo/carpeta, fuente ilegible → no se
+      crea entrada y se re-lanza con causa.
+    contrato_referencia: >
+      specs/03-architecture.md (Incremento 4) §3/§4.2; specs/02-tech-spec.md
+      "Entidades de datos", NFR-40, AC-T41/AC-T43.
+    notas: Arranca junto con dev-modelo-fuente-biblioteca, contract-first sobre la forma de Libro (§3).
+
+  - id: dev-ingesta-y-alcance
+    rol_base: developer
+    modulo: US-008 + US-009 + US-010 (M4) — Selección/arrastre multi-formato, ramificación del paso Alcance, DI de la factory
+    stack_context: >
+      .NET 8 / WPF, WPF-UI 4.3.0, CommunityToolkit.Mvvm 8.4.0. AutoExam/Services/DialogoService.cs:
+      IDialogos.ElegirPdf() → string[]? ElegirFuentes() (OpenFileDialog Multiselect=true,
+      filtro combinado desde FactoriaExtractores.ExtensionesAdmitidas). AutoExam/Behaviors/
+      SoltarArchivo.cs: Extension (singular) → Extensiones (lista), comando ejecuta con
+      string[]. AutoExam/ViewModels/AsistenteViewModel.cs y BibliotecaViewModel.cs: + ctor
+      FactoriaExtractores (reemplaza `new PdfExtractorService()` para extraer/medir;
+      BibliotecaViewModel conserva PdfExtractorService sólo para DetectarCapitulosAsync),
+      SoltarAsync(string[]), regla "1 fuente / no se combinan tipos", GenerarAsync usa
+      `new ExamenEnCurso { Id = examenId }` + RecorteFuente, ramificación por Libro.Tipo en
+      el paso Alcance (no-PDF: sin módulos ni capítulos, sólo eje temático). Views:
+      AsistenteView.xaml / BibliotecaView.xaml (beh:SoltarArchivo.Extensiones). App.xaml.cs:
+      construye new FactoriaExtractores() y lo pasa por ShellViewModel (bloque ctor).
+    contrato_referencia: >
+      specs/03-architecture.md (Incremento 4) §3, §4.1 (contrato M1), §4.2 (forma de Libro,
+      M3), §4.3, §4.4, §4.5, §5 (coordinación ShellViewModel.cs con M5), §7 (R-19);
+      specs/02-tech-spec.md "Restricciones técnicas" (IDialogos.ElegirPdf, ZonaSoltar);
+      NFR-37, AC-T40/AC-T45/AC-T46/AC-T48/AC-T50/AC-T51.
+    notas: >
+      Depende de los contratos de M1 (§4.1) y M3 (forma de Libro) publicados el día 1, no
+      de su código. En ShellViewModel.cs toca el bloque de constructor/DI; M5 toca el
+      bloque de eventos `+=` (~líneas 43-45) — regiones distintas, merge trivial (§5).
+
+  - id: test-dev-ingesta-y-alcance
+    rol_base: test-developer
+    modulo: US-008 + US-009 + US-010 (M4)
+    stack_context: >
+      xUnit, proyecto AutoExam.Tests (compartido); DialogosDeSimulacion ya existente
+      (actualizar a ElegirFuentes()), RecordingCommand, RutasAisladasFixture. Cubre:
+      SoltarArchivo entrega string[] y filtra por Extensiones (incluye .heic/.heif),
+      regla "no se combinan tipos" (docx+pdf → rechazo, 3 imágenes → 1 fuente), Libro.Tipo
+      != Pdf oculta módulos/capítulos en el VM del paso Alcance, GenerarAsync fija
+      ExamenEnCurso.Id = examenId (R-19: generar dos veces seguidas limpia la carpeta
+      vieja), RecorteFuente.Paginas null para no-PDF.
+    contrato_referencia: >
+      specs/03-architecture.md (Incremento 4) §3/§4.3/§4.4/§4.5/§7 (R-19); specs/02-tech-spec.md
+      NFR-37, AC-T45/AC-T46/AC-T48/AC-T51.
+    notas: >
+      Arranca junto con dev-ingesta-y-alcance. La suite de regresión de KeyBinding de
+      ExamenView.xaml (Inc-1) sigue siendo el gate de "no romper el árbol de foco".
+
+  - id: dev-resultado-historial-animaciones
+    rol_base: developer
+    modulo: US-011 + US-012 + US-013 (M5) — Borrado individual del historial, mensaje de felicitación, pulido de las 8 superficies
+    stack_context: >
+      .NET 8 / WPF nativo, sin librerías nuevas. US-012: AutoExam/Services/SesionUsuarioService.cs
+      (+ BorrarExamen(string id): RemoveAll → GuardarPerfil → RefrescarHistorial),
+      AutoExam/ViewModels/HistorialViewModel.cs (+ BorrarExamenCommand, HayRevanchaEnCursoDe,
+      event ExamenBorrado, limpieza best-effort de Imagenes/{id}), AutoExam/ViewModels/
+      ExamenViewModel.cs (+ RegistroActualId, AlBorrarseExamen), AutoExam/ViewModels/
+      ShellViewModel.cs (2 líneas de +=, ~43-45), AutoExam/Views/HistorialView.xaml (botón
+      borrar por ítem). US-013: ExamenViewModel (MostrarFelicitacion bool + MensajeFelicitacion
+      const en mayúsculas — texto literal en 01-spec.md US-013), Views/ExamenView.xaml
+      (TextBlock destacado, Visibility=MostrarFelicitacion, DynamicResource tematizado; sin
+      AppConfig, sin recurso intercambiable — RN-5/NFR-52). US-011: AutoExam/Behaviors/
+      Animaciones.cs (NUEVO, static bool Reducidas — SystemParameters.ClientAreaAnimation +
+      RenderCapability.Tier), Behaviors/TransicionContenido.cs (consulta la compuerta),
+      Theme/Estilos.xaml (8 superficies de RN-7 + 2 hoy sin animación: entrada de Resultados
+      en ExamenView.xaml y add/remove de ListBox en Historial/Libros), sólo Opacity de capa
+      overlay tematizada o ScaleTransform — nunca Brush/Color (NFR — Inc-2 NFR-23).
+    contrato_referencia: >
+      specs/03-architecture.md (Incremento 4) §3, §4.6, §4.7, §5 (owner único de
+      ExamenViewModel.cs/ExamenView.xaml/HistorialView.xaml; ShellViewModel.cs compartido
+      con M4 en regiones distintas), §7 (R-19); specs/02-tech-spec.md "Contratos de
+      integración" US-011/US-012/US-013; NFR-45 a NFR-53, AC-T52 a AC-T63.
+    notas: >
+      US-011+US-012+US-013 en un solo owner a propósito: comparten ExamenView.xaml /
+      ExamenViewModel.cs / HistorialView.xaml (precedente Inc-1 §5, Inc-2 §4). US-013:
+      EvaluadorUBA intocable, Nota es int, `Nota >= 7` exacto. US-012: SesionUsuarioService.
+      ActualizarExamen ya es no-op si FindIndex == -1 (revancha con original borrado).
+
+  - id: test-dev-resultado-historial-animaciones
+    rol_base: test-developer
+    modulo: US-011 + US-012 + US-013 (M5)
+    stack_context: >
+      xUnit, proyecto AutoExam.Tests (compartido). US-012: RutasAisladasFixture — borrar un
+      examen lo quita de perfil.json, recalcula los agregados de PerfilUsuario (calculados
+      sobre Historial), sigue ausente tras recargar; borrar con carpeta Imagenes/{id} la
+      elimina (y un fallo de IO no lanza); revancha en curso del original borrado →
+      ActualizarExamen no recrea el registro. US-013: MostrarFelicitacion true sólo con
+      Nota>=7 && !EsRevancha; ausencia de flag/config/recurso para ocultarlo (búsqueda
+      estructural sobre AppConfig, Tokens.*.xaml, ExamenView.xaml). US-011: tests
+      estructurales sobre Theme/Estilos.xaml y ExamenView.xaml (System.Xml.Linq, sin runtime
+      WPF, mismo enfoque que test-dev-animaciones-shell de Inc-2) — las 8 superficies leen
+      los recursos centralizados de duración/suavizado, 0 valores hardcodeados, 0
+      Color/BrushAnimation sobre Background/Fill/Stroke, guardia de "reducir movimiento"
+      presente.
+    contrato_referencia: >
+      specs/03-architecture.md (Incremento 4) §4.6/§4.7; specs/02-tech-spec.md NFR-45 a
+      NFR-53, AC-T52 a AC-T63. La duración real percibida / ausencia de parpadeo (AC-T52/54/55)
+      y "reducir movimiento" activo en el SO (AC-T53) quedan fuera de xUnit — QA manual, mismo
+      criterio que el R-8 del incremento 2.
+    notas: Arranca junto con dev-resultado-historial-animaciones, contract-first sobre §4.6/§4.7.
+
+  - id: devops-empaque-multiformato
+    rol_base: devops
+    modulo: US-008 + US-010 (Incremento 4) — Validación de la dependencia nueva en publicación/CI
+    stack_context: >
+      GitHub Actions (pipeline publish.yml ya existente, Inc-1), runner windows-latest,
+      dotnet SDK 8.0.x. Verifica: `dotnet restore` resuelve Magick.NET-Q8-x64 (y el
+      fallback -AnyCPU documentado); `dotnet publish -c Release` produce UN único .exe
+      self-contained con los nativos de libheif/libde265 embebidos
+      (IncludeNativeLibrariesForSelfExtract, ya activo); mide el tamaño del .exe publicado
+      contra NFR-A1 (crecimiento ≤ 35 MB vs. v1.0.3) y lo agrega como check del paso de
+      empaquetado; prueba de humo en una VM Windows limpia (sin Visual Studio, sin la
+      extensión HEIF del SO) que un .heic real se convierte a JPEG/PNG (R-16).
+    contrato_referencia: >
+      specs/03-architecture.md (Incremento 4) §1.1, §6 (NFR-A1/A2/A4), §7 (R-15, R-16);
+      specs/02-tech-spec.md "Restricciones técnicas" (HEIC/HEIF), NFR-42.
+    notas: >
+      Coordina con dev-fuentes-imagen-heic. No toca la lógica del pipeline de Inc-1/Inc-2
+      salvo agregar el check de tamaño. Si NFR-A1 se excede o la conversión falla en la VM
+      limpia, escala el plan B (LibHeifSharp + nativo vendoreado) antes del sign-off.
+
 especialista_nuevo: []
 # Incremento 1 (US-001..005): ninguno requerido — WPF/.NET8 de escritorio + pipeline de
 # GitHub Actions, cubierto por el catálogo genérico.
@@ -328,3 +576,13 @@ especialista_nuevo: []
 # housekeeping de repo (git/PowerShell); US-011 es XAML/color, dentro de la expertise
 # esperable de un developer WPF genérico. Ninguno cae en las categorías que ameritan
 # especialista_nuevo.
+# Incremento 4 (US-008..013 del 01-spec.md vigente): tampoco. Evaluado explícitamente:
+#  - Parser de Office = ZIP (System.IO.Compression) + XML (System.Xml) del framework, sin
+#    dependencia nueva — dentro de la expertise de un developer .NET senior.
+#  - Decodificación HEIC = consumir Magick.NET (una llamada: Read → Format=Png →
+#    ToByteArray), no procesamiento/ciencia de imagen ni códecs propios.
+#  - US-011 animaciones = WPF/XAML nativo (ya hecho en Inc-2 por developer genérico).
+#  - US-009/US-010 no tocan el modelo de IA (endpoint Gemini ya integrado, no se entrena
+#    ni ajusta nada) → no es Data/ML Engineering.
+#  Ninguno cae en las categorías que ameritan especialista_nuevo (ML/Data Engineering,
+#  mobile nativo, embebido, blockchain, integraciones regulatorias complejas).

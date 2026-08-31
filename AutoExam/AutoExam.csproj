@@ -16,7 +16,7 @@
     <AssemblyName>AutoExam</AssemblyName>
     <RootNamespace>AutoExam</RootNamespace>
     <Product>AutoExam - Estudio UBA</Product>
-    <Version>1.0.3</Version>
+    <Version>1.0.4</Version>
     <ApplicationIcon>imagexxcf_103507.ico</ApplicationIcon>
 
     <!-- Publicacion self-contained single-file -->
@@ -37,6 +37,9 @@
   <ItemGroup>
     <PackageReference Include="AutoUpdater.NET.Official" Version="1.9.3" />
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
+    <!-- Unico consumidor: Services/ConversorHeic.cs (decodifica HEIC/HEIF sin codec del SO,
+         arquitectura Inc-4 §1.1, US-010/NFR-42). RID fijo win-x64, Q8 alcanza para foto->JPEG. -->
+    <PackageReference Include="Magick.NET-Q8-x64" Version="14.16.0" />
     <PackageReference Include="PdfPig" Version="0.1.15" />
     <PackageReference Include="WPF-UI" Version="4.3.0" />
   </ItemGroup>

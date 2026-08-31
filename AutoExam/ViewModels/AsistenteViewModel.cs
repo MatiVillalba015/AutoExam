@@ -134,11 +134,18 @@ public partial class AsistenteViewModel : PaginaViewModel
     // ------------------------------------------------------------------
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HayLibroElegido))]
+    [NotifyPropertyChangedFor(nameof(EsFuentePdf))]
     [NotifyCanExecuteChangedFor(nameof(SiguienteCommand))]
     [NotifyCanExecuteChangedFor(nameof(GenerarCommand))]
     private Libro? _libro;
 
     public bool HayLibroElegido => Libro is not null;
+
+    /// <summary>
+    /// true solo para PDF: es el unico formato con paginas/capitulos, asi que el paso
+    /// Alcance esconde modulos y rango para el resto (US-009 AC-T45, arquitectura Inc-4 §3).
+    /// </summary>
+    public bool EsFuentePdf => Libro?.Tipo == TipoFuente.Pdf;
 
     [ObservableProperty]
     private bool _agregando;
@@ -211,7 +218,13 @@ public partial class AsistenteViewModel : PaginaViewModel
         {
             if (Libro is null)
             {
-                return "Elegi un libro para empezar.";
+                return "Elegi un material para empezar.";
+            }
+
+            if (!EsFuentePdf)
+            {
+                string t = Tema.Trim();
+                return t.Length > 0 ? $"material completo · tema \"{t}\"" : "material completo";
             }
 
             ConstruirRangos(out string descripcion);
@@ -339,8 +352,12 @@ public partial class AsistenteViewModel : PaginaViewModel
 
     private void RefrescarPasos()
     {
-        Pasos[0].Resumen = Libro is null ? "Sin elegir" : $"{Libro.Titulo} · {Libro.CantidadPaginas} pag.";
-        Pasos[1].Resumen = Libro is null ? "-" : $"{ResumenAlcance} · ~{PaginasDelAlcance} pag.";
+        Pasos[0].Resumen = Libro is null
+            ? "Sin elegir"
+            : EsFuentePdf ? $"{Libro.Titulo} · {Libro.CantidadPaginas} pag." : $"{Libro.Titulo} · {Libro.MedidaTamanio}";
+        Pasos[1].Resumen = Libro is null
+            ? "-"
+            : EsFuentePdf ? $"{ResumenAlcance} · ~{PaginasDelAlcance} pag." : ResumenAlcance;
         Pasos[2].Resumen = $"{Cantidad} preguntas{(IncluirImagenes ? " · con graficos" : string.Empty)}";
 
         foreach (var p in Pasos)
@@ -396,11 +413,29 @@ public partial class AsistenteViewModel : PaginaViewModel
         Recalcular();
     }
 
+    /// <summary>
+    /// Alta de una fuente desde la zona de arrastre o el selector. Multi-archivo: varias
+    /// imagenes = un unico material (arquitectura Inc-4 §3). Al arrastrar puede venir
+    /// cualquier extension (el behavior no filtra): las no admitidas se descartan aca con
+    /// un aviso que nombra los formatos validos (NFR-37), igual que hace el selector.
+    /// "No se combinan tipos" y "un examen = una fuente" los valida
+    /// <see cref="BibliotecaService.AgregarFuenteAsync"/> (lanza
+    /// <see cref="FuenteInvalidaException"/>), aca solo se traduce a aviso.
+    /// </summary>
     [RelayCommand]
-    private async Task SoltarAsync(string? ruta)
+    private async Task SoltarAsync(string[]? rutas)
     {
-        if (string.IsNullOrWhiteSpace(ruta))
+        if (rutas is null || rutas.Length == 0)
         {
+            return;
+        }
+
+        var admitidas = rutas.Where(EsFormatoAdmitido).ToArray();
+        int ignoradas = rutas.Length - admitidas.Length;
+
+        if (admitidas.Length == 0)
+        {
+            Avisar(new FormatoNoSoportadoException().Message, error: true);
             return;
         }
 
@@ -408,10 +443,17 @@ public partial class AsistenteViewModel : PaginaViewModel
 
         try
         {
-            string sugerido = System.IO.Path.GetFileNameWithoutExtension(ruta);
-            var libro = await _biblioteca.AgregarLibroAsync(ruta, sugerido, "Sin materia");
+            string sugerido = admitidas.Length == 1
+                ? System.IO.Path.GetFileNameWithoutExtension(admitidas[0])
+                : $"Material ({admitidas.Length} imagenes)";
+
+            var libro = await _biblioteca.AgregarFuenteAsync(admitidas, sugerido, "Sin materia");
             Libro = libro;
-            Avisar($"Se agrego \"{libro.Titulo}\" ({libro.CantidadPaginas} paginas) a la biblioteca.");
+
+            string extra = ignoradas > 0
+                ? $" Se ignoraron {ignoradas} archivo(s) con un formato no admitido."
+                : string.Empty;
+            Avisar($"Se agrego \"{libro.Titulo}\" ({libro.MedidaTamanio}) a la biblioteca.{extra}");
         }
         catch (Exception ex)
         {
@@ -424,13 +466,17 @@ public partial class AsistenteViewModel : PaginaViewModel
         }
     }
 
+    /// <summary>true si la extension del archivo la cubre algun extractor (arquitectura Inc-4 §4.1).</summary>
+    private static bool EsFormatoAdmitido(string ruta)
+        => FactoriaExtractores.Para(System.IO.Path.GetExtension(ruta)) is not null;
+
     [RelayCommand]
     private async Task ElegirArchivoAsync()
     {
-        string? ruta = _dialogos.ElegirPdf();
-        if (ruta is not null)
+        string[]? rutas = _dialogos.ElegirFuentes();
+        if (rutas is not null)
         {
-            await SoltarAsync(ruta);
+            await SoltarAsync(rutas);
         }
     }
 
@@ -506,7 +552,7 @@ public partial class AsistenteViewModel : PaginaViewModel
 
         if (!libro.ArchivoDisponible)
         {
-            Avisar("No se encuentra la copia del PDF. Volve a agregarlo desde Libros.", error: true);
+            Avisar("No se encuentra la copia del material. Volve a agregarlo desde Libros.", error: true);
             return;
         }
 
@@ -523,7 +569,21 @@ public partial class AsistenteViewModel : PaginaViewModel
             return;
         }
 
-        var rangos = ConstruirRangos(out string alcance);
+        bool esPdf = libro.Tipo == TipoFuente.Pdf;
+
+        // Solo PDF tiene paginas/capitulos: para el resto de los formatos el recorte es
+        // siempre "material completo" y el unico acotador es el eje tematico (US-009 AC-T45/46).
+        string alcance;
+        var rangos = new List<RangoPaginas>();
+        if (esPdf)
+        {
+            rangos = ConstruirRangos(out alcance);
+        }
+        else
+        {
+            alcance = ResumenAlcance;
+        }
+
         int cantidad = Cantidad;
 
         _cts = new CancellationTokenSource();
@@ -539,7 +599,9 @@ public partial class AsistenteViewModel : PaginaViewModel
 
         try
         {
-            // Paso 1: leer el PDF por bloques de paginas.
+            // Paso 1: extraer el material segun su formato (contrato IExtractorContenido,
+            // arquitectura Inc-4 §4.1). PDF lee por bloques de paginas; Office por parte;
+            // el set de imagenes las prepara y convierte HEIC.
             var opciones = new OpcionesExtraccion
             {
                 PaginasPorBloque = _sesion.Config.PaginasPorBloque,
@@ -549,11 +611,44 @@ public partial class AsistenteViewModel : PaginaViewModel
                 CarpetaImagenes = RutasApp.CarpetaImagenesExamen(examenId)
             };
 
-            var extraccion = await _pdf.ExtraerAsync(libro.RutaArchivo, rangos, opciones, progreso, ct);
+            // Para un set de imagenes, el tope "por material" (NFR-43) lo lee el
+            // ImagenExtractor de MaxPaginasEscaneadas.
+            if (libro.Tipo == TipoFuente.SetImagenes)
+            {
+                opciones.MaxPaginasEscaneadas = Math.Max(1, _sesion.Config.MaxImagenesPorMaterial);
+            }
+
+            var extractor = FactoriaExtractores.Para(System.IO.Path.GetExtension(libro.RutaArchivo));
+            if (extractor is null)
+            {
+                Avisar("Este material tiene un formato que la app ya no puede procesar. Volve a agregarlo.", error: true);
+                return;
+            }
+
+            var recorte = new RecorteFuente
+            {
+                Paginas = esPdf ? rangos : null,
+                TemaLibre = Tema.Trim()
+            };
+
+            ExtraccionResultado extraccion;
+            try
+            {
+                extraccion = await extractor.ExtraerAsync(libro.Archivos, recorte, opciones, progreso, ct);
+            }
+            catch (FuenteIlegibleException ex)
+            {
+                // Fuente sin contenido util (Office sin texto, todas las imagenes ilegibles):
+                // no se crea un examen vacio (RN-4 / NFR-41).
+                Avisar(ex.Message, error: true);
+                return;
+            }
 
             if (!extraccion.TieneMaterial)
             {
-                Avisar(DescribirAlcanceVacio(extraccion), error: true);
+                Avisar(esPdf
+                    ? DescribirAlcanceVacio(extraccion)
+                    : "No se encontro contenido para generar preguntas en este material.", error: true);
                 return;
             }
 
@@ -582,10 +677,11 @@ public partial class AsistenteViewModel : PaginaViewModel
                 Modelo = _sesion.Config.Modelo,
 
                 // El PDF y el alcance viajan para que, cuando convenga, se suba el recorte
-                // con la Files API en vez de mandar el texto extraido.
-                RutaPdf = libro.RutaArchivo,
+                // con la Files API en vez de mandar el texto extraido. Solo aplica a PDF:
+                // para el resto va vacio y SubirPdfSiConviene corta por RutaPdf vacio.
+                RutaPdf = esPdf ? libro.RutaArchivo : string.Empty,
                 Rangos = rangos,
-                UsarFilesApi = _sesion.Config.UsarFilesApi,
+                UsarFilesApi = esPdf && _sesion.Config.UsarFilesApi,
 
                 TituloLibro = libro.Titulo,
                 Materia = libro.Materia,
@@ -608,6 +704,9 @@ public partial class AsistenteViewModel : PaginaViewModel
             // Paso 3: armar el examen y entregarlo.
             var examen = new ExamenEnCurso
             {
+                // Mismo id que nombra la carpeta de imagenes: al finalizar, registro.Id
+                // hereda este valor y US-012 puede limpiar Imagenes\{id} (arquitectura Inc-4 §1.4).
+                Id = examenId,
                 LibroId = libro.Id,
                 LibroTitulo = libro.Titulo,
                 Materia = libro.Materia,
@@ -629,7 +728,7 @@ public partial class AsistenteViewModel : PaginaViewModel
                 // hacer nada: no distinguia un alcance de tres paginas de un modelo que no
                 // colabora. Estas dos causas se distinguen por el tamanio del alcance, asi
                 // que se nombra la que corresponde.
-                int paginas = PaginasDelAlcance;
+                int paginas = esPdf ? PaginasDelAlcance : int.MaxValue;
 
                 string causa = paginas < 15
                     ? $"El alcance elegido tiene {paginas} pagina(s): con tan poco material no salen " +

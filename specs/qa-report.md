@@ -1,3 +1,175 @@
+QA OK - build working tree (sin commit, sobre `414c0e5`) - 2026-08-30
+
+Incremento 4 (US-008 a US-013) — validación end-to-end contra los Given/When/Then de
+`01-spec.md` (US-008..US-013, RN-1..RN-9), NFR-37..NFR-53 / AC-T40..AC-T63 de `02-tech-spec.md`
+y la matriz de `test-plan.md`. Entrada faltante que el UAT marcó como bloqueante de proceso: la
+QA de módulos ya se corrió en esta sesión (hallazgos D-1 y D-2 resueltos, D-3 aceptado como
+menor) pero no había quedado registro en este archivo — la última entrada era del Incremento 3.
+
+**Build / suite (corrida propia, sin reusar resultados de developer/test-developer/code-reviewer):**
+- `dotnet build AutoExam.sln -c Release`: 0 advertencias, 0 errores.
+- `dotnet test AutoExam.sln -c Release`: 476/476 en verde (~10 s). Sin fallos de entorno esta
+  vez (los de `VerificarVersionScriptTests` / `ActualizacionService` que ensuciaban corridas
+  previas ya no aparecen en esta suite).
+- code-reviewer cerró 2 bloqueantes (conteo erróneo de imagen corrupta en `ImagenExtractor`;
+  falta de tope incremental de texto en `OfficeExtractor`) y 1 menor (`ArgumentException` con
+  `(Parameter ...)` visible al usuario); los 3 reconfirmados por lectura del código integrado
+  (ver por-US).
+- Paquete nuevo `Magick.NET-Q8-x64 14.16.0`, único consumidor `Services/ConversorHeic.cs`, RID
+  fijo `win-x64`. devops: publish single-file self-contained `win-x64` OK, +10.9 MB de `.exe`
+  (dentro del presupuesto NFR-A1 de 35 MB), sin DLLs sueltas.
+
+---
+
+**US-008 — Office moderno (`.docx` / `.xlsx` / `.pptx`)** — AC-T40..T44, NFR-37..41
+
+| Given/When/Then | Verificación | Estado |
+|---|---|---|
+| Selector y zona de arrastre aceptan Office junto a PDF (crit. 1) | `DialogoService.ElegirFuentes` arma el filtro desde `FactoriaExtractores.ExtensionesAdmitidas`; `SoltarArchivo.Extensiones` default a esa misma lista. `IDialogosElegirFuentesContractTests` (5), `FactoriaExtractoresIngestaContractTests` (6), `SoltarArchivoMultiArchivoTests` (6). | OK |
+| Examen con contenido del archivo + corrección UBA (crit. 2) | `OfficeExtractor` produce `Fragmentos` que viajan por `SolicitudGeneracion.Fragmentos` (canal preexistente); `AsistenteViewModel.GenerarAsync` usa el mismo motor y `EvaluadorUBA` intacto. Extracción cubierta por `OfficeExtractorTests` (15: cuerpo de Word, 1 fragmento por hoja de Excel con shared + inline strings, 1 por diapositiva de PPT con texto). Examen real contra Gemini → gap (a). | OK (extracción) / gap (a) (generación real) |
+| Medida por formato, 0 fuentes sin medida (crit. 3 / NFR-40) | Word → "documento unico"; Excel → "N hojas · ~Mk filas"; PPT → "N diapositivas". `BibliotecaService.AgregarFuenteAsync` la puebla vía `IExtractorContenido.MedirAsync`. `OfficeExtractorTests::MedirAsync_*_AC_T41` + `MedirAsync_SiempreDevuelveUnaMedida_NoNulaNiVacia_NFR40`, `BibliotecaServiceAgregarFuenteTests`. Word nunca reporta páginas (OOXML no las persiste, dependen del render): "documento unico" es la degradación que NFR-40 admite explícitamente. | OK |
+| Cualquier tamaño sin rechazo ni truncado propio (crit. 4 / NFR-38) | `OfficeExtractor` lee parte por parte (`ZipArchive` + `XmlReader` forward-only), nunca descomprime el OPC entero; sólo recorta al superar `MaxCaracteres` (recorte de contexto, no rechazo). `ExtraerAsync_PowerPointGrande_NoRecortaDiapositivasPorUnLimitePropio_AC_T42`, `ExtraerAsync_SoloRecortaCuandoSeSuperaMaxCaracteres_NFR38`. **Bloqueante de code-review "falta tope incremental de texto"** → cerrado: clase `Presupuesto` (2× `MaxCaracteres`, piso 40k) corta la acumulación en RAM *durante* la lectura; `AjustarPresupuesto` hace el recorte fino después. RAM pico real con archivo ≥500 páginas equivalentes → gap (d). | OK / gap (d) (RAM pico) |
+| `.doc` / `.xls` / `.ppt` y formato desconocido → rechazo con causa, 0 fuentes (crit. 5-6 / NFR-37) | `FactoriaExtractores.Para` → null → `FormatoNoSoportadoException` con mensaje que nombra los formatos admitidos y sugiere reguardar; `< 200 ms`, sin red. `FactoriaExtractoresTests` (7), `BibliotecaServiceAgregarFuenteTests::AgregarFuente_ExtensionLegacyODesconocida_Rechaza_SinCrearFuente_AC_T43`. **Menor de code-review** (`ArgumentException` con `(Parameter …)`) → cerrado: `FuenteInvalidaException` dedicada con `Message` listo para mostrar (`AgregarFuente_MezclaDeTipos_FuenteInvalida_MensajeLimpio_SinCopiarNada_AC_T43`). | OK |
+| Office protegido / dañado → rechazo con causa, no crea fuente vacía (crit. 6) | OOXML cifrado es OLE2, no ZIP → `ZipFile.OpenRead` lanza → `FuenteIlegibleException` con causa; `BibliotecaService` borra la copia parcial y re-lanza. `ExtraerAsync_ArchivoQueNoEsZip_LanzaFuenteIlegibleConCausa_AC_T43`, `AgregarFuente_PdfDanado_BorraLaCopiaParcial_YReLanzaConCausa_AC_T43_NFR41`. | OK |
+| Office sin texto extraíble → aviso, 0 exámenes vacíos (crit. 7 / NFR-41) | `ExtraerAsync_WordSinTexto_DevuelveResultadoSinMaterial_AC_T44` → `!TieneMaterial` → `AsistenteViewModel` avisa "no se encontró contenido" y no crea examen. | OK |
+
+**D-1 (M4, resuelto)** — drop con mezcla de formatos admitidos / no admitidos: `SoltarArchivo`
+pasa todas las rutas existentes sin filtrar; `BibliotecaViewModel.AgregarAsync` /
+`AsistenteViewModel.SoltarAsync` separan admitidas vs. ignoradas, informan "Se ignoraron N
+archivo(s) con un formato no admitido", y si las admitidas mezclan familias →
+`FuenteInvalidaException` mostrada tal cual. `ArchivosValidos` (whitelist) sólo alimenta el
+resaltado del `DragOver`.
+
+**US-009 — Alcance según tipo de fuente** — AC-T45..47
+
+| Given/When/Then | Verificación | Estado |
+|---|---|---|
+| Fuente no-PDF no ofrece capítulos ni módulos (crit. 1 / AC-T45) | `AsistenteViewModel.EsFuentePdf` gatea; `AsistenteView.xaml` esconde chips de capítulo y rango de páginas para no-PDF (`Visibility` a `EsFuentePdf`). `AsistenteViewModelAlcancePorTipoTests` (9): `FuenteNoPdf_NoOfreceCapitulos_NiModulos_AC_T45`, `CambiarDePdfANoPdf_LimpiaLosModulosDelPasoAlcance`, `AsistenteView_EscondeCapitulosParaNoPdf_YDejaElEjeTematicoSiempre`, `FuenteNoPdf_ElResumenDelPasoAlcance_NoHablaDePaginas_AC_T45`. | OK |
+| Eje temático libre disponible y acota para cualquier fuente (crit. 2 / AC-T46) | TextBox `Tema` sin gate; `RecorteFuente.TemaLibre` viaja siempre; `SolicitudGeneracion.TemaLibre`. `FuenteNoPdf_ConTema_ElAlcanceLoIncluye_AC_T46`. | OK |
+| Sin recorte → material completo (crit. 4 / AC-T47) | `RecorteFuente.MaterialCompleto` cuando `Paginas` nula/vacía; para no-PDF `Paginas = null` siempre. `FuenteNoPdf_SinTema_ElAlcanceEsMaterialCompleto_AC_T47`, `GenerarAsync_NoArmaPaginasParaFuenteNoPdf_YFijaElTopeDeImagenesDesdeLaConfig`. | OK |
+| Recorte a subconjunto de estructura Office (crit. 3, *deseable no bloqueante*) | No implementado en v1 (documentado como fuera de alcance de arquitectura Inc-4). No afecta ningún AC-T. | Aceptado |
+
+**US-010 — Fotos de apuntes manuscritos** — AC-T48..51, NFR-42..44
+
+| Given/When/Then | Verificación | Estado |
+|---|---|---|
+| Selector y drop aceptan `.jpg`/`.jpeg`/`.png`/`.heic`/`.heif` + selección múltiple (crit. 1 / AC-T48) | `ElegirFuentes` `Multiselect=true` con grupo "Imágenes" en el filtro; `SoltarArchivo` multi-ruta → comando siempre con `string[]`. `SoltarArchivoMultiArchivoTests`, `IDialogosElegirFuentesContractTests`. | OK |
+| `.heic`/`.heif` → formato soportado antes del envío, 0 bytes HEIC en el request (crit. 2 / AC-T49 / NFR-42) | `ConversorHeic.AConvertir` (Magick.NET con `libheif`/`libde265` embebidos, sin códec del SO) corre en `ImagenExtractor` **antes** de reescalar. `ConversorHeicTests` (5): `.heic` y `.heif` **reales** versionados en `AutoExam.Tests/Recursos/Imagen` → firma PNG en la salida, 0 marcador `ftyp`/`heic`; HEIC truncado o basura → lanza (lo traduce `ImagenExtractor` a "ilegible"). `ImagenExtractorTests::ExtraerAsync_ConHeic_LoConvierteAJpeg_CeroBytesHeicEnLaSalida_AC_T49_NFR42`. | OK en host de test / gap (b) (`.exe` publicado en Windows sin HEVC) |
+| Preguntas reflejan el manuscrito; parcial informa; todas ilegibles → no crea examen (crit. 3-4 / AC-T50 / NFR-41) | Las imágenes viajan como `PaginasEscaneadas` (`inline_data`), el modelo les lee el texto. `ImagenExtractorTests`: `FotosLegibles_LasDejaComoPaginasEscaneadasYaPreparadas`, `AlgunasFotosIlegibles_GeneraConElResto_YAvisaLaLimitacion_AC_T50`, `TodasIlegibles_LanzaFuenteIlegible_SinExamenVacio_AC_T50_NFR41`, `ArchivoInexistenteJuntoAUnoValido_GeneraConElValido`. **Bloqueante de code-review "conteo erróneo de imagen corrupta"** → cerrado: `TryPrepararParaLectura` falla → `fallidas++` + aviso + `continue`; el mensaje final distingue `fallidas > 0` de "no se agregó ninguna". Interpretación real de la letra por Gemini → gap (a). | OK (pipeline) / gap (a) (interpretación real) |
+| Orden de las imágenes = orden de alta (crit. 5 / AC-T51 / NFR-43) | `BibliotecaService.CopiarADeposito` numera `01..NN` en orden de alta; `ImagenExtractor` recorre `seleccion` en orden; `foreach (figuras.Concat(paginas))` en `GeminiApiService` preserva. `AgregarFuente_SetImagenes_UnaFuente_ArchivosEnOrdenDeAlta_YCopiaCorrelativa_AC_T48` (nombres no alfabéticos), `SoltarArchivoMultiArchivoTests::ArchivosValidos_...EnOrdenDeAlta`. | OK |
+| Supera el máximo por material o el peso/lado por imagen → aviso con el límite (crit. 6 / AC-T51 / NFR-43) | `ImagenExtractor` recorta a `MaxPaginasEscaneadas` (= `AppConfig.MaxImagenesPorMaterial`, fijado por el VM desde la config) con aviso; > 3 MB tras reescalar → aviso, se manda igual (Gemini tiene su guarda por lote). `SuperaElMaximoPorMaterial_RecortaAlLimiteConAviso_NFR43`. | OK |
+| Costo de la fuente-imagen informado (NFR-44) | `ImagenExtractor` reporta "se van a mandar N imágenes… puede tardar más y consumir más cuota" en el 100% de las generaciones-imagen. `ExtraerAsync_AvisaMayorConsumoDeCuota_NFR44`. | OK |
+
+**US-011 — Pulido de animaciones (8 superficies RN-7)** — AC-T52..55, NFR-45..48
+
+Compuerta única `Behaviors/Animaciones.cs`: `Reducidas = !SystemParameters.ClientAreaAnimation
+|| RenderCapability.Tier == 0`, más `MovimientoReducidoProperty` (propiedad adjunta) para usarla
+como `<Condition>` de `MultiTrigger` en XAML. Se resuelve una vez al inicializar el tipo (un
+cambio de la preferencia del SO se toma en el próximo arranque — intencional, documentado).
+
+Verificación por test estructural del XAML del checkout (sin runtime WPF), mismo criterio que
+las corridas previas de US-007/US-008/US-011 de este reporte:
+
+| # | Superficie RN-7 | Dónde / test | Estado |
+|---|---|---|---|
+| 1 | Transición entre secciones | `Behaviors/TransicionContenido.cs` — `DuracionTransicionSeccion`/`SuavizadoSalida`, consulta `Animaciones.Reducidas`. `ExamenViewTransicionContenidoTests`. | OK (estructural) |
+| 2 | Hover y pulsado de botones/chips | `Theme/Estilos.xaml`, 7 estilos. `EstilosXamlAnimacionesHoverPresionTests` (NFR-20/21 timing centralizado, NFR-22 guardia `IsEnabled` + `MovimientoReducido=False`, NFR-23 sin `Brush`/`Color` animado). | OK (estructural) |
+| 3 | Riel de pasos del asistente | `AsistenteView.xaml` — base gris `Linea` + overlay `LineaAvance` con `ScaleTransform.X` 0→1, timing centralizado, `MultiDataTrigger` con `Animaciones.Reducidas` (salto instantáneo si está activo). `RielPasosAsistenteAnimacionTests`. **Hallazgo D-2 de QA de módulo** (swap instantáneo de `Background` sin parámetros centralizados) → resuelto. | OK (estructural) |
+| 4 | Baldosas del navegador de preguntas | `Theme/Estilos.xaml` `BaldosaPregunta` — cubierto por el Incremento 2 (US-007/US-008) + guardia `IsEnabled` agregada allí. | OK (estructural) |
+| 5 | Entrada de la pantalla de Resultados | `Views/ExamenView.xaml` — superficie **nueva**: `Opacity` + `TranslateTransform.Y`, `DuracionTransicionSeccion` (0.22 s ≤ 250 ms), guardia `Animaciones.Reducidas=False`. `ResultadosEntradaAnimacionTests`. | OK (estructural) |
+| 6 | Apertura/cierre de avisos (InfoBar) | `ui:InfoBar` nativo de WPF-UI 4.3.0 — ver hallazgo D-3. | Ver D-3 |
+| 7 | Anillos de progreso | `ui:ProgressRing` nativo de WPF-UI 4.3.0 — ver hallazgo D-3. | Ver D-3 |
+| 8 | Alta/baja de ítems en Historial y Libros | `Theme/Estilos.xaml` `ItemLibro` — superficie **nueva**: fade `Opacity` 0→1 en `MultiDataTrigger` con guardia reduce-motion (se sacó el `EventTrigger` de `Loaded`, que no admite `<Condition>`). `ItemLibroFadeInReducirMovimientoTests`. | OK (estructural) |
+
+- No bloqueante ni acumulable (crit. 3-4 / NFR-46): `BeginAnimation`/`BeginStoryboard` reemplazan
+  limpiamente el clock anterior (comportamiento WPF); `ContentControl` único en el shell. El
+  stress de ≥5 disparos encadenados en vivo → parte de gap (c).
+- Paridad funcional (crit. 5 / NFR-48): las animaciones sólo tocan `Opacity` de capa overlay ya
+  tematizada o `ScaleTransform`; estado final idéntico con y sin animación (aserción explícita en
+  los tests estructurales). Suite de regresión 476/476 sin desvíos.
+- **Gap (c)**: el checklist visual en vivo de las 8 superficies (tema claro y oscuro, reducir
+  movimiento on/off) que `01-spec.md` US-011 exige como binario "pasa/no pasa" para el sign-off
+  no se puede ejecutar acá (sin sesión interactiva WPF). Evidencia acá: estructural (parámetros
+  centralizados + guardia presentes en el XAML) + regresión de comportamiento — no inspección
+  visual de "sin cortes ni parpadeo".
+
+**US-012 — Borrar examen individual del historial** — AC-T56..59, NFR-49..51
+
+| Given/When/Then | Verificación | Estado |
+|---|---|---|
+| Acción visible por ítem + confirmación; cancelar no cambia nada (crit. 1-2 / AC-T56) | `HistorialViewModel.BorrarExamenCommand(ExamenRendido)` → `IDialogos.Confirmar`; `HistorialView.xaml` botón por ítem. `HistorialViewModelBorrarExamenTests` (7): `Cancelar_LaConfirmacion_NoCambiaNada_AC_T56`, `ConfirmacionNormal_MencionaElExamen_SinAdvertirRevancha_AC_T56`. | OK |
+| Desaparece, agregados recalculados, sigue ausente tras reiniciar (crit. 3-4 / AC-T57 / NFR-49) | `SesionUsuarioService.BorrarExamen` → `Perfil.Historial.RemoveAll` → `GuardarPerfil` → `RefrescarHistorial`; las 6+ estadísticas de `PerfilUsuario` son getters calculados sobre `Historial`. `SesionUsuarioServiceBorrarExamenTests`: `BorrarExamen_RecalculaLasEstadisticasAgregadasSinElExamenBorrado_AC_T57`, `BorrarExamen_Persiste_ElExamenSigueAusenteAlReabrirLaApp_AC_T57_NFR49`. | OK |
+| Se limpian las imágenes asociadas (crit. 5 / AC-T58 / NFR-50) | `HistorialViewModel.LimpiarImagenesAsync` borra `Imagenes\{id}` best-effort (fallo → `RutasApp.RegistrarError`, no corta el borrado). El hueco de `02-tech-spec.md` (el `examenId` de la carpeta no quedaba en `ExamenRendido`) está cerrado: `AsistenteViewModel.GenerarAsync` fija `ExamenEnCurso.Id = examenId` y `registro.Id` lo hereda. `Confirmar_Borra_LimpiaImagenes_YEmiteExamenBorrado_AC_T56_NFR50`, `Confirmar_SinCarpetaDeImagenes_NoLanza_YBorraIgual_NFR50`. | OK |
+| Último borrado → estado vacío; "Borrar historial" global intacto (crit. 6-7 / AC-T58) | `HayExamenes`/`Resumen` = "Todavia no rendiste ningun examen"; `BorrarCommand` global sin cambios. `BorrarElUltimoExamen_DejaElHistorialVacio_AC_T58`, `BorrarHistorial_Global_SigueVaciandoTodo_SinCambios_AC_T58`. | OK |
+| Revancha en curso al borrar el original: advierte; al confirmar se descarta sin registrar; revancha que termina con el original ya borrado no lo recrea ni lanza (crit. 8-9 / AC-T59 / NFR-51) | `ShellViewModel` cablea `Historial.HayRevanchaEnCursoDe = id => Examen.HayIntentoAbierto && Examen.RegistroActualId == id` y `Historial.ExamenBorrado += Examen.AlBorrarseExamen`. Confirmación con texto alternativo ("esa revancha en curso se descarta sin registrarse"); `AlBorrarseExamen` pone `Registro = null` y `Cerrar()` si `EsRevancha`. `ActualizarExamen` hace `FindIndex` y no-op si -1. `ExamenViewModelAlBorrarseExamenTests` (4: `RevanchaEnCurso_DelExamenBorrado_SeDescartaSinRegistrar_AC_T59`, `IntentoOriginalEnCurso_...PierdeElRegistro_PeroSiguePudiendoRendirse`, `BorrarOtroExamen_NoTocaElIntentoEnCurso`, `SinIntentoAbierto_...EsNoOp`), `HistorialViewModelBorrarExamenTests::ConRevanchaEnCurso_LaConfirmacionAdvierteQueSeDescarta_AC_T59_NFR51`, `SesionUsuarioServiceBorrarExamenTests::ActualizarExamen_DeUnRegistroYaBorrado_NoLoRecrea_NiLanza_NFR51`. | OK |
+
+**US-013 — Mensaje de felicitación con nota ≥ 7** — AC-T60..63, NFR-52/53, RN-1/RN-5
+
+| Given/When/Then | Verificación | Estado |
+|---|---|---|
+| Nota UBA ≥ 7 en el intento original → texto literal, destacado, en mayúsculas (crit. 1 / AC-T60) | `ExamenViewModel.MensajeFelicitacion` = `const` = `"FELICIDADES CULONA TE ROMPO BIEN EL CULO"` — coincide carácter por carácter con `01-spec.md` US-013. `MostrarResultados` fija `MostrarFelicitacion = !examen.EsRevancha && resultado.Nota >= 7` (`Nota` es `int`, `EvaluadorUBA` intocado, ≥7 ⇔ ≥74%, RN-1). `ExamenView.xaml`: `TextBlock Text="{x:Static vm:ExamenViewModel.MensajeFelicitacion}"`, `Visibility` a `MostrarFelicitacion` (`BoolToVis`), `FontWeight="Bold"`, `FontSize="16"`, `Foreground="{DynamicResource PincelAcierto}"`. `ExamenViewModelFelicitacionTests` (7), ejercitado por el camino real (`Iniciar` + `FinalizarCommand` → `EvaluadorUBA.Evaluar`): `ElMensaje_EsUnaConstanteLiteralEnMayusculas_AC_T60`, `ExamenView_MuestraElMensajeDestacado_AtadoAMostrarFelicitacion_AC_T60`. | OK |
+| Nota ≤ 6, o resultado de revancha → no aparece (crit. 2-3 / AC-T61) | Casos con nota ≤ 6 → `MostrarFelicitacion == false`; `Revancha_AunConNotaPerfecta_NoMuestraLaFelicitacion_AC_T61` (10/10 en ronda de revancha → `false`). | OK |
+| Con el mensaje visible, el resto de Resultados funciona igual (crit. 4 / AC-T62 / NFR-53) | El `TextBlock` es aditivo dentro del `StackPanel` de encabezado; corrección pregunta por pregunta, `DetalleRondas`, botón de revancha sin cambios. Suite de `ExamenView` / `ExamenViewModel` en verde, `ExamenViewKeyBindingRegressionTests` / `ExamenViewTransicionContenidoTests` sin regresión. | OK |
+| Sin opción/flag/config para ocultar o editar; va en el release (crit. 5 / AC-T63 / NFR-52 / RN-5) | `const` de código; no `AppConfig`, no recurso de tema intercambiable, no binding configurable. `AppConfig_NoTieneNingunCampoParaOcultarOEditarLaFelicitacion_AC_T63`, `ExamenViewModel_NoExponeSetterPublicoNiMetodoParaForzarLaFelicitacion_NFR52`. Se distribuye en el binario por la actualización automática (`publish.yml` sin cambios de flujo). | OK |
+
+---
+
+**Hallazgos no bloqueantes**
+
+1. **D-3 (menor, aceptado en QA de módulo M5)** — superficies 6 (InfoBar abrir/cerrar) y 7
+   (anillos de progreso) de RN-7 son controles nativos de WPF-UI 4.3.0 (`ui:InfoBar`,
+   `ui:ProgressRing`): su animación la maneja la librería, no lee las `Duration` centralizadas de
+   `Theme/Estilos.xaml` ni consulta `Animaciones.Reducidas`. El criterio "usa los parámetros
+   centralizados" del checklist de US-011 se cumple estrictamente sólo para las 6 superficies con
+   plantilla propia. Re-templatizar controles de terceros para ganar esos dos casos es
+   desproporcionado para una tarea de "pulido"; se acepta como está. Impacto: con "reducir
+   movimiento" del SO activo, InfoBar y ProgressRing conservan su micro-animación nativa (corta,
+   no bloqueante).
+2. `OfficeExtractor` v1 no extrae notas del orador (PPT), cuadros de texto anidados ni
+   comentarios (documentado en el propio archivo como mejora futura, R-17). No afecta ningún
+   AC-T.
+3. `LeerSharedStrings` de Excel corta al superar el `Presupuesto`: en un `.xlsx` cuya tabla de
+   cadenas *sola* ya excede 2× `MaxCaracteres`, las celdas que apunten a índices no leídos quedan
+   vacías. Degradación aceptable a ese tamaño (el material se recorta por cuota de todos modos).
+4. `Animaciones.Reducidas` se evalúa una sola vez al inicializar el tipo; un cambio de la
+   preferencia "mostrar animaciones en Windows" se toma en el próximo arranque. Intencional y
+   documentado en el código.
+
+**Fuera de alcance de la automatización — gaps de cobertura** (mismo criterio que las corridas
+previas de este reporte usaron para la API de Gemini: no gastar la cuota/clave real del usuario
+sin pedido explícito, y sin sesión interactiva WPF en este entorno):
+
+- **(a)** Examen real generado end-to-end desde un `.docx` / `.xlsx` / `.pptx` y desde un set de
+  fotos manuscritas, contra la API real de Gemini. La cadena hasta `SolicitudGeneracion` está
+  cubierta por unit tests; la interpretación del contenido por el modelo, no. Mismo criterio que
+  AC-T27 del Incremento 3.
+- **(b)** Decodificación de un `.heic` real sobre el `.exe` publicado (single-file
+  self-contained) en un Windows limpio sin las "HEIF Image Extensions" / códec HEVC. El unit
+  test prueba que `Magick.NET-Q8-x64` decodifica en el host de test (con los assets nativos del
+  nupkg en disco); falta confirmar que `IncludeNativeLibrariesForSelfExtract` empaqueta y carga
+  `libheif`/`libde265` desde el bundle en una máquina sin códec.
+- **(c)** Checklist visual en vivo de las 8 superficies de RN-7 (tema claro y oscuro, reducir
+  movimiento on/off) que `01-spec.md` US-011 exige explícitamente para el sign-off de esa US —
+  requiere sesión interactiva WPF. Evidencia acá: estructural (XAML) + regresión de
+  comportamiento.
+- **(d)** RAM pico con un archivo Office equivalente a ≥ 500 páginas. Mitigado por la clase
+  `Presupuesto` de `OfficeExtractor` (corte de acumulación durante la lectura, verificado por
+  `ExtraerAsync_SoloRecortaCuandoSeSuperaMaxCaracteres_NFR38`); falta la medición del pico real
+  del proceso.
+
+**Sign-off Incremento 4:** sin defectos bloqueantes. Los 2 bloqueantes de code-reviewer y los
+hallazgos D-1 / D-2 de QA de módulo están cerrados y reconfirmados por lectura del código
+integrado; D-3 aceptado como menor. Todo criterio de aceptación de negocio de US-008..US-013 fue
+ejercitado al menos una vez (unit/estructural + lectura). Los gaps (a)-(d) son manuales, no
+bloqueantes con el criterio de proporcionalidad ya aceptado en este archivo; se recomienda
+cubrirlos en el UAT antes de la firma final — en particular el checklist visual (c), que el spec
+de US-011 exige como condición de sign-off de esa US.
+
+Sugerencia: ejecutar (a) y (c) en la sesión de UAT con la clave real del usuario y una PC de
+prueba; (b) puede cubrirse instalando el `.exe` publicado en una VM Windows limpia.
+
+---
+
 QA OK - build working tree (sin commit, sobre `370cc65`) - 2026-08-28
 
 US-011 (Incremento 3, `AutoExam/Theme/Tokens.Claro.xaml` + `AutoExam/Theme/Tokens.Oscuro.xaml`)
