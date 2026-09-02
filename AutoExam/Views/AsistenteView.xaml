@@ -10,7 +10,7 @@
              mc:Ignorable="d"
              d:DataContext="{d:DesignInstance Type=vm:AsistenteViewModel}">
 
-    <Grid MaxWidth="820" HorizontalAlignment="Left">
+    <Grid MaxWidth="820" HorizontalAlignment="Center">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
@@ -19,7 +19,7 @@
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <TextBlock Grid.Row="0" Text="Nuevo examen" Style="{StaticResource TxtSeccion}" Margin="0,0,0,18" />
+        <TextBlock Grid.Row="0" Text="&#x1F4DD; Nuevo examen" Style="{StaticResource TxtSeccion}" Margin="0,0,0,18" />
 
         <!-- ============================================================ -->
         <!-- Riel de pasos. El subtitulo de cada paso no repite su nombre: -->

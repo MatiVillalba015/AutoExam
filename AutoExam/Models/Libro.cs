@@ -135,6 +135,27 @@ public class Libro : ObservableBase
 
     public List<Modulo> Modulos { get; set; } = new();
 
+    /// <summary>
+    /// Resumen de "de que trata" este material, generado por IA bajo demanda (US-020).
+    ///
+    /// Vacio mientras el alumno no lo pida: RN-17 prohibe generarlo al subir el archivo, para
+    /// no gastar cuota en materiales que quiza nunca use. Se persiste una vez generado —de ahi
+    /// que no lleve JsonIgnore, a diferencia de <see cref="Resumen"/>, que es texto calculado—
+    /// porque volver a pedirlo cada vez que se abre el libro gastaria otra peticion del dia por
+    /// un texto que no cambia.
+    /// </summary>
+    public string DeQueTrata
+    {
+        get => _deQueTrata;
+        set => Set(ref _deQueTrata, value);
+    }
+
+    private string _deQueTrata = string.Empty;
+
+    /// <summary>true si este material ya tiene un resumen generado y guardado.</summary>
+    [JsonIgnore]
+    public bool TieneResumen => !string.IsNullOrWhiteSpace(DeQueTrata);
+
     /// <summary>true para las familias que se guardan como un unico archivo (todo salvo el set de imagenes).</summary>
     [JsonIgnore]
     public bool EsArchivoUnico => Tipo != TipoFuente.SetImagenes;

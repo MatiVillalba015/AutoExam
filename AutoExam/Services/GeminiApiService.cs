@@ -369,6 +369,100 @@ public class GeminiApiService
     /// Lee la respuesta sin lanzar excepciones: para la prueba de conexion, una respuesta sin
     /// texto no es un fallo de la clave y no debe presentarse como tal.
     /// </summary>
+    /// <summary>
+    /// Resumen de "de que trata" un material (US-020).
+    ///
+    /// Es un pedido chico y aparte del armado de examenes: texto plano en vez del esquema JSON
+    /// de preguntas, y un techo de salida bajo, porque lo que se pide son unas pocas oraciones.
+    /// Se corre bajo demanda (RN-17), asi que cada llamada gasta una peticion de la cuota
+    /// diaria y por eso el llamador cachea el resultado en vez de repetirla.
+    /// </summary>
+    /// <param name="material">Texto ya extraido del material. Se recorta antes de enviarlo.</param>
+    /// <exception cref="GeminiException">Si no hay clave, si Google rechaza el pedido, o si el
+    /// modelo contesta sin texto.</exception>
+    public async Task<string> ResumirMaterialAsync(
+        IReadOnlyList<string> claves,
+        string modelo,
+        string titulo,
+        string material,
+        CancellationToken ct = default)
+    {
+        var anillo = new AnilloDeClaves(claves ?? Array.Empty<string>());
+
+        if (anillo.Cantidad == 0)
+        {
+            throw new GeminiException("No hay API Key configurada. Carga tu clave de Gemini en la pestania Ajustes.");
+        }
+
+        if (string.IsNullOrWhiteSpace(material))
+        {
+            throw new GeminiException("El material no tiene texto para resumir.");
+        }
+
+        // Con mas material el resumen no mejora y el pedido se encarece: alcanza con el
+        // principio, que es donde vive el indice, la introduccion y los primeros temas.
+        string recorte = Recortar(material.Trim(), MaxCaracteresResumen);
+
+        var sb = new StringBuilder();
+        sb.AppendLine("Sos un profesor que le describe a un alumno de que trata un material de estudio.");
+        sb.AppendLine();
+        sb.AppendLine($"MATERIAL: \"{titulo}\"");
+        sb.AppendLine();
+        sb.AppendLine("Escribi un resumen en español rioplatense de 4 a 6 oraciones que conteste:");
+        sb.AppendLine("de que trata, que temas principales cubre, y para que materia o examen sirve.");
+        sb.AppendLine("Sin titulos, sin vinietas y sin markdown: solo el parrafo.");
+        sb.AppendLine("Si el material no alcanza para saber de que trata, decilo en una oracion en vez de inventar.");
+        sb.AppendLine();
+        sb.AppendLine("CONTENIDO:");
+        sb.AppendLine(recorte);
+
+        var config = new JsonObject
+        {
+            ["temperature"] = 0.3,
+            ["maxOutputTokens"] = TopeTokensResumen,
+        };
+
+        if (_razonamientoApagable)
+        {
+            config["thinkingConfig"] = new JsonObject { ["thinkingBudget"] = 0 };
+        }
+
+        var cuerpo = new JsonObject
+        {
+            ["contents"] = new JsonArray
+            {
+                new JsonObject
+                {
+                    ["role"] = "user",
+                    ["parts"] = new JsonArray { new JsonObject { ["text"] = sb.ToString() } }
+                }
+            },
+            ["generationConfig"] = config,
+        };
+
+        string respuesta = await EnviarAsync(anillo, modelo, cuerpo, null, ct).ConfigureAwait(false);
+
+        string texto = LeerTextoTolerante(respuesta, out string razon, out string? bloqueo);
+
+        if (!string.IsNullOrEmpty(bloqueo))
+        {
+            throw new GeminiException($"Gemini bloqueo el resumen por filtros de contenido ({bloqueo}).");
+        }
+
+        if (string.IsNullOrWhiteSpace(texto))
+        {
+            throw new GeminiException(ExplicarFinishReason(razon));
+        }
+
+        return texto.Trim();
+    }
+
+    /// <summary>Material que se manda a resumir: el principio alcanza para saber de que trata.</summary>
+    private const int MaxCaracteresResumen = 12_000;
+
+    /// <summary>Techo de salida del resumen: son 4 a 6 oraciones, no un examen.</summary>
+    private const int TopeTokensResumen = 700;
+
     private static string LeerTextoTolerante(string respuestaJson, out string finishReason, out string? bloqueo)
     {
         finishReason = "desconocido";
@@ -818,6 +912,16 @@ public class GeminiApiService
             progreso?.Report(conImagen > 0
                 ? $"{conImagen} de {finales.Count} preguntas quedaron con figura ({solicitud.Imagenes.Count} extraidas del PDF)."
                 : $"Se extrajeron {solicitud.Imagenes.Count} figuras del PDF pero el modelo no las uso en ninguna pregunta.");
+        }
+        else if (solicitud.IncluirImagenes && solicitud.Imagenes.Count == 0 && solicitud.PaginasEscaneadas.Count > 0)
+        {
+            // Material 100% fotografiado (sin figuras separadas): la unica imagen posible sale
+            // de la excepcion de pagina-con-diagrama del prompt (ver ConstruirPrompt).
+            int conImagen = finales.Count(p => !string.IsNullOrWhiteSpace(p.RutaImagenAdjunta));
+
+            progreso?.Report(conImagen > 0
+                ? $"{conImagen} de {finales.Count} preguntas quedaron con imagen de una pagina fotografiada (no se detectaron figuras separadas en este material)."
+                : "No se detectaron figuras separadas en este material y el modelo no encontro ninguna pagina con un diagrama claro para usar de referencia: el examen sale sin imagenes.");
         }
 
         return finales;
@@ -1523,6 +1627,60 @@ public class GeminiApiService
                || mensaje.Contains("max_output_tokens", StringComparison.OrdinalIgnoreCase)
                || mensaje.Contains("output token", StringComparison.OrdinalIgnoreCase));
 
+    /// <summary>
+    /// De donde salio una figura, para que el modelo pueda citarla en la justificacion.
+    ///
+    /// Antes esto decia siempre "pagina N del PDF", que dejo de ser cierto cuando las figuras
+    /// tambien pueden venir de un .docx (US-018/US-022). Se prefiere la etiqueta del extractor
+    /// cuando la trae —en un PDF es el capitulo, en un documento es "figura N del documento"— y
+    /// se cae al numero de pagina, que es lo unico que un PDF siempre tiene.
+    /// </summary>
+    private static string DescribirOrigenFigura(ImagenExtraida img)
+    {
+        bool hayEtiqueta = !string.IsNullOrWhiteSpace(img.Etiqueta);
+
+        if (img.Pagina > 0 && hayEtiqueta)
+        {
+            return $"{img.Etiqueta}, pagina {img.Pagina}";
+        }
+
+        if (hayEtiqueta)
+        {
+            return img.Etiqueta;
+        }
+
+        return img.Pagina > 0 ? $"pagina {img.Pagina}" : "origen sin identificar";
+    }
+
+    /// <summary>
+    /// Cuantas preguntas del lote llevan figura (US-018).
+    ///
+    /// El criterio pide "una proporcion aleatoria, no todas": aleatoria porque dos examenes
+    /// seguidos sobre el mismo material no deberian traer la figura en las mismas posiciones, y
+    /// "no todas" porque un examen entero de preguntas con imagen deja de practicar el texto.
+    /// Se sortea entre un quinto y un tercio del lote, con piso de 1 —si hay figuras, al menos
+    /// una pregunta las usa, o el modelo las ignora por completo— y techo en la cantidad de
+    /// figuras disponibles, que no se repiten entre preguntas.
+    ///
+    /// Nunca devuelve mas que <paramref name="figurasDisponibles"/>: pedir mas figuras de las
+    /// que hay obligaria al modelo a repetir o a inventar identificadores (RN-14, la imagen es
+    /// un complemento y nunca puede trabar la generacion).
+    /// </summary>
+    public static int CuotaDeFiguras(int cantidadPreguntas, int figurasDisponibles, Random? azar = null)
+    {
+        if (figurasDisponibles <= 0 || cantidadPreguntas <= 0)
+        {
+            return 0;
+        }
+
+        int piso = Math.Max(1, cantidadPreguntas / 5);
+        int techo = Math.Max(piso, cantidadPreguntas / 3);
+
+        int sorteada = (azar ?? Random.Shared).Next(piso, techo + 1);
+
+        return Math.Clamp(sorteada, 1, Math.Min(figurasDisponibles, cantidadPreguntas));
+    }
+
     private static JsonObject Seguridad(string categoria) => new()
     {
         ["category"] = categoria,
@@ -1583,16 +1741,16 @@ public class GeminiApiService
         {
             sb.AppendLine();
             sb.AppendLine("FIGURAS ADJUNTAS:");
-            sb.AppendLine($"Las primeras {figuras.Count} imagenes adjuntas son figuras extraidas del PDF, en este orden:");
+            sb.AppendLine($"Las primeras {figuras.Count} imagenes adjuntas son figuras extraidas del material, en este orden:");
             for (int i = 0; i < figuras.Count; i++)
             {
                 var img = figuras[i];
-                sb.AppendLine($"  - Figura #{i + 1}: identificador \"{img.Identificador}\" (pagina {img.Pagina} del PDF).");
+                sb.AppendLine($"  - Figura #{i + 1}: identificador \"{img.Identificador}\" ({DescribirOrigenFigura(img)}).");
             }
 
             // Sin una cuota explicita el modelo casi nunca completa "ImagenReferencia" y el
-            // examen sale sin una sola imagen, aunque el PDF este lleno de esquemas.
-            int conFigura = Math.Max(1, Math.Min(figuras.Count, cantidad / 3));
+            // examen sale sin una sola imagen, aunque el material este lleno de esquemas.
+            int conFigura = CuotaDeFiguras(cantidad, figuras.Count);
 
             sb.AppendLine($"OBLIGATORIO: de las {cantidad} preguntas, AL MENOS {conFigura} tienen que ser sobre estas figuras.");
             sb.AppendLine("En cada una de esas preguntas poné el identificador EXACTO de la figura en el campo \"ImagenReferencia\" (por ejemplo \"" + figuras[0].Identificador + "\"). Sin ese campo la figura no se le muestra al alumno y la pregunta queda incompleta.");
@@ -1605,18 +1763,38 @@ public class GeminiApiService
         if (paginas.Count > 0)
         {
             sb.AppendLine();
-            sb.AppendLine("MATERIAL EN IMAGENES (PAGINAS ESCANEADAS):");
+            sb.AppendLine("MATERIAL EN IMAGENES (PAGINAS ESCANEADAS / FOTOGRAFIADAS):");
             sb.AppendLine(
                 $"Estas paginas del PDF no tienen texto extraible, asi que se adjuntan como imagen. " +
                 $"Son {paginas.Count} y vienen despues de las figuras, en este orden:");
 
             foreach (var pag in paginas)
             {
-                sb.AppendLine($"  - Pagina {pag.Pagina} del PDF.");
+                sb.AppendLine($"  - identificador \"{pag.Identificador}\": Pagina {pag.Pagina} del PDF.");
             }
 
             sb.AppendLine("Leé el texto de esas imagenes y tratalo como bibliografia, igual que el material escrito.");
-            sb.AppendLine("NO son figuras: no generes preguntas sobre el aspecto de la pagina, la calidad del escaneo ni la maquetacion, y dejá \"ImagenReferencia\" vacio en las preguntas que salgan de ellas.");
+            sb.AppendLine("En general NO son figuras: no generes preguntas sobre el aspecto de la pagina, la calidad del escaneo ni la maquetacion, y dejá \"ImagenReferencia\" vacio en las preguntas que salgan de ellas.");
+
+            if (figuras.Count == 0)
+            {
+                // Material 100% fotografiado (apuntes escritos a mano, fotos de libro): no hay
+                // ninguna figura embebida por separado porque cada pagina ES una sola foto, sin
+                // una imagen mas chica adentro para recortar. En ese caso, si la pagina en si
+                // muestra un esquema/diagrama/dibujo (no solo texto o renglones escritos), se
+                // permite usarla igual como imagen de referencia: es la unica forma de que este
+                // tipo de material tenga preguntas con imagen (US-018/US-022, caso apuntes
+                // fotografiados).
+                sb.AppendLine();
+                sb.AppendLine(
+                    "EXCEPCION: como este material no tiene ninguna figura separada (no se detectaron figuras " +
+                    "embebidas), si alguna de estas paginas muestra VISUALMENTE un esquema, diagrama o dibujo " +
+                    "(no solo texto o renglones escritos a mano), podés usar esa pagina como imagen de referencia: " +
+                    "poné su identificador exacto (por ejemplo \"" + paginas[0].Identificador + "\") en \"ImagenReferencia\".");
+                sb.AppendLine("Hacelo como maximo en 1 o 2 preguntas de todo el examen, y solo con paginas que tengan un dibujo/esquema real, nunca con una pagina que sea puro texto escrito.");
+                sb.AppendLine("La pregunta tiene que ser sobre lo que muestra el esquema (ej. \"Segun el diagrama, que estructura...\"), nunca \"que dice el texto de esta pagina\" (eso ya lo cubren las demas preguntas).");
+            }
+
             sb.AppendLine("En \"PaginaOrigen\" y en la justificacion usá el numero de pagina indicado arriba para cada imagen.");
             sb.AppendLine("Si una pagina esta ilegible o en blanco, ignorala y trabajá con las demas.");
         }
@@ -2228,9 +2406,12 @@ public class GeminiApiService
                 AnalisisPorOpcion = NormalizarAnalisis(dto.AnalisisOpciones?.AnalisisPorOpcion, correcta)
             };
 
-            // Solo las figuras pueden quedar adjuntas a una pregunta: una pagina escaneada
-            // es bibliografia, y mostrarla como ilustracion revelaria la respuesta.
-            string? rutaImagen = ResolverImagen(dto.ImagenReferencia ?? dto.RutaImagenAdjunta, figuras, out int paginaImagen);
+            // Las figuras son el caso normal. Cuando no hay ninguna figura separada (material
+            // 100% fotografiado, ver EXCEPCION en ConstruirPrompt), tambien se admite que el
+            // modelo haya referenciado directamente una pagina escaneada que mostraba un
+            // esquema/diagrama — es la unica imagen disponible en ese caso.
+            var candidatasImagen = figuras.Count > 0 ? figuras : paginas;
+            string? rutaImagen = ResolverImagen(dto.ImagenReferencia ?? dto.RutaImagenAdjunta, candidatasImagen, out int paginaImagen);
 
             lista.Add(new Pregunta
             {

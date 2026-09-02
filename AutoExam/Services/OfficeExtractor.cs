@@ -35,6 +35,15 @@ public sealed class OfficeExtractor : IExtractorContenido
     private static readonly Regex RegexDiapositiva =
         new(@"^ppt/slides/slide(\d+)\.xml$", RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
+    /// <summary>
+    /// Imagenes incrustadas del contenedor (US-014). Las tres familias las guardan en su propia
+    /// carpeta <c>media/</c>. Se filtra por extension raster: un EMF/WMF tampoco decodificaria,
+    /// pero descartarlo aca evita gastar el intento.
+    /// </summary>
+    private static readonly Regex RegexMedios =
+        new(@"^(word|ppt|xl)/media/[^/]+\.(jpe?g|png|bmp|gif|tiff?)$",
+            RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
     private static readonly XmlReaderSettings LectorXml = new()
     {
         DtdProcessing = DtdProcessing.Prohibit,
@@ -145,7 +154,308 @@ public sealed class OfficeExtractor : IExtractorContenido
         }
 
         AjustarPresupuesto(resultado, op.MaxCaracteres);
+
+        // US-014 — respaldo por interpretacion de imagenes. Un .docx o .pptx armado pegando
+        // fotos de las paginas de un libro no tiene ni un caracter de texto: hasta aca la app
+        // decia "no se encontro contenido" y se terminaba la historia. Ahora, antes de dar esa
+        // respuesta, se recuperan las imagenes incrustadas y viajan por el mismo canal que las
+        // fotos de apuntes de US-010 (PaginasEscaneadas → inline_data), asi que las lee el
+        // mismo motor y el resto del flujo no se entera de la diferencia.
+        //
+        // US-022 amplia el caso: un mismo archivo puede traer texto Y capturas de pantalla Y
+        // fotos de papel, todo mezclado, y ahi las imagenes tampoco se descartan. Lo que cambia
+        // es el ROL que cumplen, y eso lo decide AprovecharImagenesIncrustadas.
+        //
+        // Sobre RN-10 ("no correr interpretacion de imagenes si la fuente ya tiene texto"): la
+        // regla existe para no gastar cuota de mas, y RN-19 la reencuadra como una decision por
+        // SECCION y no por archivo entero. Un .docx con parrafos y capturas mezcladas tiene
+        // secciones de las dos clases; descartar las imagenes porque en otra parte del archivo
+        // habia texto perderia justo el contenido que US-022 pide usar. Lo que si se sostiene de
+        // RN-10 es que nada viaja dos veces: cada imagen toma un solo canal.
+        AprovecharImagenesIncrustadas(zip, resultado, op, progreso, ct);
+
         return resultado;
+    }
+
+    /// <summary>
+    /// Decide que hacer con las imagenes incrustadas del documento, que segun el caso son dos
+    /// cosas distintas:
+    ///
+    /// <list type="bullet">
+    ///   <item><b>Sin texto</b> (US-014): las imagenes SON el material. Van como paginas
+    ///   escaneadas, que es el canal que le dice al modelo "leé el texto de estas imagenes y
+    ///   tratalo como bibliografia".</item>
+    ///   <item><b>Con texto</b> (US-018 + US-022): el material es el texto y las imagenes son
+    ///   las ilustraciones que lo acompanian. Van como figuras, que es el canal por el que el
+    ///   modelo puede colgarlas de una pregunta como imagen de referencia.</item>
+    /// </list>
+    ///
+    /// La misma imagen nunca viaja por los dos canales: duplicarla gastaria el doble de cuota
+    /// por el mismo contenido, y las figuras y las paginas escaneadas llevan instrucciones
+    /// opuestas en el prompt (a una hay que referenciarla, a la otra no).
+    ///
+    /// Por que las de un documento CON texto no van como paginas escaneadas: una pagina
+    /// escaneada es material de lectura y el prompt le prohibe al modelo referenciarla. Eso es
+    /// correcto para la foto de una pagina de libro —mostrarsela al alumno seria darle la
+    /// respuesta— pero desperdicia un esquema o una captura, que es justo lo que US-018 quiere
+    /// poder mostrar al lado del enunciado.
+    /// </summary>
+    private static void AprovecharImagenesIncrustadas(
+        ZipArchive zip,
+        ExtraccionResultado resultado,
+        OpcionesExtraccion op,
+        IProgress<string>? progreso,
+        CancellationToken ct)
+    {
+        if (resultado.TieneTexto)
+        {
+            if (op.ExtraerImagenes)
+            {
+                RecogerFiguras(zip, resultado, op, progreso, ct);
+            }
+
+            return;
+        }
+
+        RescatarImagenesIncrustadas(zip, resultado, op, progreso, ct);
+    }
+
+    /// <summary>
+    /// Figuras del documento para US-018: quedan disponibles como imagen de referencia de una
+    /// pregunta. Se descartan las mas chicas que el minimo configurado, que son las que casi
+    /// siempre resultan ser iconos, vinietas o logos de encabezado — mismo criterio que ya
+    /// aplica <c>PdfExtractorService</c> con las figuras de un PDF.
+    /// </summary>
+    private static void RecogerFiguras(
+        ZipArchive zip,
+        ExtraccionResultado resultado,
+        OpcionesExtraccion op,
+        IProgress<string>? progreso,
+        CancellationToken ct)
+    {
+        var partes = PartesDeMedios(zip);
+
+        if (partes.Count == 0)
+        {
+            return;
+        }
+
+        int tope = Math.Max(0, op.MaxImagenes);
+        int numero = 0;
+        int descartadasPorChicas = 0;
+
+        foreach (var parte in partes)
+        {
+            ct.ThrowIfCancellationRequested();
+
+            if (resultado.Imagenes.Count >= tope)
+            {
+                break;
+            }
+
+            numero++;
+
+            try
+            {
+                byte[] bytes = LeerParte(parte, ct);
+
+                if (!ImagenUtil.TryMedir(bytes, out int ancho, out int alto))
+                {
+                    continue;
+                }
+
+                if (ancho < op.MinAnchoImagen || alto < op.MinAltoImagen)
+                {
+                    descartadasPorChicas++;
+                    continue;
+                }
+
+                if (!ImagenUtil.TryPrepararParaLectura(
+                        bytes, out byte[] preparada, out string mime, op.LadoMaximoPaginaEscaneada))
+                {
+                    continue;
+                }
+
+                string identificador = $"fig_{numero:00}.jpg";
+                string destino = string.Empty;
+
+                if (!string.IsNullOrWhiteSpace(op.CarpetaImagenes))
+                {
+                    Directory.CreateDirectory(op.CarpetaImagenes);
+                    destino = Path.Combine(op.CarpetaImagenes, identificador);
+                    File.WriteAllBytes(destino, preparada);
+                }
+
+                resultado.Imagenes.Add(new ImagenExtraida
+                {
+                    Identificador = identificador,
+                    Ruta = destino,
+
+                    // Pagina 0 a proposito: un .docx no tiene numero de pagina que citar, y
+                    // poner el numero de orden de la figura haria que el prompt lo presente
+                    // como si fuera una pagina del material.
+                    Pagina = 0,
+                    Ancho = ancho,
+                    Alto = alto,
+                    Etiqueta = $"figura {numero} del documento",
+                    YaPreparada = true
+                });
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                RutasApp.RegistrarError($"OfficeExtractor/figura({parte.FullName})", ex);
+            }
+        }
+
+        if (resultado.Imagenes.Count > 0)
+        {
+            progreso?.Report(
+                $"El documento trae texto y {resultado.Imagenes.Count} imagenes: las imagenes " +
+                "van como figuras, asi que algunas preguntas pueden mostrarlas como referencia. " +
+                "Puede tardar mas y consumir mas cuota.");
+        }
+        else if (descartadasPorChicas > 0)
+        {
+            progreso?.Report(
+                $"Las {descartadasPorChicas} imagenes del documento son mas chicas que el minimo " +
+                "util (iconos o logos): no se usan como figura.");
+        }
+    }
+
+    /// <summary>
+    /// Levanta las imagenes incrustadas del contenedor OOXML y las suma como
+    /// <see cref="ExtraccionResultado.PaginasEscaneadas"/>, para que la IA les lea el texto.
+    ///
+    /// No hace OCR local: prepara los bytes igual que <see cref="ImagenExtractor"/> (reescalado
+    /// + JPEG) y los deja listos para <c>inline_data</c>. Las partes que no son imagen raster
+    /// —EMF/WMF de un grafico vectorial, por ejemplo— no decodifican y se descartan solas, que
+    /// es el comportamiento correcto: no tienen texto de libro que leer.
+    /// </summary>
+    private static void RescatarImagenesIncrustadas(
+        ZipArchive zip,
+        ExtraccionResultado resultado,
+        OpcionesExtraccion op,
+        IProgress<string>? progreso,
+        CancellationToken ct)
+    {
+        var partes = PartesDeMedios(zip);
+
+        if (partes.Count == 0)
+        {
+            return;
+        }
+
+        int tope = Math.Max(1, op.MaxPaginasEscaneadas);
+        var seleccion = partes;
+
+        if (partes.Count > tope)
+        {
+            progreso?.Report(
+                $"El documento no tiene texto y trae {partes.Count} imagenes: se toman las " +
+                $"primeras {tope}, que es el maximo por material.");
+            seleccion = partes.Take(tope).ToList();
+        }
+
+        // RN-3 / AC de US-014: avisar que este camino tarda mas y gasta mas cuota, igual que ya
+        // se avisa para una fuente de fotos puras.
+        progreso?.Report(
+            $"El documento no tiene texto extraible: se mandan {seleccion.Count} imagenes " +
+            "incrustadas a la IA para que les lea el contenido. Puede tardar mas y consumir mas cuota.");
+
+        int numero = 0;
+
+        foreach (var parte in seleccion)
+        {
+            ct.ThrowIfCancellationRequested();
+            numero++;
+
+            try
+            {
+                byte[] bytes = LeerParte(parte, ct);
+
+                if (!ImagenUtil.TryPrepararParaLectura(
+                        bytes, out byte[] preparada, out string mime, op.LadoMaximoPaginaEscaneada))
+                {
+                    // Vectorial (EMF/WMF) o raster danado: no aporta texto legible.
+                    continue;
+                }
+
+                string identificador = $"doc_{numero:00}.jpg";
+                string destino = string.Empty;
+
+                if (!string.IsNullOrWhiteSpace(op.CarpetaImagenes))
+                {
+                    Directory.CreateDirectory(op.CarpetaImagenes);
+                    destino = Path.Combine(op.CarpetaImagenes, identificador);
+                    File.WriteAllBytes(destino, preparada);
+                }
+
+                resultado.PaginasEscaneadas.Add(new ImagenExtraida
+                {
+                    Identificador = identificador,
+                    Ruta = destino,
+                    MimeType = mime,
+                    Pagina = numero,
+                    Etiqueta = $"imagen {numero} del documento",
+                    YaPreparada = true
+                });
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                // Una parte ilegible no puede tumbar el rescate de las demas.
+                RutasApp.RegistrarError($"OfficeExtractor/imagen({parte.FullName})", ex);
+            }
+        }
+
+        if (resultado.PaginasEscaneadas.Count == 0)
+        {
+            // Habia imagenes pero ninguna decodifico: el llamador muestra el mismo mensaje de
+            // "no se encontro contenido" de siempre (AC de US-014), no uno nuevo.
+            return;
+        }
+
+        resultado.PaginasSeleccionadas = Math.Max(resultado.PaginasSeleccionadas, seleccion.Count);
+        resultado.PaginasLeidas = Math.Max(resultado.PaginasLeidas, resultado.PaginasEscaneadas.Count);
+    }
+
+    /// <summary>
+    /// Partes de medios del contenedor, en orden natural por su numero (image2 antes que
+    /// image10, que es donde el orden alfabetico se equivoca). El orden importa: es el orden
+    /// del material que despues ve la IA.
+    /// </summary>
+    private static List<ZipArchiveEntry> PartesDeMedios(ZipArchive zip)
+    {
+        var numero = new Regex(@"(\d+)", RegexOptions.Compiled);
+
+        return zip.Entries
+            .Where(e => RegexMedios.IsMatch(e.FullName))
+            .Select(e =>
+            {
+                var m = numero.Match(Path.GetFileNameWithoutExtension(e.FullName));
+                int orden = m.Success && int.TryParse(m.Groups[1].Value, out int n) ? n : int.MaxValue;
+                return (Entrada: e, Orden: orden);
+            })
+            .OrderBy(x => x.Orden)
+            .ThenBy(x => x.Entrada.FullName, StringComparer.OrdinalIgnoreCase)
+            .Select(x => x.Entrada)
+            .ToList();
+    }
+
+    private static byte[] LeerParte(ZipArchiveEntry parte, CancellationToken ct)
+    {
+        using var origen = parte.Open();
+        using var memoria = new MemoryStream();
+        origen.CopyTo(memoria);
+        ct.ThrowIfCancellationRequested();
+        return memoria.ToArray();
     }
 
     private static ExtraccionResultado ExtraerWord(ZipArchive zip, Presupuesto presupuesto, CancellationToken ct)

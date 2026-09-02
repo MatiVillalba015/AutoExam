@@ -100,6 +100,14 @@ public class OpcionesExtraccion
     public int MinAnchoImagen { get; set; } = 220;
     public int MinAltoImagen { get; set; } = 180;
 
+    /// <summary>
+    /// Por encima de esta proporcion del area de la pagina, una imagen se trata como
+    /// "la pagina entera" (tipico de un escaneo/foto) y no como una figura aprovechable
+    /// para una pregunta (US-018/US-022). 0.75 = descarta cualquier imagen que cubra 3/4
+    /// o mas de la pagina.
+    /// </summary>
+    public double MaxProporcionPaginaParaFigura { get; set; } = 0.75;
+
     // ---------- Rescate de paginas escaneadas ----------
 
     /// <summary>Caracteres utiles minimos para dar una pagina por "con texto".</summary>
@@ -340,18 +348,22 @@ public class PdfExtractorService
                 string texto = LeerTextoPagina(page);
                 bool conTexto = ContarUtiles(texto) >= op.MinCaracteresPagina;
 
+                // US-018/US-022: las figuras ya no dependen de que la pagina tenga texto real.
+                // Una pagina escaneada (o una mitad-texto-mitad-escaneo del mismo PDF) puede
+                // igual traer una figura embebida y aprovechable — lo que se sigue evitando es
+                // usar como "figura" la pagina entera escaneada (eso revelaria la respuesta):
+                // ExtraerImagenesDePagina descarta cualquier imagen que ocupe casi toda la
+                // pagina, sea esta con texto o escaneada.
+                if (op.ExtraerImagenes && resultado.Imagenes.Count < op.MaxImagenes)
+                {
+                    ExtraerImagenesDePagina(page, numeroPagina, etiqueta, op, resultado, hashesImagen);
+                }
+
                 if (conTexto)
                 {
                     sb.Append("[Pagina ").Append(numeroPagina).Append(']').AppendLine();
                     sb.AppendLine(texto);
                     sb.AppendLine();
-
-                    // Solo una pagina con texto puede aportar figuras: en una escaneada la
-                    // "figura" seria la pagina entera, y generaria preguntas sobre el escaneo.
-                    if (op.ExtraerImagenes && resultado.Imagenes.Count < op.MaxImagenes)
-                    {
-                        ExtraerImagenesDePagina(page, numeroPagina, etiqueta, op, resultado, hashesImagen);
-                    }
                 }
                 else
                 {
@@ -671,6 +683,18 @@ public class PdfExtractorService
 
                 double relacion = (double)img.WidthInSamples / Math.Max(1, img.HeightInSamples);
                 if (relacion > 8 || relacion < 0.125)
+                {
+                    continue;
+                }
+
+                // Clave del fix: en una pagina escaneada (o parcialmente escaneada), la
+                // "imagen" mas grande suele ser la pagina entera fotografiada — eso no es una
+                // figura, es la fuente completa, y mostrarla revelaria la respuesta. Se descarta
+                // cualquier imagen que ocupe la enorme mayoria del area de la pagina; el resto
+                // (una figura real, mas chica que la pagina que la contiene) sigue pasando.
+                double areaPagina = Math.Max(1, page.Width) * Math.Max(1, page.Height);
+                double areaImagen = img.Bounds.Width * img.Bounds.Height;
+                if (areaImagen >= areaPagina * op.MaxProporcionPaginaParaFigura)
                 {
                     continue;
                 }

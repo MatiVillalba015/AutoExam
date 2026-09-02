@@ -15,12 +15,18 @@ public partial class BibliotecaViewModel : PaginaViewModel
     private readonly IDialogos _dialogos;
     private readonly INavegacion _nav;
 
+    private readonly GeminiApiService _gemini;
+    private readonly SesionUsuarioService _sesion;
+
     public BibliotecaViewModel(
-        BibliotecaService biblioteca, PdfExtractorService pdf, IDialogos dialogos, INavegacion nav)
+        BibliotecaService biblioteca, PdfExtractorService pdf, GeminiApiService gemini,
+        SesionUsuarioService sesion, IDialogos dialogos, INavegacion nav)
         : base("libros", "Libros", "Library24")
     {
         _biblioteca = biblioteca;
         _pdf = pdf;
+        _gemini = gemini;
+        _sesion = sesion;
         _dialogos = dialogos;
         _nav = nav;
 
@@ -221,6 +227,128 @@ public partial class BibliotecaViewModel : PaginaViewModel
         {
             Ocupado = false;
         }
+    }
+
+    // ------------------------------------------------------------------
+    // US-020 — "De que trata": resumen del material, bajo demanda
+    // ------------------------------------------------------------------
+
+    /// <summary>true mientras se esta generando el resumen: la vista muestra el anillo de carga
+    /// y no bloquea el resto de la pantalla.</summary>
+    [ObservableProperty]
+    private bool _resumiendo;
+
+    /// <summary>true cuando el panel de "de que trata" esta abierto.</summary>
+    [ObservableProperty]
+    private bool _mostrarDeQueTrata;
+
+    [ObservableProperty]
+    private string _textoDeQueTrata = string.Empty;
+
+    /// <summary>
+    /// Muestra de que trata el material abierto. Si ya se genero antes, se reusa lo guardado:
+    /// el texto no cambia y cada regeneracion costaria otra peticion de la cuota diaria (RN-17).
+    /// </summary>
+    [RelayCommand]
+    private async Task VerDeQueTrataAsync()
+    {
+        var libro = LibroSeleccionado;
+
+        if (libro is null)
+        {
+            return;
+        }
+
+        MostrarDeQueTrata = true;
+
+        if (libro.TieneResumen)
+        {
+            TextoDeQueTrata = libro.DeQueTrata;
+            return;
+        }
+
+        if (!libro.ArchivoDisponible)
+        {
+            TextoDeQueTrata = "No se encuentra la copia interna del archivo. Volve a agregar el material.";
+            return;
+        }
+
+        Resumiendo = true;
+        TextoDeQueTrata = string.Empty;
+
+        try
+        {
+            string material = await LeerMaterialParaResumenAsync(libro);
+
+            if (string.IsNullOrWhiteSpace(material))
+            {
+                // El caso de US-014 sin texto recuperable: se informa en vez de mostrar un
+                // resumen vacio, y sobre todo en vez de dejar que el modelo invente uno.
+                TextoDeQueTrata =
+                    "Este material no tiene texto que se pueda leer, asi que no hay de donde sacar " +
+                    "un resumen. Igual se puede usar para generar un examen: las imagenes las " +
+                    "interpreta la IA al momento de generarlo.";
+                return;
+            }
+
+            TextoDeQueTrata = await _gemini.ResumirMaterialAsync(
+                _sesion.Config.ClavesDisponibles.ToList(),
+                string.IsNullOrWhiteSpace(_sesion.Config.Modelo) ? AppConfig.ModeloPorDefecto : _sesion.Config.Modelo,
+                libro.Titulo,
+                material);
+
+            // Se guarda para no volver a gastar cuota por el mismo texto.
+            libro.DeQueTrata = TextoDeQueTrata;
+            _biblioteca.Guardar();
+        }
+        catch (Exception ex)
+        {
+            RutasApp.RegistrarError($"VerDeQueTrata({libro.Titulo})", ex);
+            TextoDeQueTrata = $"No se pudo generar el resumen.\n\n{ex.Message}";
+        }
+        finally
+        {
+            Resumiendo = false;
+        }
+    }
+
+    [RelayCommand]
+    private void CerrarDeQueTrata()
+    {
+        // Solo se cierra el panel: el material no se toca (criterio de US-020).
+        MostrarDeQueTrata = false;
+        TextoDeQueTrata = string.Empty;
+    }
+
+    /// <summary>
+    /// Texto del material para mandar a resumir. Usa el mismo pipeline de extraccion que el
+    /// armado de examenes, con un presupuesto chico: para saber de que trata alcanza el
+    /// principio, y leer el archivo entero solo haria esperar de mas.
+    /// </summary>
+    private static async Task<string> LeerMaterialParaResumenAsync(Libro libro)
+    {
+        var extractor = FactoriaExtractores.Para(Path.GetExtension(libro.RutaArchivo));
+
+        if (extractor is null)
+        {
+            return string.Empty;
+        }
+
+        var opciones = new OpcionesExtraccion
+        {
+            MaxCaracteres = 12_000,
+            MaxPaginasLeidas = 30,
+
+            // Nada de imagenes: el resumen sale del texto, y preparar figuras seria trabajo y
+            // cuota gastados en algo que este panel no muestra.
+            ExtraerImagenes = false,
+            MaxPaginasEscaneadas = 0,
+        };
+
+        var extraccion = await extractor.ExtraerAsync(
+            libro.Archivos, new RecorteFuente(), opciones, null, CancellationToken.None);
+
+        return string.Join("\n\n", extraccion.Fragmentos.Select(f => f.Texto));
     }
 
     [RelayCommand]

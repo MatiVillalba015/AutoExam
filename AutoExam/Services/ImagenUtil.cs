@@ -89,6 +89,43 @@ public static class ImagenUtil
         }
     }
 
+    /// <summary>
+    /// Alto y ancho en pixeles sin quedarse con la imagen decodificada. Lo usa
+    /// <see cref="OfficeExtractor"/> (US-018) para descartar por tamanio las imagenes de un
+    /// documento antes de prepararlas: un icono de vinieta o un logo de encabezado no sirven
+    /// como figura de una pregunta, y medirlos sale mucho mas barato que convertirlos.
+    /// </summary>
+    /// <returns><c>false</c> si los datos no son una imagen que WPF Imaging pueda abrir.</returns>
+    public static bool TryMedir(byte[] original, out int ancho, out int alto)
+    {
+        ancho = 0;
+        alto = 0;
+
+        try
+        {
+            using var ms = new MemoryStream(original);
+
+            // DelayCreation + None: alcanza con leer la cabecera para saber las medidas.
+            var decodificador = BitmapDecoder.Create(
+                ms, BitmapCreateOptions.DelayCreation, BitmapCacheOption.None);
+
+            if (decodificador.Frames.Count == 0)
+            {
+                return false;
+            }
+
+            ancho = decodificador.Frames[0].PixelWidth;
+            alto = decodificador.Frames[0].PixelHeight;
+
+            return ancho > 0 && alto > 0;
+        }
+        catch (Exception ex)
+        {
+            RutasApp.RegistrarError("ImagenUtil.TryMedir", ex);
+            return false;
+        }
+    }
+
     private static (byte[] bytes, string mime) PrepararNucleo(byte[] original, int maxLado)
     {
         using var ms = new MemoryStream(original);

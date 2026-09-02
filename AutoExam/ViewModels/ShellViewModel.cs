@@ -28,7 +28,7 @@ public partial class ShellViewModel : ObservableObject, INavegacion
         _dialogos = dialogos;
 
         Onboarding = new OnboardingViewModel(sesion, gemini);
-        Libros = new BibliotecaViewModel(biblioteca, pdf, dialogos, this);
+        Libros = new BibliotecaViewModel(biblioteca, pdf, gemini, sesion, dialogos, this);
         Asistente = new AsistenteViewModel(biblioteca, pdf, gemini, sesion, dialogos, this);
         Examen = new ExamenViewModel(sesion, dialogos, this);
         Historial = new HistorialViewModel(sesion, dialogos, this);

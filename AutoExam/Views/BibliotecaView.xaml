@@ -21,7 +21,7 @@
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <TextBlock Grid.Row="0" Grid.ColumnSpan="3" Text="Libros" Style="{StaticResource TxtSeccion}"
+        <TextBlock Grid.Row="0" Grid.ColumnSpan="3" Text="&#x1F4DA; Libros" Style="{StaticResource TxtSeccion}"
                    Margin="0,0,0,18" />
 
         <!-- ============================================================ -->
@@ -91,7 +91,7 @@
                           Visibility="{Binding HayLibroAbierto, Converter={StaticResource BoolToVis}}">
                 <!-- Stretch y no Left: con Left el panel se encoge al ancho de su
                      contenido y los campos del formulario quedan angostos. -->
-                <StackPanel MaxWidth="640" HorizontalAlignment="Stretch">
+                <StackPanel MaxWidth="640" HorizontalAlignment="Center">
 
                     <Border Style="{StaticResource Tarjeta}" Margin="0,0,0,16">
                         <StackPanel>
@@ -132,6 +132,63 @@
                                     </DataTemplate>
                                 </ItemsControl.ItemTemplate>
                             </ItemsControl>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- ================================================================ -->
+                    <!-- US-020 — "De que trata": resumen del material, bajo demanda.      -->
+                    <!--                                                                   -->
+                    <!-- El resumen NO se genera al subir el archivo (RN-17): cada uno      -->
+                    <!-- cuesta una peticion de la cuota diaria, y la mayoria de los        -->
+                    <!-- materiales no necesitan que se explique de que tratan. Se genera   -->
+                    <!-- al tocar el boton, y despues queda guardado en el libro para no    -->
+                    <!-- volver a pagarlo.                                                  -->
+                    <!-- ================================================================ -->
+                    <Border Style="{StaticResource TarjetaPlana}" Margin="0,0,0,16" Padding="18">
+                        <StackPanel>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+
+                                <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                                    <TextBlock Text="De que trata" Style="{StaticResource TxtCuerpo}"
+                                               FontWeight="SemiBold" />
+                                    <TextBlock Text="Un resumen del contenido, sin abrir el archivo ni generar un examen."
+                                               Style="{StaticResource TxtTenue}" TextWrapping="Wrap" />
+                                </StackPanel>
+
+                                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                                    <ui:ProgressRing IsIndeterminate="True" Width="18" Height="18"
+                                                     Margin="0,0,10,0" VerticalAlignment="Center"
+                                                     Visibility="{Binding Resumiendo, Converter={StaticResource BoolToVis}}" />
+
+                                    <Button Content="Ver de que trata" Style="{StaticResource ChipAccion}"
+                                            Command="{Binding VerDeQueTrataCommand}"
+                                            AutomationProperties.Name="Ver de que trata este material" />
+                                </StackPanel>
+                            </Grid>
+
+                            <Border Margin="0,16,0,0" Padding="16"
+                                    Background="{DynamicResource PincelSuperficie}"
+                                    BorderBrush="{DynamicResource PincelBorde}" BorderThickness="1"
+                                    CornerRadius="{DynamicResource RadioCampo}"
+                                    Visibility="{Binding MostrarDeQueTrata, Converter={StaticResource BoolToVis}}">
+                                <StackPanel>
+                                    <TextBlock Text="Leyendo el material y armando el resumen..."
+                                               Style="{StaticResource TxtTenue}"
+                                               Visibility="{Binding Resumiendo, Converter={StaticResource BoolToVis}}" />
+
+                                    <TextBlock Text="{Binding TextoDeQueTrata}" Style="{StaticResource TxtCuerpo}"
+                                               TextWrapping="Wrap" LineHeight="21"
+                                               Visibility="{Binding TextoDeQueTrata, Converter={StaticResource TextoAVisibilidad}}" />
+
+                                    <Button Content="Cerrar" Style="{StaticResource ChipAccion}"
+                                            HorizontalAlignment="Left" Margin="0,14,0,0"
+                                            Command="{Binding CerrarDeQueTrataCommand}" />
+                                </StackPanel>
+                            </Border>
                         </StackPanel>
                     </Border>
 

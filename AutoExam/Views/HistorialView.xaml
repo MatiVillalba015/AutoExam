@@ -6,6 +6,7 @@
              xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
              xmlns:modelos="clr-namespace:AutoExam.Models"
              xmlns:vm="clr-namespace:AutoExam.ViewModels"
+             xmlns:comportamientos="clr-namespace:AutoExam.Behaviors"
              mc:Ignorable="d"
              d:DataContext="{d:DesignInstance Type=vm:HistorialViewModel}">
 
@@ -17,11 +18,47 @@
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <TextBlock Grid.Row="0" Text="Historial" Style="{StaticResource TxtSeccion}" Margin="0,0,0,18" />
+        <TextBlock Grid.Row="0" Text="&#x1F4CA; Historial" Style="{StaticResource TxtSeccion}" Margin="0,0,0,18" />
 
-        <!-- Tres numeros, no seis lineas de estadisticas -->
-        <Border Grid.Row="1" Style="{StaticResource Tarjeta}" Margin="0,0,14,20" Padding="22,18"
-                Visibility="{Binding HayExamenes, Converter={StaticResource BoolToVis}}">
+        <!-- Tres numeros, no seis lineas de estadisticas.
+
+             US-016, superficie nueva: la tarjeta de estadisticas aparece de golpe cuando el
+             historial deja de estar vacio (primer examen rendido, o vuelta a la seccion). Ahora
+             entra con el mismo fade + desplazamiento corto que ya usa la pantalla de Resultados,
+             con los parametros centralizados de US-011 y la misma guarda de "reducir
+             movimiento" (RN-11). Anima solo Opacity y TranslateTransform.Y: no toca el layout. -->
+        <Border Grid.Row="1" Margin="0,0,14,20" Padding="22,18"
+                Visibility="{Binding HayExamenes, Converter={StaticResource BoolToVis}}"
+                RenderTransformOrigin="0.5,0">
+            <Border.RenderTransform>
+                <TranslateTransform />
+            </Border.RenderTransform>
+            <Border.Style>
+                <Style TargetType="Border" BasedOn="{StaticResource Tarjeta}">
+                    <Style.Triggers>
+                        <MultiDataTrigger>
+                            <MultiDataTrigger.Conditions>
+                                <Condition Binding="{Binding HayExamenes}" Value="True" />
+                                <Condition Binding="{Binding Source={x:Static comportamientos:Animaciones.Reducidas}}" Value="False" />
+                            </MultiDataTrigger.Conditions>
+                            <MultiDataTrigger.EnterActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetProperty="Opacity"
+                                                         From="0" To="1"
+                                                         Duration="{StaticResource DuracionTransicionSeccion}"
+                                                         EasingFunction="{StaticResource SuavizadoSalida}" />
+                                        <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(TranslateTransform.Y)"
+                                                         From="8" To="0"
+                                                         Duration="{StaticResource DuracionTransicionSeccion}"
+                                                         EasingFunction="{StaticResource SuavizadoSalida}" />
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </MultiDataTrigger.EnterActions>
+                        </MultiDataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Border.Style>
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto" />
@@ -71,7 +108,7 @@
                  Visibility="{Binding HayExamenes, Converter={StaticResource BoolToVis}}">
             <ListBox.ItemTemplate>
                 <DataTemplate DataType="{x:Type modelos:ExamenRendido}">
-                    <Grid MaxWidth="880" HorizontalAlignment="Left">
+                    <Grid MaxWidth="880" HorizontalAlignment="Center">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="52" />
                             <ColumnDefinition Width="*" />
@@ -129,7 +166,7 @@
                     <TextBlock Text="{Binding Detalle}" Style="{StaticResource TxtSuave}" LineHeight="22" />
                     <TextBlock Style="{StaticResource TxtTenue}" Margin="0,10,0,0"
                                Text="Las salteadas cuentan como no respondidas: restan igual que un error. Las revanchas no modifican la nota original." />
-                    <Button Content="Borrar historial" Style="{StaticResource ChipAccion}"
+                    <Button Content="&#x1F5D1;&#xFE0F; Borrar historial" Style="{StaticResource ChipAccion}"
                             Margin="0,16,0,0" HorizontalAlignment="Left" Command="{Binding BorrarCommand}" />
                 </StackPanel>
 

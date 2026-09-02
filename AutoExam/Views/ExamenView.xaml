@@ -163,7 +163,7 @@
 
             <!-- Pregunta -->
             <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto" Padding="0,0,14,0">
-                <StackPanel MaxWidth="860" HorizontalAlignment="Left">
+                <StackPanel MaxWidth="860" HorizontalAlignment="Center">
 
                     <TextBlock Text="{Binding ProgresoTexto}" Style="{StaticResource TxtTenue}"
                                Margin="0,0,0,10" />
@@ -183,8 +183,12 @@
                             CornerRadius="{DynamicResource RadioCampo}"
                             Visibility="{Binding Actual.TieneImagen, Converter={StaticResource BoolToVis}}">
                         <StackPanel>
+                            <!-- US-017: centrada dentro de la tarjeta. Una figura mas angosta que
+                                 el tope quedaba contra el borde izquierdo con el resto del
+                                 espacio en blanco a la derecha. -->
                             <Image Source="{Binding Actual.RutaImagenAdjunta, Converter={StaticResource RutaAImagen}}"
                                    MaxHeight="320" MaxWidth="740" Stretch="Uniform"
+                                   HorizontalAlignment="Center"
                                    RenderOptions.BitmapScalingMode="HighQuality" />
                             <TextBlock Text="{Binding PieImagen}" Style="{StaticResource TxtTenue}"
                                        Margin="2,10,0,0" />
@@ -309,7 +313,7 @@
 
             <!-- Mismo ancho que la lista de correccion: una sola columna de lectura. -->
             <Border Grid.Row="0" Style="{StaticResource Tarjeta}" Margin="0,0,0,22"
-                    MaxWidth="920" HorizontalAlignment="Left">
+                    MaxWidth="920" HorizontalAlignment="Center">
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto" />
@@ -317,11 +321,46 @@
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
 
+                    <!-- US-016, superficie nueva: el circulo de la nota entra con un "pop".
+                         Es el momento en que el alumno ve el resultado; hasta ahora aparecia
+                         junto con el resto de la tarjeta, sin nada propio. Decorativa y no
+                         bloqueante: solo escala, no mueve el layout ni interrumpe la lectura.
+                         Mismos parametros centralizados que US-011 y misma guarda de
+                         "reducir movimiento" (RN-11). -->
                     <Border Grid.Column="0" Width="86" Height="86" CornerRadius="43" BorderThickness="3"
-                            VerticalAlignment="Center"
+                            VerticalAlignment="Center" RenderTransformOrigin="0.5,0.5"
                             BorderBrush="{Binding Aprobado, Converter={StaticResource AprobadoAPincel}}"
                             Background="{Binding Aprobado, Converter={StaticResource AprobadoAPincel},
                                          ConverterParameter=suave}">
+                        <Border.RenderTransform>
+                            <ScaleTransform />
+                        </Border.RenderTransform>
+                        <Border.Style>
+                            <Style TargetType="Border">
+                                <Style.Triggers>
+                                    <MultiDataTrigger>
+                                        <MultiDataTrigger.Conditions>
+                                            <Condition Binding="{Binding EnResultados}" Value="True" />
+                                            <Condition Binding="{Binding Source={x:Static comportamientos:Animaciones.Reducidas}}" Value="False" />
+                                        </MultiDataTrigger.Conditions>
+                                        <MultiDataTrigger.EnterActions>
+                                            <BeginStoryboard>
+                                                <Storyboard>
+                                                    <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleX)"
+                                                                     From="0.86" To="1"
+                                                                     Duration="{StaticResource DuracionTransicionSeccion}"
+                                                                     EasingFunction="{StaticResource SuavizadoSalida}" />
+                                                    <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleY)"
+                                                                     From="0.86" To="1"
+                                                                     Duration="{StaticResource DuracionTransicionSeccion}"
+                                                                     EasingFunction="{StaticResource SuavizadoSalida}" />
+                                                </Storyboard>
+                                            </BeginStoryboard>
+                                        </MultiDataTrigger.EnterActions>
+                                    </MultiDataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Border.Style>
                         <TextBlock Text="{Binding Nota}" FontSize="34" FontWeight="Bold"
                                    FontFamily="{DynamicResource FuenteDato}"
                                    Foreground="{Binding Aprobado, Converter={StaticResource AprobadoAPincel}}"
@@ -330,11 +369,20 @@
 
                     <StackPanel Grid.Column="1" Margin="22,0,16,0" VerticalAlignment="Center">
                         <!-- US-013 / RN-5: literal fijo, tomado de la constante del ViewModel.
-                             Visible solo con Nota >= 7 en el intento original. Sin opcion de ocultarlo. -->
-                        <TextBlock Text="{x:Static vm:ExamenViewModel.MensajeFelicitacion}"
-                                   Visibility="{Binding MostrarFelicitacion, Converter={StaticResource BoolToVis}}"
-                                   FontWeight="Bold" FontSize="16" TextWrapping="Wrap"
-                                   Foreground="{DynamicResource PincelAcierto}" Margin="0,0,0,8" />
+                             Visible solo con Nota >= 7 en el intento original. Sin opcion de ocultarlo.
+
+                             US-015: el emoji es un elemento aparte y NO entra en la constante. El
+                             literal de US-013 esta fijado por contrato, asi que se lo acompania
+                             —que es lo que pide el criterio de US-015— en vez de modificarlo. -->
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,8"
+                                    Visibility="{Binding MostrarFelicitacion, Converter={StaticResource BoolToVis}}">
+                            <TextBlock Text="&#x1F389;" FontSize="16" Margin="0,0,7,0"
+                                       VerticalAlignment="Top" />
+                            <TextBlock Text="{x:Static vm:ExamenViewModel.MensajeFelicitacion}"
+                                       Visibility="{Binding MostrarFelicitacion, Converter={StaticResource BoolToVis}}"
+                                       FontWeight="Bold" FontSize="16" TextWrapping="Wrap"
+                                       Foreground="{DynamicResource PincelAcierto}" />
+                        </StackPanel>
                         <TextBlock Text="{Binding Condicion}" Style="{StaticResource TxtSeccion}" FontSize="19" />
                         <TextBlock Text="{Binding ResumenResultado}" Style="{StaticResource TxtSuave}"
                                    Margin="0,6,0,0" />
@@ -354,7 +402,7 @@
             </Border>
 
             <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Padding="0,0,14,14">
-                <ItemsControl ItemsSource="{Binding Correccion}" MaxWidth="920" HorizontalAlignment="Left">
+                <ItemsControl ItemsSource="{Binding Correccion}" MaxWidth="920" HorizontalAlignment="Center">
                     <ItemsControl.ItemTemplate>
                         <DataTemplate DataType="{x:Type modelos:Pregunta}">
                             <Border Margin="0,0,0,10" CornerRadius="{DynamicResource RadioCampo}"

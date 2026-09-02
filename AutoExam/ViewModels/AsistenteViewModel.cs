@@ -654,10 +654,14 @@ public partial class AsistenteViewModel : PaginaViewModel
 
             if (!extraccion.TieneTexto)
             {
-                // PDF escaneado: el material son las paginas como imagen y las lee Gemini.
+                // El material son imagenes y las lee Gemini. Pasa con un PDF escaneado y, desde
+                // US-014, tambien con un Word o PowerPoint armado pegando fotos: por eso la
+                // unidad se nombra segun la fuente, que en un .docx no son "paginas".
+                string unidad = esPdf ? "paginas" : "imagenes";
+
                 _nav.Estado(
-                    $"El alcance no tiene texto extraible: se mandan {extraccion.PaginasEscaneadas.Count} " +
-                    "paginas como imagen para que Gemini las lea. Puede tardar mas y consumir mas cuota.");
+                    $"El material no tiene texto extraible: se mandan {extraccion.PaginasEscaneadas.Count} " +
+                    $"{unidad} para que Gemini les lea el contenido. Puede tardar mas y consumir mas cuota.");
             }
 
             if (extraccion.HuboMuestreo)

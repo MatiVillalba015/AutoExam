@@ -231,24 +231,118 @@ public partial class AjustesViewModel : PaginaViewModel
     /// </summary>
     public static string ElegirRecomendado(List<string> modelos) => GeminiApiService.ElegirFlash(modelos);
 
+    /// <summary>
+    /// Numero de la prueba de conexion en curso. Existe para US-019: si el usuario toca
+    /// "Probar conexion" dos veces seguidas, la primera respuesta puede llegar despues de la
+    /// segunda y dejar en pantalla un resultado que ya no corresponde al ultimo intento. Cada
+    /// prueba se lleva su numero y solo escribe si sigue siendo la ultima.
+    /// </summary>
+    private int _pruebaEnCurso;
+
     [RelayCommand]
     private async Task ProbarAsync()
     {
         string clave = PrimeraClave();
         string modelo = string.IsNullOrWhiteSpace(Modelo) ? AppConfig.ModeloPorDefecto : Modelo.Trim();
 
+        int miPrueba = ++_pruebaEnCurso;
+
         Ocupado = true;
-        Avisar(0, "Probando...", $"Consultando {modelo}.");
+        Avisar(0, "Probando la conexion...", $"Consultando {modelo}. Esto puede tardar unos segundos.");
 
         try
         {
             var (ok, mensaje) = await _gemini.ProbarConexionAsync(clave, modelo);
-            Avisar(ok ? 1 : 3, ok ? "Conexion correcta" : "No se pudo conectar", mensaje);
+
+            if (miPrueba != _pruebaEnCurso)
+            {
+                // Llego tarde: ya hay otra prueba mas nueva mandando en pantalla.
+                return;
+            }
+
+            if (ok)
+            {
+                Avisar(1, "Conexion exitosa", mensaje);
+            }
+            else
+            {
+                // El mensaje del servicio es exacto pero tecnico. El titulo dice en dos palabras
+                // que paso —que es lo que el usuario necesita para saber si la clave sirve— y el
+                // detalle queda abajo para cuando haga falta.
+                var (titulo, motivo) = ClasificarFalla(mensaje);
+                Avisar(3, titulo, motivo);
+            }
         }
         finally
         {
-            Ocupado = false;
+            if (miPrueba == _pruebaEnCurso)
+            {
+                Ocupado = false;
+            }
         }
+    }
+
+    /// <summary>
+    /// Traduce el mensaje tecnico de una prueba fallida a un titular en lenguaje simple
+    /// (US-019 / RN-16). Publica y estatica para poder probar la clasificacion sin levantar la
+    /// pantalla de Ajustes ni tocar la red.
+    /// </summary>
+    /// <returns>El titulo corto y el detalle que se muestra debajo.</returns>
+    public static (string Titulo, string Motivo) ClasificarFalla(string? mensaje)
+    {
+        string m = mensaje ?? string.Empty;
+
+        bool Dice(params string[] fragmentos) =>
+            fragmentos.Any(f => m.Contains(f, StringComparison.OrdinalIgnoreCase));
+
+        // El orden importa: se va de la causa mas concreta a la mas general, porque varios de
+        // estos mensajes comparten palabras.
+        if (Dice("Falta la API Key", "No hay API Key"))
+        {
+            return ("Falta la clave", "Pega tu clave de Google Gemini en el campo de arriba y volve a probar.");
+        }
+
+        if (Dice("API Key rechazada", "API key not valid", "(401)", "(403)"))
+        {
+            return ("Clave invalida",
+                "Google no acepto esta clave. Revisa que este completa y que el proyecto de " +
+                "Google AI Studio tenga habilitada la Generative Language API.\n\n" + m);
+        }
+
+        if (Dice("cuota DIARIA"))
+        {
+            return ("Cuota agotada",
+                "Se termino la cuota gratuita del dia para esta clave. Se renueva maniana, o " +
+                "podes agregar una segunda clave y AutoExam va a rotar sola.\n\n" + m);
+        }
+
+        if (Dice("cuota por minuto", "(429)"))
+        {
+            return ("Demasiados pedidos seguidos",
+                "La clave funciona, pero se paso del limite por minuto. Espera un momento y " +
+                "volve a probar.\n\n" + m);
+        }
+
+        if (Dice("El modelo no existe", "(404)"))
+        {
+            return ("Modelo no disponible",
+                "La clave anda, pero ese modelo no esta habilitado para ella. Toca \"Detectar\" " +
+                "para traer la lista real de modelos que podes usar.\n\n" + m);
+        }
+
+        if (Dice("No se pudo contactar", "timeout", "no respondio a tiempo"))
+        {
+            return ("Sin conexion a internet",
+                "No se pudo llegar a los servidores de Google. Revisa tu conexion y volve a probar.\n\n" + m);
+        }
+
+        if (Dice("filtros de contenido", "bloqueo"))
+        {
+            return ("Pedido bloqueado",
+                "Google bloqueo hasta un pedido de prueba trivial con esta clave.\n\n" + m);
+        }
+
+        return ("No se pudo conectar", m);
     }
 
     [RelayCommand]
