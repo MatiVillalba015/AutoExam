@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.Windows.Input;
 using AutoExam.Models;
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 
 namespace AutoExam.ViewModels;
 
@@ -117,11 +118,46 @@ public partial class InicioViewModel : PaginaViewModel
     /// </summary>
     private const int ExamenesEnElResumen = 3;
 
+    /// <summary>
+    /// Explicacion de la app para quien la abre por primera vez (US-031).
+    ///
+    /// RN-39: es texto fijo, definido una sola vez y aca. No pasa por Gemini a proposito —
+    /// alguien que todavia no entiende que hace la app es exactamente quien puede no tener
+    /// cargada la clave, y una explicacion que a veces aparece y a veces no es peor que
+    /// ninguna. Ademas seria absurdo gastar cuota en un texto que nunca cambia.
+    ///
+    /// Escrito para un estudiante, no para alguien que ya sabe lo que es un "material" o un
+    /// "alcance": nombra las cosas por lo que uno hace con ellas.
+    /// </summary>
+    public const string QueEsAutoExam =
+        "AutoExam te toma examen de lo que estás estudiando, con tu propio material.\n\n" +
+        "Subís lo que tengas —un PDF, un Word, una presentación o fotos de tus apuntes escritos " +
+        "a mano— y la app genera preguntas de opción múltiple sobre ese contenido. No trae " +
+        "preguntas de ningún lado: salen de lo que vos subiste.\n\n" +
+        "Respondés el examen y te lo corrige al instante con la escala de la UBA (del 1 al 10, " +
+        "se aprueba con 4), te muestra en qué te equivocaste y por qué cada opción era correcta " +
+        "o no. Todo queda guardado, así que meses después podés volver a mirar un examen viejo " +
+        "pregunta por pregunta.\n\n" +
+        "Para empezar te alcanza con subir un material y tocar «Generar examen».";
+
     public InicioViewModel(IEnumerable<AccesoDeInicio> accesos)
         : base("inicio", "Inicio", "Home24")
     {
         Accesos = new ObservableCollection<AccesoDeInicio>(accesos);
     }
+
+    /// <summary>Texto de <see cref="QueEsAutoExam"/>, para enlazarlo desde la vista.</summary>
+    public string Explicacion => QueEsAutoExam;
+
+    [ObservableProperty]
+    private bool _mostrarQueEs;
+
+    /// <summary>
+    /// Abre y cierra la explicacion. Es un panel dentro del menu y no una ventana aparte:
+    /// quien no entiende que hace la app no deberia tener que cerrar algo para volver a verla.
+    /// </summary>
+    [RelayCommand]
+    private void AlternarQueEs() => MostrarQueEs = !MostrarQueEs;
 
     public ObservableCollection<AccesoDeInicio> Accesos { get; }
 

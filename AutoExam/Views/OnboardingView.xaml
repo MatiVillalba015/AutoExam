@@ -28,7 +28,7 @@
                                 NavigateUri="https://aistudio.google.com/app/apikey"
                                 FontSize="11" Padding="0,4" HorizontalAlignment="Left" Margin="0,4,0,24" />
 
-            <ui:Button Content="Verificar y empezar" Appearance="Primary"
+            <ui:Button Content="Verificar y empezar" Appearance="Primary" ToolTip="Le hace una consulta minima a Gemini para confirmar que la clave funciona antes de entrar"
                        HorizontalAlignment="Stretch" Padding="0,13" FontSize="14"
                        Command="{Binding VerificarCommand}" />
 
@@ -43,7 +43,7 @@
                         Title="{Binding MensajeTitulo}" Message="{Binding Mensaje}"
                         IsOpen="{Binding HayMensaje, Mode=OneWay}" />
 
-            <Button Content="Entrar sin verificar" Style="{StaticResource ChipAccion}"
+            <Button Content="Entrar sin verificar" Style="{StaticResource ChipAccion}" ToolTip="Entra igual sin probar la clave: vas a poder usar la app pero no generar examenes hasta que sirva"
                     HorizontalAlignment="Center" Margin="0,22,0,0"
                     Command="{Binding OmitirCommand}" />
         </StackPanel>

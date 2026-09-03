@@ -44,6 +44,37 @@
                     <TextBlock Text="{Binding Bajada}" Style="{StaticResource TxtSuave}"
                                HorizontalAlignment="Center" TextAlignment="Center"
                                Margin="0,6,0,0" MaxWidth="520" />
+
+                    <!-- US-031 — "¿Que es AutoExam?".
+                         Chico y discreto: quien ya sabe que hace la app no tiene que
+                         esquivarlo todos los dias, y quien no sabe lo encuentra en el unico
+                         lugar donde lo va a buscar, que es la primera pantalla. -->
+                    <Button Style="{StaticResource ChipAccion}" Margin="0,14,0,0"
+                            HorizontalAlignment="Center"
+                            Command="{Binding AlternarQueEsCommand}"
+                            AutomationProperties.Name="Ver una explicacion de que es AutoExam"
+                            ToolTip="Una explicación corta de para qué sirve la app">
+                        <StackPanel Orientation="Horizontal">
+                            <ui:SymbolIcon Symbol="QuestionCircle24" FontSize="14"
+                                           VerticalAlignment="Center" Margin="0,0,7,0" />
+                            <TextBlock Text="¿Qué es AutoExam?" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Button>
+
+                    <Border Style="{StaticResource TarjetaSeleccionable}" Margin="0,14,0,0"
+                            Padding="20,16" MaxWidth="620" HorizontalAlignment="Center"
+                            Visibility="{Binding MostrarQueEs, Converter={StaticResource BoolToVis}}">
+                        <StackPanel>
+                            <!-- El texto sale de una constante del ViewModel: fijo, uno solo y
+                                 sin depender de Gemini (RN-39). -->
+                            <TextBlock Text="{Binding Explicacion}" Style="{StaticResource TxtCuerpo}"
+                                       TextWrapping="Wrap" />
+
+                            <Button Style="{StaticResource ChipAccion}" Content="Entendido"
+                                    HorizontalAlignment="Left" Margin="0,14,0,0"
+                                    Command="{Binding AlternarQueEsCommand}" />
+                        </StackPanel>
+                    </Border>
                 </StackPanel>
 
                 <!-- ============================================================ -->

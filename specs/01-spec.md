@@ -268,6 +268,8 @@ Como alumno, quiero que el menú principal ofrezca de entrada las acciones que m
 - Given hoy el hover de un botón hace un pequeño zoom que se ve como un salto brusco, when se corrige, then el hover pasa a una transición suave (por ejemplo un cambio de color/sombra/escala progresiva bien interpolada) sin el salto perceptible actual.
 - Given navego entre pantallas principales (Libros, Nuevo examen, Historial, Ajustes), when cambio de una a otra, then la transición entre pantallas es una animación suave y consistente (por ejemplo fundido o deslizamiento leve), no un cambio brusco/instantáneo.
 - Given tengo activada la opción de "reducir movimiento" del sistema (o la que ya usa RN-11), when navego o paso el mouse por botones, then estas microinteracciones nuevas también la respetan igual que las animaciones existentes.
+- Given paso el mouse por una tarjeta de acceso del menú principal (US-031) o por otro botón importante, when hago hover, then la tarjeta/botón hace un zoom leve y su texto crece mínimamente, de forma suave (reusando los parámetros de RN-11/RN-18), sin que el contenido (ícono, título, descripción) deje de verse en ningún momento del hover.
+- Given un botón no tiene ya una descripción visible de forma permanente, when paso el mouse por encima y lo mantengo, then aparece una breve descripción de qué hace ese botón debajo de él mientras dura el hover, y desaparece al sacar el mouse.
 
 ### US-030
 - Given estoy en el menú principal, when lo veo con la ventana en un tamaño normal o maximizada, then los 4 botones (Libros, Nuevo examen, Historial, Ajustes) se muestran en una grilla más centrada y espaciada (más "aire" entre tarjetas) en vez de pegados a un costado, cada uno con su ícono grande arriba y el texto abajo.
@@ -288,6 +290,8 @@ Como alumno, quiero que el menú principal ofrezca de entrada las acciones que m
 - Given tengo actividad reciente (por ejemplo el último examen rendido o el último material subido), when estoy en el menú principal, then veo esa información resumida (por ejemplo "Último examen: Tp2 Endocrino — 8/10") como parte de este menú más completo, no solo botones vacíos de navegación.
 - Given todavía no rendí ningún examen ni subí ningún material, when entro al menú principal por primera vez, then los accesos directos igual están disponibles y invitan a la primera acción (por ejemplo "Subí tu primer material para empezar"), sin mostrarse rotos ni vacíos sin explicación.
 - Given estos accesos directos nuevos conviven con los 4 botones de navegación, when reviso el menú, then no queda duplicado ni confuso: los accesos directos son atajos a la acción puntual, los botones de navegación siguen llevando a la sección completa.
+- Given estoy en el menú principal, when veo cualquiera de las tarjetas de acceso directo, then su ícono, título y descripción breve están siempre visibles (no solo al pasar el mouse por encima): ninguna tarjeta queda vacía o en blanco a la espera del hover.
+- Given estoy en el menú principal, when busco entender qué es la app, then hay un botón/acceso chico ("¿Qué es AutoExam?" o equivalente) que muestra una explicación breve, en lenguaje simple orientado a un estudiante nuevo, de para qué sirve la aplicación.
 
 ## Reglas de negocio
 - **RN-1** — La escala de calificación no cambia: UBA 1 a 10, se aprueba con 4 (60% de aciertos). "7 o más" (US-013) significa nota ≥ 7, equivalente a ≥ 74% de aciertos.
@@ -328,6 +332,8 @@ Como alumno, quiero que el menú principal ofrezca de entrada las acciones que m
 - **RN-35** — Los cambios de layout de US-030 no reabren ni contradicen lo ya resuelto por US-017 (centrado/aprovechamiento de espacio en pantalla completa): se construyen sobre esa base, no la reemplazan.
 - **RN-36** — Los accesos directos del menú principal (US-031) son atajos de navegación a pantallas/flujos ya existentes (Nuevo examen, Historial, agregar material, Ajustes): no crean lógica de negocio nueva ni una copia paralela de esas pantallas.
 - **RN-37** — El resumen de actividad reciente del menú (US-031) es de solo lectura: no permite corregir ni interactuar con el examen/material mostrado desde ahí, solo lleva a la pantalla correspondiente si se lo toca.
+- **RN-38** — El contenido esencial de una tarjeta o botón (ícono, título, descripción breve ya definida como parte del diseño) nunca depende exclusivamente del estado de hover para mostrarse: el hover solo agrega el efecto de zoom/crecimiento de texto (US-029) y, cuando corresponde, una descripción adicional que no tenía lugar fijo en el layout (tooltip).
+- **RN-39** — El texto de "¿Qué es AutoExam?" (US-031) es fijo y se define una sola vez junto con el resto del contenido de la interfaz; no depende de conexión a Gemini ni se genera dinámicamente.
 
 ## Fuera de alcance
 - Formatos binarios antiguos de Office: `.doc`, `.xls`, `.ppt` (quedan fuera de v1; se podrán retomar en una etapa posterior).

@@ -141,21 +141,73 @@ public class MenuHoverTests
     // ------------------------------------------------------------------
 
     [Fact]
-    public void ElHover_NoEscalaLaTarjeta_US029()
+    public void ElHover_HaceUnZoomLeveYSuave_US029()
     {
-        // El pedido concreto de US-029 es sacar "el pequeño salto/zoom que hoy pasa al pasar
-        // el mouse por un botón". Lo que se mueve al hacer hover es la elevación y el realce,
-        // nunca la escala: escalar vuelve a rasterizar el texto de adentro y eso es lo que se
-        // percibe como un salto.
+        // Este test decía lo contrario hasta que el criterio cambió, y vale explicar por qué,
+        // porque parece una vuelta atrás y no lo es.
+        //
+        // La primera pasada de US-029 pedía sacar "el pequeño salto/zoom que hoy pasa al pasar
+        // el mouse por un botón", y se sacó la escala entera. El criterio nuevo pide "un zoom
+        // leve y su texto crece mínimamente, de forma suave". Leídos juntos, lo que molestaba
+        // no era escalar sino que el escalado fuera un salto instantáneo: la queja original era
+        // sobre el "salto", no sobre el zoom.
+        //
+        // Así que la garantía se mueve, no desaparece: la escala vuelve, pero sólo interpolada
+        // con los parámetros centralizados y en una proporción chica. Un Setter de escala
+        // directo —un salto— sigue estando prohibido, y lo cubre el test de abajo.
         var escalas = DisparosDeHoverAnimado()
             .SelectMany(t => t.Descendants().Where(d => d.Name.LocalName == "DoubleAnimation"))
-            .Select(a => a.Attribute("Storyboard.TargetProperty")?.Value ?? string.Empty)
-            .Where(p => p.Contains("Scale", StringComparison.OrdinalIgnoreCase))
+            .Where(a => (a.Attribute("Storyboard.TargetProperty")?.Value ?? string.Empty)
+                .Contains("Scale", StringComparison.OrdinalIgnoreCase))
             .ToList();
 
-        Assert.True(escalas.Count == 0,
-            "El hover del menú vuelve a escalar (" + string.Join(", ", escalas) +
-            "): US-029 pide justamente sacar ese zoom.");
+        Assert.True(escalas.Count > 0,
+            "El hover de la tarjeta del menú no hace ningún zoom: US-029 lo pide explícitamente.");
+
+        foreach (var animacion in escalas)
+        {
+            Assert.Contains("StaticResource", animacion.Attribute("Duration")?.Value ?? string.Empty,
+                StringComparison.Ordinal);
+            Assert.Contains("StaticResource", animacion.Attribute("EasingFunction")?.Value ?? string.Empty,
+                StringComparison.Ordinal);
+        }
+    }
+
+    [Fact]
+    public void ElZoomDelHover_EsLeve_NoUnSalto_US029()
+    {
+        // "Zoom leve" y "el texto crece mínimamente". Sobre una tarjeta de 190 px, 1.03 son
+        // unos 6 px: se percibe como que la tarjeta se acerca. Pasado cierto punto el texto
+        // empieza a re-rasterizarse de forma visible y vuelve a leerse como el salto que la
+        // primera versión de US-029 pedía sacar.
+        var destinos = DisparosDeHoverAnimado()
+            .SelectMany(t => t.Descendants().Where(d => d.Name.LocalName == "DoubleAnimation"))
+            .Where(a => (a.Attribute("Storyboard.TargetProperty")?.Value ?? string.Empty)
+                .Contains("Scale", StringComparison.OrdinalIgnoreCase))
+            .Select(a => double.Parse(a.Attribute("To")!.Value, System.Globalization.CultureInfo.InvariantCulture))
+            .ToList();
+
+        Assert.NotEmpty(destinos);
+        Assert.All(destinos, d => Assert.InRange(d, 1.0, 1.05));
+    }
+
+    [Fact]
+    public void NingunEstadoDeHover_CambiaLaEscalaDeGolpe_US029()
+    {
+        // La escala sólo puede moverse interpolada. Un Setter directo sobre una ScaleTransform
+        // dentro de un disparo de hover es exactamente el salto original.
+        var saltos = EstiloDelMenu().Descendants()
+            .Where(e => e.Name.LocalName is "Trigger" or "MultiTrigger")
+            .Where(t => t.Descendants().Any(c =>
+                c.Name.LocalName == "Condition" &&
+                (c.Attribute("Property")?.Value ?? string.Empty).EndsWith("IsMouseOver", StringComparison.Ordinal)))
+            .SelectMany(t => t.Elements().Where(s => s.Name.LocalName == "Setter"))
+            .Where(s => (s.Attribute("Property")?.Value ?? string.Empty)
+                .Contains("Scale", StringComparison.OrdinalIgnoreCase))
+            .ToList();
+
+        Assert.True(saltos.Count == 0,
+            "Hay un Setter de escala en un disparo de hover: eso es el salto instantáneo, no una transición.");
     }
 
     [Fact]

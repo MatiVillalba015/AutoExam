@@ -14,6 +14,59 @@
                     xmlns:sys="clr-namespace:System;assembly=System.Runtime"
                     xmlns:comportamientos="clr-namespace:AutoExam.Behaviors">
 
+    <!-- ==============================================================
+         Tooltips (US-029).
+
+         "Given un boton no tiene ya una descripcion visible de forma permanente,
+         when paso el mouse por encima y lo mantengo, then aparece una breve
+         descripcion de que hace ese boton DEBAJO de el."
+
+         Va como estilo implicito (sin x:Key) y no como atributo repetido en cada
+         boton: el lugar donde aparece el globo es una decision del sistema visual,
+         no de cada vista, y asi ninguna pantalla puede quedarse afuera. Placement
+         es propiedad del propio ToolTip, asi que una sola regla alcanza para toda
+         la app; ToolTipService.Placement, en cambio, habria que ponerlo boton por
+         boton.
+
+         El retardo es el del sistema a proposito: el criterio dice "y lo mantengo".
+         Un globo instantaneo aparece tambien cuando uno solo esta pasando el mouse
+         camino a otra cosa.
+         ============================================================== -->
+    <Style TargetType="ToolTip">
+        <Setter Property="Placement" Value="Bottom" />
+        <Setter Property="HorizontalOffset" Value="0" />
+        <Setter Property="VerticalOffset" Value="6" />
+        <Setter Property="MaxWidth" Value="280" />
+        <Setter Property="Padding" Value="10,7" />
+        <Setter Property="Background" Value="{DynamicResource PincelTarjeta}" />
+        <Setter Property="Foreground" Value="{DynamicResource PincelTexto}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource PincelBordeFuerte}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="FontFamily" Value="{DynamicResource FuenteCuerpo}" />
+        <Setter Property="FontSize" Value="{DynamicResource TamMinimo}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ToolTip">
+                    <Border Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            CornerRadius="{DynamicResource RadioCampo}"
+                            Padding="{TemplateBinding Padding}"
+                            Effect="{DynamicResource SombraTarjeta}">
+                        <!-- TextWrapping para que una descripcion de dos lineas no salga
+                             como una tira de 600 px cruzando la pantalla. -->
+                        <ContentPresenter />
+                    </Border>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+        <Style.Resources>
+            <Style TargetType="TextBlock">
+                <Setter Property="TextWrapping" Value="Wrap" />
+            </Style>
+        </Style.Resources>
+    </Style>
+
     <!-- ============================================================== -->
     <!-- Escalas. Los pinceles y la sombra viven en Theme/Tokens.*.xaml   -->
     <!-- ============================================================== -->
@@ -258,17 +311,19 @@
                                 BorderBrush="{TemplateBinding BorderBrush}"
                                 BorderThickness="1"
                                 CornerRadius="{DynamicResource RadioChip}"
-                                Padding="{TemplateBinding Padding}"
-                                SnapsToDevicePixels="True">
-                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"
-                                              RecognizesAccessKey="True" />
-                        </Border>
+                                SnapsToDevicePixels="True" />
                         <!-- Overlay de hover: nunca se anima el Brush de "Fondo" directo (rompería
                              el cambio de tema); se anima la Opacity de esta capa, pintada con el
                              mismo pincel que antes se asignaba instantáneo por Setter. -->
                         <Border x:Name="FondoHover" Background="{DynamicResource PincelTarjetaHover}"
                                 CornerRadius="{DynamicResource RadioChip}" Opacity="0"
                                 IsHitTestVisible="False" />
+                        <!-- RN-38: el contenido va DESPUES del overlay, no adentro del fondo.
+                             PincelTarjetaHover es opaco, asi que con el contenido debajo la capa
+                             de hover lo tapaba entero al llegar a Opacity 1. -->
+                        <ContentPresenter Margin="{TemplateBinding Padding}"
+                                          HorizontalAlignment="Center" VerticalAlignment="Center"
+                                          RecognizesAccessKey="True" />
                     </Grid>
                     <ControlTemplate.Triggers>
                         <MultiTrigger>
@@ -370,13 +425,13 @@
                         </Grid.RenderTransform>
                         <Border x:Name="Fondo" Background="Transparent"
                                 BorderBrush="{DynamicResource PincelBorde}" BorderThickness="1"
-                                CornerRadius="{DynamicResource RadioChip}"
-                                Padding="{TemplateBinding Padding}">
-                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
-                        </Border>
+                                CornerRadius="{DynamicResource RadioChip}" />
                         <Border x:Name="FondoHover" Background="{DynamicResource PincelTarjetaHover}"
                                 CornerRadius="{DynamicResource RadioChip}" Opacity="0"
                                 IsHitTestVisible="False" />
+                        <!-- RN-38: el contenido va sobre el overlay opaco de hover, no debajo. -->
+                        <ContentPresenter Margin="{TemplateBinding Padding}"
+                                          HorizontalAlignment="Center" VerticalAlignment="Center" />
                     </Grid>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
@@ -473,10 +528,7 @@
                                 Background="{DynamicResource PincelTarjeta}"
                                 BorderBrush="{DynamicResource PincelBorde}"
                                 BorderThickness="1"
-                                CornerRadius="{DynamicResource RadioCampo}"
-                                Padding="{TemplateBinding Padding}">
-                            <ContentPresenter />
-                        </Border>
+                                CornerRadius="{DynamicResource RadioCampo}" />
                         <Border x:Name="FondoHover" Background="{DynamicResource PincelTarjetaHover}"
                                 CornerRadius="{DynamicResource RadioCampo}" Opacity="0"
                                 IsHitTestVisible="False" />
@@ -499,6 +551,12 @@
                         <Border x:Name="Acento" Width="5" HorizontalAlignment="Left" Opacity="0"
                                 Background="{DynamicResource PincelMarca}" IsHitTestVisible="False"
                                 CornerRadius="{DynamicResource RadioCampo}" />
+
+                        <!-- RN-38: el texto de la opcion se dibuja por encima del overlay de
+                             hover. Estaba adentro de "Fondo", debajo de FondoHover, que usa un
+                             pincel opaco: al pasar el mouse por una opcion, la opcion entera
+                             quedaba en blanco. -->
+                        <ContentPresenter Margin="{TemplateBinding Padding}" />
                     </Grid>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
@@ -567,8 +625,10 @@
                         <Trigger Property="IsChecked" Value="True">
                             <Setter TargetName="Fondo" Property="Background" Value="{DynamicResource PincelMarcaSuave}" />
                             <Setter TargetName="Fondo" Property="BorderBrush" Value="{DynamicResource PincelMarcaFuerte}" />
+                            <!-- El borde engorda a 2 px sin correr el texto: ahora el contenido es
+                                 hermano del borde, no su hijo, asi que ya no hace falta compensar
+                                 el grosor con un Padding mas chico. -->
                             <Setter TargetName="Fondo" Property="BorderThickness" Value="2" />
-                            <Setter TargetName="Fondo" Property="Padding" Value="15,13" />
                             <!-- US-030: el acento es lo que hace que la opcion elegida se lea
                                  de un vistazo; el fondo y el borde solos no alcanzaban. -->
                             <Setter TargetName="Acento" Property="Opacity" Value="1" />
@@ -686,17 +746,31 @@
     <!-- ============================================================== -->
 
     <!-- ==============================================================
-         Tarjeta de acceso de la pantalla de inicio (US-030).
+         Tarjeta de acceso del menu principal (US-030 / US-031).
 
-         El hover NO escala (US-029): el zoom es justo lo que se sentia como un
-         salto. Lo que se mueve es la elevacion —un fondo mas claro y un borde de
-         marca que aparecen interpolados— mas un desplazamiento de 2 px hacia
-         arriba, suficiente para que la tarjeta se sienta viva sin que el texto de
-         adentro cambie de tamanio ni se vuelva a rasterizar.
+         El hover hace un zoom leve (1 -> 1.03) que agranda tambien el texto de
+         adentro, mas 2 px de elevacion. El zoom vuelve despues de haberse sacado
+         en la primera pasada de US-029: lo que molestaba entonces no era escalar
+         sino que el escalado era un salto instantaneo. Interpolado con los mismos
+         parametros que el resto, es lo que el criterio pide ahora explicitamente
+         ("un zoom leve y su texto crece minimamente, de forma suave").
+
+         Se escala el Grid entero y no cada texto por separado: una sola
+         ScaleTransform sobre la raiz agranda icono, titulo y descripcion en la
+         misma proporcion, y como es RenderTransform no toca el layout — la
+         tarjeta crece sobre si misma sin correr a las otras tres.
+
+         RN-38 — el contenido NUNCA depende del hover para verse: el
+         ContentPresenter es el ULTIMO hijo del Grid, encima de la capa de realce.
+         Antes vivia adentro de "Fondo", debajo de "Realce", y como
+         PincelTarjetaHover es un pincel OPACO (#2C2741 en oscuro, #DFDDEB en
+         claro), al llegar el hover a Opacity 1 la capa tapaba el contenido entero
+         y la tarjeta se veia vacia. El mismo error estaba en otros cinco
+         templates de este archivo y se corrigio igual en todos.
 
          Duracion, suavizado y la guarda de "reducir movimiento" son los mismos
-         recursos centralizados que usan los otros siete templates (RN-33): aca no
-         hay ningun sistema de animacion nuevo.
+         recursos centralizados que usan los otros templates (RN-33): aca no hay
+         ningun sistema de animacion nuevo.
          ============================================================== -->
     <Style x:Key="TarjetaAcceso" TargetType="Button">
         <Setter Property="Background" Value="{DynamicResource PincelTarjeta}" />
@@ -713,7 +787,10 @@
                 <ControlTemplate TargetType="Button">
                     <Grid x:Name="Raiz" RenderTransformOrigin="0.5,0.5">
                         <Grid.RenderTransform>
-                            <TranslateTransform x:Name="Elevacion" Y="0" />
+                            <TransformGroup>
+                                <ScaleTransform x:Name="Zoom" ScaleX="1" ScaleY="1" />
+                                <TranslateTransform x:Name="Elevacion" Y="0" />
+                            </TransformGroup>
                         </Grid.RenderTransform>
 
                         <Border x:Name="Fondo"
@@ -721,10 +798,7 @@
                                 BorderBrush="{TemplateBinding BorderBrush}"
                                 BorderThickness="1"
                                 CornerRadius="{DynamicResource RadioTarjeta}"
-                                Padding="{TemplateBinding Padding}"
-                                SnapsToDevicePixels="True">
-                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
-                        </Border>
+                                SnapsToDevicePixels="True" />
 
                         <!-- Se anima la Opacity de esta capa y no el Brush del fondo: animar un
                              Brush lo congela y rompe el cambio de tema claro/oscuro. -->
@@ -732,6 +806,11 @@
                                 BorderBrush="{DynamicResource PincelMarca}" BorderThickness="1"
                                 CornerRadius="{DynamicResource RadioTarjeta}" Opacity="0"
                                 IsHitTestVisible="False" />
+
+                        <!-- RN-38: ultimo hijo = siempre encima del realce. Ver el comentario
+                             del estilo. -->
+                        <ContentPresenter Margin="{TemplateBinding Padding}"
+                                          HorizontalAlignment="Center" VerticalAlignment="Center" />
                     </Grid>
 
                     <ControlTemplate.Triggers>
@@ -750,6 +829,15 @@
                                         <DoubleAnimation Storyboard.TargetName="Elevacion" Storyboard.TargetProperty="Y"
                                                          To="-2" Duration="{StaticResource DuracionHover}"
                                                          EasingFunction="{StaticResource SuavizadoSalida}" />
+                                        <!-- US-029: zoom leve. 1.03 sobre una tarjeta de 190 px son
+                                             ~6 px de crecimiento y ~0,5 px de texto: se percibe como
+                                             que la tarjeta se acerca, no como que el texto salta. -->
+                                        <DoubleAnimation Storyboard.TargetName="Zoom" Storyboard.TargetProperty="ScaleX"
+                                                         To="1.03" Duration="{StaticResource DuracionHover}"
+                                                         EasingFunction="{StaticResource SuavizadoSalida}" />
+                                        <DoubleAnimation Storyboard.TargetName="Zoom" Storyboard.TargetProperty="ScaleY"
+                                                         To="1.03" Duration="{StaticResource DuracionHover}"
+                                                         EasingFunction="{StaticResource SuavizadoSalida}" />
                                     </Storyboard>
                                 </BeginStoryboard>
                             </MultiTrigger.EnterActions>
@@ -762,13 +850,21 @@
                                         <DoubleAnimation Storyboard.TargetName="Elevacion" Storyboard.TargetProperty="Y"
                                                          To="0" Duration="{StaticResource DuracionHover}"
                                                          EasingFunction="{StaticResource SuavizadoSalida}" />
+                                        <DoubleAnimation Storyboard.TargetName="Zoom" Storyboard.TargetProperty="ScaleX"
+                                                         To="1" Duration="{StaticResource DuracionHover}"
+                                                         EasingFunction="{StaticResource SuavizadoSalida}" />
+                                        <DoubleAnimation Storyboard.TargetName="Zoom" Storyboard.TargetProperty="ScaleY"
+                                                         To="1" Duration="{StaticResource DuracionHover}"
+                                                         EasingFunction="{StaticResource SuavizadoSalida}" />
                                     </Storyboard>
                                 </BeginStoryboard>
                             </MultiTrigger.ExitActions>
                         </MultiTrigger>
 
                         <!-- Con "reducir movimiento" el hover sigue existiendo, pero como un
-                             cambio de estado directo: la tarjeta se resalta sin desplazarse. -->
+                             cambio de estado directo: la tarjeta se resalta sin desplazarse ni
+                             crecer. El zoom es justamente el tipo de movimiento que la
+                             preferencia del sistema pide evitar. -->
                         <MultiTrigger>
                             <MultiTrigger.Conditions>
                                 <Condition Property="IsMouseOver" Value="True" />
@@ -840,14 +936,14 @@
                 <ControlTemplate TargetType="Button">
                     <Grid>
                         <Border x:Name="Fondo" Background="{TemplateBinding Background}"
-                                CornerRadius="{DynamicResource RadioCampo}"
-                                Padding="{TemplateBinding Padding}">
-                            <ContentPresenter />
-                        </Border>
+                                CornerRadius="{DynamicResource RadioCampo}" />
 
                         <Border x:Name="Realce" Background="{DynamicResource PincelTarjetaHover}"
                                 CornerRadius="{DynamicResource RadioCampo}" Opacity="0"
                                 IsHitTestVisible="False" />
+
+                        <!-- RN-38: el contenido va sobre el realce opaco, no debajo. -->
+                        <ContentPresenter Margin="{TemplateBinding Padding}" />
                     </Grid>
 
                     <ControlTemplate.Triggers>
@@ -889,7 +985,6 @@
                         <Trigger Property="IsKeyboardFocused" Value="True">
                             <Setter TargetName="Fondo" Property="BorderBrush" Value="{DynamicResource PincelMarcaFuerte}" />
                             <Setter TargetName="Fondo" Property="BorderThickness" Value="2" />
-                            <Setter TargetName="Fondo" Property="Padding" Value="8,7" />
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
@@ -917,13 +1012,13 @@
                         </Grid.RenderTransform>
                         <Border x:Name="Fondo" Background="{DynamicResource PincelTarjeta}"
                                 BorderBrush="{DynamicResource PincelBorde}" BorderThickness="1"
-                                CornerRadius="{DynamicResource RadioCampo}" Padding="16,13"
-                                Cursor="Hand">
-                            <ContentPresenter />
-                        </Border>
+                                CornerRadius="{DynamicResource RadioCampo}"
+                                Cursor="Hand" />
                         <Border x:Name="FondoHover" Background="{DynamicResource PincelTarjetaHover}"
                                 CornerRadius="{DynamicResource RadioCampo}" Opacity="0"
                                 IsHitTestVisible="False" />
+                        <!-- RN-38: la ficha del libro se dibuja sobre el realce, no debajo. -->
+                        <ContentPresenter Margin="16,13" />
                     </Grid>
                     <ControlTemplate.Triggers>
                         <!-- US-011 superficie 8 (RN-7): alta de items en Historial y Libros.

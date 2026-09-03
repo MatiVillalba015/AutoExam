@@ -308,7 +308,7 @@
                             </ListBox.ItemTemplate>
                         </ListBox>
 
-                        <Button Content="Destildar todos" Style="{StaticResource ChipAccion}"
+                        <Button Content="Destildar todos" Style="{StaticResource ChipAccion}" ToolTip="Destilda todos los examenes elegidos y deja la seleccion vacia"
                                 HorizontalAlignment="Left" Margin="0,12,0,0"
                                 Command="{Binding DestildarExamenesCommand}"
                                 Visibility="{Binding HayExamenesParaRepaso, Converter={StaticResource BoolToVis}}" />
@@ -480,7 +480,7 @@
                         <StackPanel>
                             <TextBlock Style="{StaticResource TxtSuave}" Margin="0,0,0,10"
                                        Text="Este libro todavia no tiene capitulos cargados, asi que solo podes elegir por paginas." />
-                            <Button Content="Detectarlos ahora desde el indice del PDF"
+                            <Button Content="Detectarlos ahora desde el indice del PDF" ToolTip="Lee el indice del PDF para armar la lista de capitulos: no genera preguntas ni gasta cuota"
                                     Style="{StaticResource ChipAccion}" HorizontalAlignment="Left"
                                     Command="{Binding DetectarCapitulosCommand}" />
                         </StackPanel>
@@ -513,9 +513,9 @@
 
                     <StackPanel Orientation="Horizontal" Margin="0,0,0,24"
                                 Visibility="{Binding HayModulos, Converter={StaticResource BoolToVis}}">
-                        <Button Content="Marcar todos" Style="{StaticResource ChipAccion}"
+                        <Button Content="Marcar todos" Style="{StaticResource ChipAccion}" ToolTip="Incluye todos los capitulos en el examen"
                                 Command="{Binding MarcarTodosCommand}" />
-                        <Button Content="Ninguno" Style="{StaticResource ChipAccion}"
+                        <Button Content="Ninguno" Style="{StaticResource ChipAccion}" ToolTip="Desmarca todos los capitulos: sin ninguno marcado entra el libro entero"
                                 Command="{Binding DesmarcarTodosCommand}" />
                         <TextBlock Text="{Binding ResumenCapitulos}" Style="{StaticResource TxtTenue}"
                                    VerticalAlignment="Center" Margin="8,0,0,0" />
@@ -651,7 +651,7 @@
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
 
-            <Button Grid.Column="0" Content="Atras" Style="{StaticResource ChipAccion}"
+            <Button Grid.Column="0" Content="Atras" Style="{StaticResource ChipAccion}" ToolTip="Vuelve al paso anterior sin perder lo que ya elegiste"
                     VerticalAlignment="Center" Command="{Binding AnteriorCommand}" />
 
             <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Center"
@@ -660,17 +660,17 @@
                 <ui:ProgressRing IsIndeterminate="True" Width="20" Height="20" />
                 <TextBlock Text="{Binding Progreso}" Style="{StaticResource TxtSuave}"
                            VerticalAlignment="Center" Margin="10,0,0,0" MaxWidth="360" />
-                <Button Content="Cancelar" Style="{StaticResource ChipAccion}" Margin="12,0,0,0"
+                <Button Content="Cancelar" Style="{StaticResource ChipAccion}" Margin="12,0,0,0" ToolTip="Corta la generacion en curso"
                         Command="{Binding CancelarCommand}" />
             </StackPanel>
 
             <StackPanel Grid.Column="2" Orientation="Horizontal">
-                <ui:Button Content="Continuar" Appearance="Primary" Padding="22,11" FontSize="14"
+                <ui:Button Content="Continuar" Appearance="Primary" ToolTip="Pasa al siguiente paso del asistente" Padding="22,11" FontSize="14"
                            Icon="{ui:SymbolIcon ArrowRight24}" Command="{Binding SiguienteCommand}"
                            Visibility="{Binding EsUltimoPaso, Converter={StaticResource BoolAVisibilidad},
                                         ConverterParameter=invertir}" />
 
-                <ui:Button Content="Generar examen" Appearance="Primary" Padding="22,11" FontSize="14"
+                <ui:Button Content="Generar examen" Appearance="Primary" ToolTip="Le pide las preguntas a Gemini con el material y el alcance elegidos. Puede tardar y consume cuota" Padding="22,11" FontSize="14"
                            Icon="{ui:SymbolIcon Sparkle24}" Command="{Binding GenerarCommand}"
                            Visibility="{Binding EsUltimoPaso, Converter={StaticResource BoolToVis}}" />
             </StackPanel>

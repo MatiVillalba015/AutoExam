@@ -244,7 +244,7 @@
 
                 <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center"
                             Margin="14,0,0,0">
-                    <Button Content="Destildar todos" Style="{StaticResource ChipAccion}"
+                    <Button Content="Destildar todos" Style="{StaticResource ChipAccion}" ToolTip="Destilda todos los examenes elegidos para el repaso"
                             VerticalAlignment="Center" Margin="0,0,10,0"
                             Command="{Binding DestildarExamenesCommand}" />
 
@@ -273,7 +273,7 @@
                     <TextBlock Text="{Binding Detalle}" Style="{StaticResource TxtSuave}" LineHeight="22" />
                     <TextBlock Style="{StaticResource TxtTenue}" Margin="0,10,0,0"
                                Text="Las salteadas cuentan como no respondidas: restan igual que un error. Las revanchas no modifican la nota original." />
-                    <Button Content="&#x1F5D1;&#xFE0F; Borrar historial" Style="{StaticResource ChipAccion}"
+                    <Button Content="&#x1F5D1;&#xFE0F; Borrar historial" Style="{StaticResource ChipAccion}" ToolTip="Borra TODOS los examenes rendidos y reinicia las estadisticas. Pide confirmacion"
                             Margin="0,16,0,0" HorizontalAlignment="Left" Command="{Binding BorrarCommand}" />
                 </StackPanel>
 

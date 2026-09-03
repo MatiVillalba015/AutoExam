@@ -188,25 +188,36 @@ public class RediseñoDePantallasTests
     }
 
     [Fact]
-    public void NingunTemplateEscalaAlHacerHover_US029()
+    public void TodoZoomDeHover_EstaInterpoladoYEsLeve_US029()
     {
-        // El pedido concreto: sacar "el pequeño salto/zoom que hoy pasa al pasar el mouse".
-        // La escala queda sólo para el pulsado, donde sí se espera un hundido.
+        // La primera pasada de US-029 prohibía escalar en el hover; el criterio nuevo lo pide
+        // ("un zoom leve y su texto crece mínimamente, de forma suave"). Lo que molestaba era
+        // el salto, no el zoom, así que la garantía pasa de "no escalar" a "escalar poco y
+        // siempre interpolado con los parámetros centralizados" (RN-33).
         var doc = Vista("AutoExam/Theme/Estilos.xaml");
 
-        var hoverConEscala = doc.Descendants()
+        var escalasDeHover = doc.Descendants()
             .Where(e => e.Name.LocalName == "MultiTrigger")
             .Where(t => t.Descendants().Any(c =>
                 c.Name.LocalName == "Condition" &&
                 (c.Attribute("Property")?.Value ?? string.Empty).EndsWith("IsMouseOver", StringComparison.Ordinal)))
-            .Where(t => t.Descendants().Any(a =>
-                a.Name.LocalName == "DoubleAnimation" &&
-                (a.Attribute("Storyboard.TargetProperty")?.Value ?? string.Empty)
-                    .Contains("Scale", StringComparison.OrdinalIgnoreCase)))
+            .SelectMany(t => t.Descendants().Where(a => a.Name.LocalName == "DoubleAnimation"))
+            .Where(a => (a.Attribute("Storyboard.TargetProperty")?.Value ?? string.Empty)
+                .Contains("Scale", StringComparison.OrdinalIgnoreCase))
             .ToList();
 
-        Assert.True(hoverConEscala.Count == 0,
-            $"{hoverConEscala.Count} template(s) siguen escalando al hacer hover: US-029 pide sacar ese zoom.");
+        foreach (var animacion in escalasDeHover)
+        {
+            Assert.Contains("StaticResource", animacion.Attribute("Duration")?.Value ?? string.Empty,
+                StringComparison.Ordinal);
+            Assert.Contains("StaticResource", animacion.Attribute("EasingFunction")?.Value ?? string.Empty,
+                StringComparison.Ordinal);
+
+            double destino = double.Parse(animacion.Attribute("To")!.Value,
+                System.Globalization.CultureInfo.InvariantCulture);
+
+            Assert.InRange(destino, 1.0, 1.05);
+        }
     }
 
     // ------------------------------------------------------------------

@@ -262,6 +262,89 @@ public class MenuPrincipalTests
     }
 
     // ------------------------------------------------------------------
+    // US-031 — "¿Qué es AutoExam?"
+    // ------------------------------------------------------------------
+
+    [Fact]
+    public void ElMenu_TieneUnAccesoQueExplicaQueEsLaApp_US031()
+    {
+        var comandos = Vista("AutoExam/Views/InicioView.xaml").Descendants()
+            .Select(e => e.Attribute("Command")?.Value ?? string.Empty);
+
+        Assert.Contains(comandos, c => c.Contains("AlternarQueEsCommand", StringComparison.Ordinal));
+
+        // Y el texto que se abre sale del ViewModel, no está escrito en la vista.
+        Assert.Contains("Explicacion", Fuente("AutoExam/Views/InicioView.xaml"), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void LaExplicacion_EsTextoFijoYNoPasaPorGemini_RN39()
+    {
+        // RN-39: "es fijo y se define una sola vez; no depende de conexión a Gemini ni se
+        // genera dinámicamente". Quien todavía no entiende qué hace la app es justamente quien
+        // puede no tener la clave cargada: una explicación que a veces aparece y a veces no es
+        // peor que ninguna.
+        Assert.False(string.IsNullOrWhiteSpace(InicioViewModel.QueEsAutoExam));
+
+        // Es una constante de compilación: por construcción no puede salir de una llamada a
+        // nada, ni de Gemini ni de un archivo. Es la forma más fuerte de fijar RN-39.
+        var campo = typeof(InicioViewModel).GetField(
+            nameof(InicioViewModel.QueEsAutoExam),
+            BindingFlags.Public | BindingFlags.Static);
+
+        Assert.True(campo is not null, "QueEsAutoExam dejó de ser un miembro estático público.");
+        Assert.True(campo!.IsLiteral && !campo.IsInitOnly,
+            "QueEsAutoExam dejó de ser const: podría pasar a calcularse en tiempo de ejecución (RN-39).");
+
+        // Y el menú no conoce ningún servicio del que pudiera pedirla.
+        var dependencias = typeof(InicioViewModel)
+            .GetConstructors()
+            .SelectMany(c => c.GetParameters())
+            .Select(p => p.ParameterType.Name)
+            .ToList();
+
+        Assert.DoesNotContain(dependencias, d => d.Contains("Gemini", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void LaExplicacion_HablaDeLoQueElAlumnoHace_NoDeLaArquitectura()
+    {
+        // "En lenguaje simple orientado a un estudiante nuevo". Sin esto es fácil que termine
+        // describiendo el pipeline de extracción, que a un estudiante no le dice nada.
+        string texto = InicioViewModel.QueEsAutoExam;
+
+        foreach (string esperado in new[] { "Subís", "examen", "apuntes", "UBA" })
+        {
+            Assert.Contains(esperado, texto, StringComparison.OrdinalIgnoreCase);
+        }
+
+        // Vocabulario que sólo entiende quien ya conoce la app o el código.
+        foreach (string jerga in new[] { "pipeline", "extractor", "alcance", "cuota", "API" })
+        {
+            Assert.DoesNotContain(jerga, texto, StringComparison.OrdinalIgnoreCase);
+        }
+    }
+
+    [Fact]
+    public void LaExplicacion_ArrancaCerrada()
+    {
+        // El menú es la pantalla de todos los días: la explicación se abre cuando se la pide.
+        Assert.False(Menu().MostrarQueEs);
+    }
+
+    [Fact]
+    public void LaExplicacion_SeAbreYSeCierraConElMismoAcceso()
+    {
+        var menu = Menu();
+
+        menu.AlternarQueEsCommand.Execute(null);
+        Assert.True(menu.MostrarQueEs);
+
+        menu.AlternarQueEsCommand.Execute(null);
+        Assert.False(menu.MostrarQueEs);
+    }
+
+    // ------------------------------------------------------------------
     // El XAML del menú realmente se puede construir
     // ------------------------------------------------------------------
 

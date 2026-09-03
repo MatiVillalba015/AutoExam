@@ -41,9 +41,9 @@
                     </Grid>
 
                     <StackPanel Orientation="Horizontal">
-                        <ui:Button Content="Guardar" Appearance="Primary" Padding="18,10"
+                        <ui:Button Content="Guardar" Appearance="Primary" Padding="18,10" ToolTip="Guarda la clave de Gemini que escribiste arriba y la deja como la clave activa"
                                    Command="{Binding GuardarCommand}" />
-                        <Button Content="Probar conexion" Style="{StaticResource ChipAccion}"
+                        <Button Content="Probar conexion" Style="{StaticResource ChipAccion}" ToolTip="Le hace una consulta minima a Gemini para ver si la clave sirve, sin generar ningun examen"
                                 Margin="10,0,0,0" VerticalAlignment="Center"
                                 Command="{Binding ProbarCommand}" />
                         <ui:ProgressRing IsIndeterminate="True" Width="18" Height="18" Margin="12,0,0,0"
@@ -139,7 +139,7 @@
                     <CheckBox IsChecked="{Binding IncluirImagenes, Mode=TwoWay}" Margin="0,0,0,16"
                               Content="Extraer imagenes de los PDF por defecto" />
 
-                    <Button Content="Abrir carpeta de datos" Style="{StaticResource ChipAccion}"
+                    <Button Content="Abrir carpeta de datos" Style="{StaticResource ChipAccion}" ToolTip="Abre en el Explorador la carpeta donde AutoExam guarda tus materiales, examenes y ajustes"
                             HorizontalAlignment="Left" Command="{Binding AbrirCarpetaCommand}" />
 
                     <TextBlock Text="{Binding CarpetaDatos}" Style="{StaticResource TxtDato}"
@@ -162,7 +162,7 @@
                                    Style="{StaticResource TxtTenue}" TextWrapping="Wrap" />
                     </StackPanel>
 
-                    <Button Grid.Column="1" Content="Buscar actualizaciones"
+                    <Button Grid.Column="1" Content="Buscar actualizaciones" ToolTip="Consulta si hay una version mas nueva de AutoExam publicada y te ofrece instalarla"
                             Style="{StaticResource ChipAccion}" VerticalAlignment="Center"
                             Margin="12,0,0,0" Command="{Binding BuscarActualizacionCommand}" />
                 </Grid>

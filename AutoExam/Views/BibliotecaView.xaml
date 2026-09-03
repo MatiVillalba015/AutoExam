@@ -366,7 +366,7 @@
                                                      Margin="0,0,10,0" VerticalAlignment="Center"
                                                      Visibility="{Binding Resumiendo, Converter={StaticResource BoolToVis}}" />
 
-                                    <Button Content="Ver de que trata" Style="{StaticResource ChipAccion}"
+                                    <Button Content="Ver de que trata" Style="{StaticResource ChipAccion}" ToolTip="Genera con IA un resumen de que trata este material, sin armar ningun examen"
                                             Command="{Binding VerDeQueTrataCommand}"
                                             AutomationProperties.Name="Ver de que trata este material" />
                                 </StackPanel>
@@ -413,9 +413,9 @@
                                            Icon="{ui:SymbolIcon TextBulletListTree24}"
                                            Command="{Binding DetectarCapitulosCommand}"
                                            ToolTip="Lee el indice interno del PDF y arma un modulo por capitulo" />
-                                <Button Content="Agregar modulo" Style="{StaticResource ChipAccion}"
+                                <Button Content="Agregar modulo" Style="{StaticResource ChipAccion}" ToolTip="Suma un tramo de paginas con nombre propio, para poder acotar el examen a el"
                                         Command="{Binding AgregarModuloCommand}" />
-                                <Button Content="Quitar el ultimo" Style="{StaticResource ChipAccion}"
+                                <Button Content="Quitar el ultimo" Style="{StaticResource ChipAccion}" ToolTip="Borra el ultimo modulo de la lista"
                                         Command="{Binding QuitarModuloCommand}" />
                             </WrapPanel>
 
@@ -446,7 +446,7 @@
                                                       Minimum="1" Maximum="200" Width="90"
                                                       AutomationProperties.Name="Cantidad de partes"
                                                       ClearButtonEnabled="False" />
-                                        <Button Content="Dividir" Style="{StaticResource ChipAccion}"
+                                        <Button Content="Dividir" Style="{StaticResource ChipAccion}" ToolTip="Parte el libro en modulos de igual cantidad de paginas"
                                                 Margin="10,0,0,0" VerticalAlignment="Center"
                                                 Command="{Binding DividirCommand}" />
                                     </StackPanel>
@@ -456,9 +456,9 @@
                     </ui:CardExpander>
 
                     <StackPanel Orientation="Horizontal">
-                        <ui:Button Content="Guardar cambios" Appearance="Primary" Padding="18,10"
+                        <ui:Button Content="Guardar cambios" Appearance="Primary" ToolTip="Guarda el titulo, la materia y los modulos de este libro" Padding="18,10"
                                    Icon="{ui:SymbolIcon Save24}" Command="{Binding GuardarCommand}" />
-                        <Button Content="Quitar libro" Style="{StaticResource ChipAccion}"
+                        <Button Content="Quitar libro" Style="{StaticResource ChipAccion}" ToolTip="Saca este material de la biblioteca y borra su copia interna. Pide confirmacion"
                                 Margin="10,0,0,0" VerticalAlignment="Center"
                                 Command="{Binding QuitarCommand}" />
                     </StackPanel>
