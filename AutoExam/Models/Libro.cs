@@ -156,6 +156,21 @@ public class Libro : ObservableBase
     [JsonIgnore]
     public bool TieneResumen => !string.IsNullOrWhiteSpace(DeQueTrata);
 
+    /// <summary>
+    /// Marcado en el paso "Material" del asistente para entrar en un examen combinado
+    /// (US-024). No se persiste: es una eleccion de un examen puntual, no un atributo del
+    /// material, y dejarlo guardado haria que el proximo examen arrancara con documentos
+    /// tildados que el alumno no eligio.
+    /// </summary>
+    [JsonIgnore]
+    public bool Seleccionado
+    {
+        get => _seleccionado;
+        set => Set(ref _seleccionado, value);
+    }
+
+    private bool _seleccionado;
+
     /// <summary>true para las familias que se guardan como un unico archivo (todo salvo el set de imagenes).</summary>
     [JsonIgnore]
     public bool EsArchivoUnico => Tipo != TipoFuente.SetImagenes;
@@ -168,9 +183,18 @@ public class Libro : ObservableBase
     [JsonIgnore]
     public bool ArchivoDisponible => !string.IsNullOrWhiteSpace(RutaArchivo) && File.Exists(RutaArchivo);
 
+    /// <summary>
+    /// Color de identidad de la materia de este libro (US-027). Se resuelve por NOMBRE en
+    /// tiempo de dibujado y no se guarda con el libro (RN-30): asi, cambiarle el color a una
+    /// materia repinta todo su material de una, sin reescribir libros.json.
+    /// </summary>
+    [JsonIgnore]
+    public string ColorMateria => PaletaMaterias.ColorDe(Materia);
+
     public void NotificarCambioResumen()
     {
         OnPropertyChanged(nameof(Resumen));
         OnPropertyChanged(nameof(ArchivoDisponible));
+        OnPropertyChanged(nameof(ColorMateria));
     }
 }

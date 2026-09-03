@@ -1,11 +1,31 @@
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.IO;
+using System.Windows.Data;
 using AutoExam.Models;
 using AutoExam.Services;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 
 namespace AutoExam.ViewModels;
+
+/// <summary>
+/// Un color de la paleta, tal como se ofrece en el selector de la materia (US-027).
+/// </summary>
+/// <param name="Color">Hex del color, tal como se guarda en la materia.</param>
+/// <param name="EsElActual">true si es el color que la materia elegida tiene puesto.</param>
+/// <param name="EstaLibre">
+/// true si ninguna otra materia lo usa. No bloquea nada: el criterio pide sugerir primero
+/// los libres, no prohibir repetir.
+/// </param>
+public sealed record OpcionDeColor(string Color, bool EsElActual, bool EstaLibre)
+{
+    public string Ayuda => EsElActual
+        ? $"{PaletaMaterias.NombreDe(Color)} (color actual)"
+        : EstaLibre
+            ? $"{PaletaMaterias.NombreDe(Color)} — sin usar"
+            : $"{PaletaMaterias.NombreDe(Color)} — ya lo usa otra materia";
+}
 
 /// <summary>Alta de libros y definicion de sus modulos.</summary>
 public partial class BibliotecaViewModel : PaginaViewModel
@@ -36,11 +56,45 @@ public partial class BibliotecaViewModel : PaginaViewModel
             OnPropertyChanged(nameof(HayModulos));
         };
 
-        _biblioteca.Libros.CollectionChanged += (_, _) => Insignia = TextoInsignia();
+        _biblioteca.Libros.CollectionChanged += (_, _) =>
+        {
+            Insignia = TextoInsignia();
+            OnPropertyChanged(nameof(MateriasConocidas));
+        };
+
         Insignia = TextoInsignia();
+
+        // US-023: la lista deja de ser una tira plana y se agrupa por materia. Se arma una
+        // vista propia y no la vista por defecto de la coleccion, porque el asistente de
+        // examen esta enlazado a los mismos libros con otro criterio (filtra por la materia
+        // elegida) y compartir la vista mezclaria los dos comportamientos.
+        var vista = new CollectionViewSource
+        {
+            Source = _biblioteca.Libros,
+            IsLiveGroupingRequested = true,
+            IsLiveSortingRequested = true
+        };
+
+        vista.GroupDescriptions.Add(new PropertyGroupDescription(nameof(Libro.Materia)));
+
+        // Live grouping: reasignar un libro lo mueve de grupo solo, sin rearmar la lista.
+        vista.LiveGroupingProperties.Add(nameof(Libro.Materia));
+
+        // Materia alfabetica para que el grupo no salte de lugar; dentro de cada materia,
+        // lo ultimo subido primero (el mismo orden que tenia la lista plana).
+        vista.SortDescriptions.Add(new SortDescription(nameof(Libro.Materia), ListSortDirection.Ascending));
+        vista.SortDescriptions.Add(new SortDescription(nameof(Libro.FechaAgregado), ListSortDirection.Descending));
+
+        LibrosPorMateria = vista.View;
     }
 
     public ObservableCollection<Libro> Libros => _biblioteca.Libros;
+
+    /// <summary>Los mismos libros, agrupados por materia para la lista de la izquierda (US-023).</summary>
+    public ICollectionView LibrosPorMateria { get; }
+
+    /// <summary>Materias existentes, incluidas las vacias. Es el indice de <see cref="BibliotecaService"/>.</summary>
+    public ObservableCollection<Materia> Materias => _biblioteca.Materias;
 
     /// <summary>Modulos del libro abierto. Se vuelcan al modelo al guardar.</summary>
     public ObservableCollection<Modulo> Modulos { get; } = new();
@@ -89,13 +143,17 @@ public partial class BibliotecaViewModel : PaginaViewModel
         ? "Sin dividir: los examenes van a tomar el libro entero"
         : $"{Modulos.Count} modulos · {Modulos.Sum(m => m.CantidadPaginas)} paginas cubiertas";
 
-    /// <summary>Materias ya usadas, para ofrecerlas como chips y no volver a tipearlas.</summary>
-    public IEnumerable<string> MateriasConocidas => _biblioteca.Libros
-        .Select(l => l.Materia)
-        .Where(m => !string.IsNullOrWhiteSpace(m) && m != "Sin materia")
-        .Distinct(StringComparer.OrdinalIgnoreCase)
-        .OrderBy(m => m)
-        .Take(8);
+    /// <summary>
+    /// Materias que se ofrecen como chips en la ficha del libro, para asignarlas con un
+    /// click en vez de volver a tipearlas (WCAG 2.2, 3.3.7 Entrada redundante).
+    ///
+    /// Desde US-023 salen del indice de materias y no de las que algun libro ya usa: es lo
+    /// que hace que una materia recien creada y todavia vacia se pueda asignar. Se excluye
+    /// "Sin materia" porque es el valor por defecto, no una eleccion.
+    /// </summary>
+    public IEnumerable<Materia> MateriasConocidas => _biblioteca.Materias
+        .Where(m => !string.Equals(m.Nombre, BibliotecaService.SinMateria, StringComparison.OrdinalIgnoreCase))
+        .Take(12);
 
     partial void OnLibroSeleccionadoChanged(Libro? oldValue, Libro? newValue)
     {
@@ -188,7 +246,13 @@ public partial class BibliotecaViewModel : PaginaViewModel
             string sugerido = admitidas.Length == 1
                 ? Path.GetFileNameWithoutExtension(admitidas[0])
                 : $"Material ({admitidas.Length} imagenes)";
-            string materia = MateriasConocidas.FirstOrDefault() ?? "Sin materia";
+
+            // US-023: el material entra en la materia que el alumno tiene elegida arriba, y
+            // no en la primera de la lista. Sin ninguna elegida cae en el cajon por defecto
+            // (RN-22) y se reasigna despues desde la ficha, que sigue estando ahi abajo.
+            string materia = string.IsNullOrWhiteSpace(MateriaElegida)
+                ? BibliotecaService.SinMateria
+                : MateriaElegida!;
 
             var libro = await _biblioteca.AgregarFuenteAsync(admitidas, sugerido, materia);
 
@@ -227,6 +291,243 @@ public partial class BibliotecaViewModel : PaginaViewModel
         {
             Ocupado = false;
         }
+    }
+
+    // ------------------------------------------------------------------
+    // US-023 — Materias: crear, renombrar y eliminar
+    // ------------------------------------------------------------------
+
+    /// <summary>Nombre tipeado en la caja de "materia nueva". Tambien es el destino al renombrar.</summary>
+    [ObservableProperty]
+    private string _materiaNueva = string.Empty;
+
+    /// <summary>Materia sobre la que actuan renombrar y eliminar.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HayMateriaElegida))]
+    [NotifyPropertyChangedFor(nameof(EsMateriaEditable))]
+    [NotifyPropertyChangedFor(nameof(ResumenMateriaElegida))]
+    private string? _materiaElegida;
+
+    public bool HayMateriaElegida => !string.IsNullOrWhiteSpace(MateriaElegida);
+
+    /// <summary>
+    /// false para "Sin materia": es el cajon por defecto al que caen los materiales sin
+    /// clasificar (RN-22) y el destino de la reasignacion al borrar otra materia. Si se
+    /// pudiera renombrar o eliminar, ese material se quedaria sin ningun lado adonde ir.
+    /// </summary>
+    public bool EsMateriaEditable =>
+        HayMateriaElegida &&
+        !string.Equals(MateriaElegida, BibliotecaService.SinMateria, StringComparison.OrdinalIgnoreCase);
+
+    public string ResumenMateriaElegida
+    {
+        get
+        {
+            if (!HayMateriaElegida)
+            {
+                return "Elegi una materia para renombrarla o eliminarla.";
+            }
+
+            int cuantos = _biblioteca.LibrosDe(MateriaElegida!).Count();
+
+            return cuantos switch
+            {
+                0 => $"\"{MateriaElegida}\" esta vacia.",
+                1 => $"\"{MateriaElegida}\" tiene 1 documento.",
+                _ => $"\"{MateriaElegida}\" tiene {cuantos} documentos."
+            };
+        }
+    }
+
+    /// <summary>
+    /// Elige una materia. Volver a tocar la que ya estaba elegida la deselecciona: si no,
+    /// una vez elegida la primera no habria forma de volver a "ninguna" y todo el material
+    /// nuevo seguiria cayendo ahi.
+    /// </summary>
+    [RelayCommand]
+    private void ElegirMateria(string? materia)
+    {
+        MateriaElegida = string.Equals(MateriaElegida, materia, StringComparison.OrdinalIgnoreCase)
+            ? null
+            : materia;
+
+        OnPropertyChanged(nameof(ColoresDisponibles));
+    }
+
+    // ------------------------------------------------------------------
+    // US-027 — color de la materia
+    // ------------------------------------------------------------------
+
+    /// <summary>
+    /// La paleta completa, anotada con cual es el color actual de la materia elegida y
+    /// cuales no usa todavia ninguna otra. Se recalcula al vuelo: son diez elementos y
+    /// mantener una coleccion observable sincronizada costaria mas de lo que ahorra.
+    /// </summary>
+    public IEnumerable<OpcionDeColor> ColoresDisponibles
+    {
+        get
+        {
+            var actual = _biblioteca.MateriaPorNombre(MateriaElegida);
+
+            var usados = _biblioteca.Materias
+                .Where(m => m.TieneColor && !ReferenceEquals(m, actual))
+                .Select(m => m.Color)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+            return PaletaMaterias.Colores.Select(color => new OpcionDeColor(
+                color,
+                EsElActual: actual is not null &&
+                            string.Equals(actual.Color, color, StringComparison.OrdinalIgnoreCase),
+                EstaLibre: !usados.Contains(color)));
+        }
+    }
+
+    [RelayCommand]
+    private void ElegirColor(string? color)
+    {
+        if (!HayMateriaElegida || color is null)
+        {
+            return;
+        }
+
+        if (!_biblioteca.CambiarColorDeMateria(MateriaElegida!, color))
+        {
+            return;
+        }
+
+        OnPropertyChanged(nameof(ColoresDisponibles));
+        OnPropertyChanged(nameof(MateriasConocidas));
+
+        _nav.Estado($"\"{MateriaElegida}\" ahora es {PaletaMaterias.NombreDe(color).ToLowerInvariant()}.");
+    }
+
+    [RelayCommand]
+    private void CrearMateria()
+    {
+        string nombre = MateriaNueva.Trim();
+
+        if (nombre.Length == 0)
+        {
+            Avisar("Escribi un nombre para la materia.", error: true);
+            return;
+        }
+
+        if (!_biblioteca.CrearMateria(nombre))
+        {
+            Avisar($"Ya existe una materia llamada \"{nombre}\".", error: true);
+            return;
+        }
+
+        MateriaNueva = string.Empty;
+        MateriaElegida = nombre;
+        OnPropertyChanged(nameof(MateriasConocidas));
+
+        // La materia nace vacia a proposito: se llena subiendo material y eligiendola, o
+        // reasignando documentos que ya estaban. No se toca ningun libro al crearla.
+        Avisar($"Materia \"{nombre}\" creada. Ya podes asignarle material.");
+        _nav.Estado($"Materia \"{nombre}\" creada.");
+    }
+
+    [RelayCommand]
+    private void RenombrarMateria()
+    {
+        if (!EsMateriaEditable)
+        {
+            Avisar($"\"{BibliotecaService.SinMateria}\" no se puede renombrar: es donde cae el material sin clasificar.", error: true);
+            return;
+        }
+
+        string destino = MateriaNueva.Trim();
+
+        if (destino.Length == 0)
+        {
+            Avisar("Escribi arriba el nombre nuevo y volve a tocar \"Renombrar\".", error: true);
+            return;
+        }
+
+        string origen = MateriaElegida!;
+        int movidos = _biblioteca.RenombrarMateria(origen, destino);
+
+        if (movidos < 0)
+        {
+            Avisar($"No se pudo renombrar: ya existe una materia llamada \"{destino}\".", error: true);
+            return;
+        }
+
+        MateriaNueva = string.Empty;
+        MateriaElegida = destino;
+        OnPropertyChanged(nameof(MateriasConocidas));
+        OnPropertyChanged(nameof(ResumenMateriaElegida));
+
+        // Los documentos siguen adentro: renombrar es cambiarle el nombre al grupo, no
+        // vaciarlo (US-023).
+        Avisar(movidos == 0
+            ? $"Materia renombrada a \"{destino}\"."
+            : $"Materia renombrada a \"{destino}\". Sus {movidos} documento(s) siguen ahi.");
+
+        _nav.Estado($"Materia renombrada a \"{destino}\".");
+
+        // La ficha abierta puede haber cambiado de materia con el renombre.
+        if (LibroSeleccionado is not null)
+        {
+            Materia = LibroSeleccionado.Materia;
+        }
+    }
+
+    [RelayCommand]
+    private void EliminarMateria()
+    {
+        if (!EsMateriaEditable)
+        {
+            Avisar($"\"{BibliotecaService.SinMateria}\" no se puede eliminar: es donde cae el material sin clasificar.", error: true);
+            return;
+        }
+
+        string objetivo = MateriaElegida!;
+        var adentro = _biblioteca.LibrosDe(objetivo).ToList();
+
+        if (!_dialogos.Confirmar(adentro.Count == 0
+                ? $"¿Eliminar la materia \"{objetivo}\"?\n\nEsta vacia, no se pierde ningun material."
+                : $"¿Eliminar la materia \"{objetivo}\"?\n\nTiene {adentro.Count} documento(s) adentro. " +
+                  "En el paso siguiente elegis que hacer con ellos."))
+        {
+            return;
+        }
+
+        // US-023: los documentos nunca se borran en silencio. Si hay material adentro, la
+        // segunda pregunta es exactamente por su destino, y la opcion segura (conservarlos)
+        // es la que se obtiene diciendo que no.
+        bool borrarDocumentos = adentro.Count > 0 && _dialogos.Confirmar(
+            $"¿Borrar tambien los {adentro.Count} documento(s) de \"{objetivo}\"?\n\n" +
+            "Si: se borran los documentos y sus copias internas. No se puede deshacer.\n" +
+            $"No: los documentos se conservan y pasan a \"{BibliotecaService.SinMateria}\".");
+
+        if (_biblioteca.EliminarMateria(objetivo, borrarDocumentos) < 0)
+        {
+            Avisar($"No se pudo eliminar la materia \"{objetivo}\".", error: true);
+            return;
+        }
+
+        MateriaElegida = null;
+        OnPropertyChanged(nameof(MateriasConocidas));
+
+        if (LibroSeleccionado is not null && !_biblioteca.Libros.Contains(LibroSeleccionado))
+        {
+            LibroSeleccionado = _biblioteca.Libros.FirstOrDefault();
+        }
+        else if (LibroSeleccionado is not null)
+        {
+            Materia = LibroSeleccionado.Materia;
+        }
+
+        string destino = borrarDocumentos
+            ? $"Se borraron {adentro.Count} documento(s)."
+            : adentro.Count == 0
+                ? "No tenia material adentro."
+                : $"Sus {adentro.Count} documento(s) pasaron a \"{BibliotecaService.SinMateria}\".";
+
+        Avisar($"Materia \"{objetivo}\" eliminada. {destino}");
+        _nav.Estado($"Materia \"{objetivo}\" eliminada.");
     }
 
     // ------------------------------------------------------------------
@@ -546,8 +847,14 @@ public partial class BibliotecaViewModel : PaginaViewModel
         }
 
         VolcarAlModelo(libro);
+
+        // Si en la ficha se tipeo una materia que todavia no estaba en el indice, se da de
+        // alta: si no, el libro quedaria en un grupo que la gestion de materias no conoce.
+        _biblioteca.CrearMateria(libro.Materia);
+
         _biblioteca.Guardar();
         OnPropertyChanged(nameof(MateriasConocidas));
+        OnPropertyChanged(nameof(ResumenMateriaElegida));
 
         Avisar($"Guardado. {libro.Modulos.Count} modulos definidos.");
         _nav.Estado("Biblioteca guardada.");

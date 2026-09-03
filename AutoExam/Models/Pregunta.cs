@@ -50,6 +50,27 @@ public class Pregunta : ObservableBase
 
     public string ModuloOrigen { get; set; } = string.Empty;
 
+    /// <summary>
+    /// Titulo del documento del que salio esta pregunta (RN-24). Solo se puebla cuando el
+    /// examen combino varios documentos de una materia (US-024): con una sola fuente el dato
+    /// seria el titulo del examen repetido en cada pregunta.
+    ///
+    /// Sin esto, "Pagina 12" en un examen armado con tres apuntes no alcanza para volver al
+    /// material: la pagina 12 existe en los tres.
+    /// </summary>
+    public string DocumentoOrigen { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Titulo del examen del que se tomo prestada esta pregunta (US-026). Solo se puebla en
+    /// un examen de repaso, que mezcla preguntas de varios intentos anteriores.
+    ///
+    /// Es distinto de <see cref="DocumentoOrigen"/> y no lo reemplaza: uno dice de que
+    /// apunte salio la pregunta, el otro en que examen la habias visto. En un repaso armado
+    /// con examenes de materias distintas, saber de cual venia es lo que le da sentido al
+    /// repaso mezclado.
+    /// </summary>
+    public string ExamenOrigen { get; set; } = string.Empty;
+
     // ---------- Estado en tiempo de ejecucion ----------
 
     public int? IndiceRespuestaUsuario
@@ -118,18 +139,39 @@ public class Pregunta : ObservableBase
     {
         get
         {
+            // Con varios documentos combinados (US-024) la pagina sola no ubica nada: la
+            // pagina 12 existe en los tres apuntes. Cuando hay documento se lo nombra y se
+            // deja de decir "del PDF", que ademas seria falso si el material era un .docx.
+            string fuente = string.IsNullOrWhiteSpace(DocumentoOrigen)
+                ? "del PDF"
+                : $"de \"{DocumentoOrigen}\"";
+
+            // En un examen de repaso (US-026) la misma linea dice ademas en que examen
+            // anterior habias visto esta pregunta: es lo unico que permite ubicarla cuando
+            // el repaso mezcla intentos de materias distintas.
+            string repaso = string.IsNullOrWhiteSpace(ExamenOrigen)
+                ? string.Empty
+                : $" · del examen \"{ExamenOrigen}\"";
+
             if (PaginaOrigen > 0)
             {
-                return $"Pagina {PaginaOrigen} del PDF";
+                return $"Pagina {PaginaOrigen} {fuente}{repaso}";
             }
 
             if (string.IsNullOrWhiteSpace(PaginasAlcance))
             {
-                return string.Empty;
+                // Un documento sin pagina util igual es trazabilidad: dice de cual de los
+                // materiales combinados salio la pregunta.
+                if (!string.IsNullOrWhiteSpace(DocumentoOrigen))
+                {
+                    return $"De \"{DocumentoOrigen}\"{repaso}";
+                }
+
+                return repaso.Length == 0 ? string.Empty : $"Del examen \"{ExamenOrigen}\"";
             }
 
             string tramo = char.ToUpperInvariant(PaginasAlcance[0]) + PaginasAlcance[1..];
-            return $"{tramo} del PDF (el modelo no preciso una pagina exacta)";
+            return $"{tramo} {fuente} (el modelo no preciso una pagina exacta){repaso}";
         }
     }
 
@@ -150,12 +192,40 @@ public class Pregunta : ObservableBase
         _ => "Sin corregir"
     };
 
+    /// <summary>
+    /// Revela la respuesta y el analisis aunque la pregunta este fallada.
+    ///
+    /// Al corregir en el momento se oculta a proposito: si el error mostrara la respuesta, el
+    /// Modo Revancha no serviria para nada. Al revisar el detalle de un examen viejo desde el
+    /// Historial (US-025) la situacion es la contraria — el alumno entra justamente a repasar
+    /// lo que le salio mal, y esconderselo dejaria la pantalla sin motivo para existir.
+    ///
+    /// No se persiste: es como se esta mirando la pregunta, no un dato del intento. Y las
+    /// preguntas del historial son una copia propia (ver <see cref="ClonarParaHistorial"/>),
+    /// asi que encenderlo aca nunca destapa las respuestas de una revancha en curso.
+    /// </summary>
+    [JsonIgnore]
+    public bool RevelarAnalisis
+    {
+        get => _revelarAnalisis;
+        set
+        {
+            if (Set(ref _revelarAnalisis, value))
+            {
+                OnPropertyChanged(nameof(MuestraRespuestaCorrecta));
+                OnPropertyChanged(nameof(MuestraAnalisisCompleto));
+            }
+        }
+    }
+
+    private bool _revelarAnalisis;
+
     /// <summary>Solo las correctas revelan la respuesta y el analisis completo.</summary>
     [JsonIgnore]
-    public bool MuestraRespuestaCorrecta => Resultado == ResultadoPreguntaEnum.Correcta;
+    public bool MuestraRespuestaCorrecta => RevelarAnalisis || Resultado == ResultadoPreguntaEnum.Correcta;
 
     [JsonIgnore]
-    public bool MuestraAnalisisCompleto => Resultado == ResultadoPreguntaEnum.Correcta;
+    public bool MuestraAnalisisCompleto => RevelarAnalisis || Resultado == ResultadoPreguntaEnum.Correcta;
 
     /// <summary>Incorrectas y salteadas: entran al Modo Revancha.</summary>
     [JsonIgnore]
@@ -252,6 +322,30 @@ public class Pregunta : ObservableBase
         }
     }
 
+    /// <summary>
+    /// Copia para guardar en el historial (RN-25): igual que <see cref="Clonar"/> pero
+    /// conservando lo que el alumno contesto y como salio corregida.
+    ///
+    /// <see cref="Clonar"/> deja esos tres campos afuera a proposito, porque su unico uso es
+    /// armar una revancha, donde la pregunta tiene que volver a empezar en blanco. El detalle
+    /// del historial necesita exactamente lo contrario.
+    ///
+    /// Es una copia y no la instancia viva por una razon concreta: el intento sigue en
+    /// pantalla despues de corregirse, y encadenar revanchas mueve estado sobre esos objetos.
+    /// El registro del historial tiene que ser la foto del intento original, no un puntero a
+    /// algo que puede seguir cambiando.
+    /// </summary>
+    public Pregunta ClonarParaHistorial()
+    {
+        var copia = Clonar();
+
+        copia.IndiceRespuestaUsuario = IndiceRespuestaUsuario;
+        copia.Estado = Estado;
+        copia.Resultado = Resultado;
+
+        return copia;
+    }
+
     /// <summary>Copia profunda liviana, usada para no pisar el intento original en la revancha.</summary>
     public Pregunta Clonar()
     {
@@ -266,6 +360,8 @@ public class Pregunta : ObservableBase
             PaginaOrigen = PaginaOrigen,
             PaginasAlcance = PaginasAlcance,
             ModuloOrigen = ModuloOrigen,
+            DocumentoOrigen = DocumentoOrigen,
+            ExamenOrigen = ExamenOrigen,
             AnalisisOpciones = new AnalisisOpciones
             {
                 ExplicacionCorrecta = AnalisisOpciones.ExplicacionCorrecta,

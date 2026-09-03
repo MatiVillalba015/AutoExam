@@ -10,7 +10,10 @@ public partial class App : Application
     protected override void OnStartup(StartupEventArgs e)
     {
         RutasApp.AsegurarCarpetas();
-        RutasApp.LimpiarImagenesAntiguas();
+
+        // La limpieza de imagenes viejas se movio a ShellViewModel.IniciarAsync: aca todavia
+        // no se leyo perfil.json, asi que no hay forma de saber que examenes siguen en el
+        // historial y sus figuras se borraban a los siete dias (US-018/US-025).
 
         AppDomain.CurrentDomain.UnhandledException += (_, args) =>
         {

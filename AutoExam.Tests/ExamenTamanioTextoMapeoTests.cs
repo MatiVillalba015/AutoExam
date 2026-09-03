@@ -28,15 +28,37 @@ public class ExamenTamanioTextoMapeoTests
         new(sesion ?? new SesionUsuarioService(), new DialogosFalsos(), new NavegacionFalsa());
 
     [Fact]
-    public void El_nivel_por_defecto_es_2_y_reproduce_el_tamanio_actual()
+    public void El_nivel_por_defecto_es_2_y_usa_el_tamanio_reducido_de_US028()
     {
         var vm = CrearViewModel();
 
         Assert.Equal(NivelPorDefecto, vm.NivelTextoExamen);
-        // specs/03-architecture.md §4.5: "2 debe mapear a los tamaños actuales
-        // — 17pt pregunta / 14pt opciones — para no romper el look por defecto".
-        Assert.Equal(17.0, vm.TamanioTextoPregunta);
-        Assert.Equal(14.0, vm.TamanioTextoOpciones);
+
+        // US-028 corrió la escala un escalón hacia abajo: el nivel 2 pasó de 17/14 a 15.5/13.
+        // El pedido de letra más chica es específico de la pantalla de examen, así que se
+        // aplica acá y no en la escala tipográfica global.
+        //
+        // Lo que NO cambió, y es lo que este test sigue protegiendo, es que el nivel por
+        // defecto siga siendo el 2: con él en un extremo, US-005 dejaría de tener escalones
+        // para agrandar o para achicar.
+        Assert.Equal(15.5, vm.TamanioTextoPregunta);
+        Assert.Equal(13.0, vm.TamanioTextoOpciones);
+    }
+
+    [Fact]
+    public void El_tamanio_de_examen_bajo_respecto_de_la_version_anterior_US028()
+    {
+        // Guarda de no-regresión del pedido concreto de US-028: "en la pantalla de examen el
+        // tamaño de letra un poco más chico que el actual". Si alguien devolviera la escala a
+        // 17/14, la historia quedaría deshecha sin que ningún otro test lo note.
+        var vm = CrearViewModel();
+
+        Assert.True(vm.TamanioTextoPregunta < 17.0);
+        Assert.True(vm.TamanioTextoOpciones < 14.0);
+
+        // Pero no tanto como para volverse ilegible: el criterio pide "se mantiene legible".
+        Assert.True(vm.TamanioTextoPregunta >= 14.0);
+        Assert.True(vm.TamanioTextoOpciones >= 12.0);
     }
 
     [Theory]

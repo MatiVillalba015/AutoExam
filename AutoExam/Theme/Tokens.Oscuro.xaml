@@ -48,8 +48,18 @@
     <SolidColorBrush x:Key="PincelPendiente" Color="#3E2C02" />
     <SolidColorBrush x:Key="PincelPendienteSuave" Color="#A87A31" />
 
-    <!-- Sombra unica. Sobre fondo oscuro tiene que ser profunda para leerse. -->
+    <!--
+        Tres niveles de profundidad (US-030), como en el tema claro pero mas marcados: sobre
+        fondo oscuro una sombra tenue directamente no se ve, asi que el escalon entre niveles
+        tiene que ser mayor para que la misma jerarquia se lea igual en los dos temas.
+    -->
+    <DropShadowEffect x:Key="SombraTarjetaSuave" BlurRadius="14" ShadowDepth="2" Direction="270"
+                      Color="#000000" Opacity="0.38" />
+
     <DropShadowEffect x:Key="SombraTarjeta" BlurRadius="22" ShadowDepth="3" Direction="270"
                       Color="#000000" Opacity="0.55" />
+
+    <DropShadowEffect x:Key="SombraTarjetaElevada" BlurRadius="34" ShadowDepth="6" Direction="270"
+                      Color="#000000" Opacity="0.7" />
 
 </ResourceDictionary>

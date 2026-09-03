@@ -144,6 +144,101 @@ public static class FuentesDePrueba
             ("word/document.xml", documentXml));
     }
 
+    /// <summary>
+    /// <c>.docx</c> sin una sola letra de texto pero con <paramref name="imagenes"/> PNG reales
+    /// en <c>word/media/</c> — el caso de US-014: alguien pega fotos de las páginas de un libro
+    /// en un Word y lo sube como material.
+    ///
+    /// Los nombres van salteados (image1, image3, image10...) a propósito, para que el test del
+    /// orden distinga el orden natural del alfabético.
+    /// </summary>
+    public static string CrearDocxSoloImagenes(string carpeta, params int[] numerosDeImagen)
+    {
+        int[] numeros = numerosDeImagen.Length > 0 ? numerosDeImagen : new[] { 1, 2 };
+
+        string documentXml =
+            "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>" +
+            "<w:document xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\">" +
+            "<w:body><w:p/><w:sectPr/></w:body></w:document>";
+
+        var medios = numeros
+            .Select(n => ($"word/media/image{n}.png", BytesPng(64)))
+            .ToArray();
+
+        return EscribirOpcBinario(carpeta, "solo-imagenes.docx", OverrideWord,
+            new[] { ("word/document.xml", documentXml) }, medios);
+    }
+
+    /// <summary>
+    /// El caso de US-022: un único <c>.docx</c> con párrafos de texto real Y imágenes
+    /// incrustadas (capturas de pantalla, fotos de papel) mezcladas en el mismo archivo.
+    /// </summary>
+    /// <param name="lado">
+    /// Lado en píxeles de las imágenes. Por debajo del mínimo configurado se descartan por
+    /// "icono o logo", así que los tests que quieren figuras reales piden un lado grande.
+    /// </param>
+    public static string CrearDocxMixto(string carpeta, string[] parrafos, int imagenes, int lado = 300)
+    {
+        var cuerpo = new StringBuilder();
+        foreach (var p in parrafos)
+        {
+            cuerpo.Append("<w:p><w:r><w:t xml:space=\"preserve\">").Append(Escapar(p)).Append("</w:t></w:r></w:p>");
+        }
+
+        string documentXml =
+            "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>" +
+            "<w:document xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\">" +
+            "<w:body>" + cuerpo + "</w:body></w:document>";
+
+        var medios = Enumerable.Range(1, imagenes)
+            .Select(n => ($"word/media/image{n}.png", BytesPng(lado)))
+            .ToArray();
+
+        return EscribirOpcBinario(carpeta, "mixto.docx", OverrideWord,
+            new[] { ("word/document.xml", documentXml) }, medios);
+    }
+
+    /// <summary>
+    /// <c>.pptx</c> sin texto en las diapositivas pero con imágenes incrustadas — mismo caso que
+    /// <see cref="CrearDocxSoloImagenes"/>, en la otra familia que admite fotos pegadas.
+    /// </summary>
+    public static string CrearPptxSoloImagenes(string carpeta, int imagenes = 2)
+    {
+        string slideXml =
+            "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>" +
+            "<p:sld xmlns:p=\"http://schemas.openxmlformats.org/presentationml/2006/main\" " +
+            "xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\">" +
+            "<p:cSld><p:spTree/></p:cSld></p:sld>";
+
+        var medios = Enumerable.Range(1, imagenes)
+            .Select(n => ($"ppt/media/image{n}.png", BytesPng(64)))
+            .ToArray();
+
+        const string overrides =
+            "<Override PartName=\"/ppt/presentation.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.presentationml.presentation.main+xml\"/>" +
+            "<Override PartName=\"/ppt/slides/slide1.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.presentationml.slide+xml\"/>";
+
+        return EscribirOpcBinario(carpeta, "solo-imagenes.pptx", overrides,
+            new[] { ("ppt/slides/slide1.xml", slideXml) }, medios);
+    }
+
+    /// <summary>
+    /// <c>.docx</c> sin texto cuya única "imagen" es un EMF vectorial que no decodifica: el
+    /// rescate de US-014 no puede recuperar nada y la app debe terminar en el mensaje de
+    /// siempre, no en uno nuevo.
+    /// </summary>
+    public static string CrearDocxSoloImagenesIlegibles(string carpeta)
+    {
+        string documentXml =
+            "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>" +
+            "<w:document xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\">" +
+            "<w:body><w:p/><w:sectPr/></w:body></w:document>";
+
+        return EscribirOpcBinario(carpeta, "imagenes-ilegibles.docx", OverrideWord,
+            new[] { ("word/document.xml", documentXml) },
+            new[] { ("word/media/image1.png", Encoding.ASCII.GetBytes("esto no es un PNG")) });
+    }
+
     /// <summary>Archivo <c>.docx</c> que no es un ZIP (equivale, para el extractor, a un OOXML
     /// dañado o cifrado — el cifrado OOXML es un contenedor OLE2, no un ZIP).</summary>
     public static string CrearDocxCorrupto(string carpeta)
@@ -358,6 +453,53 @@ public static class FuentesDePrueba
         foreach (var (nombre, contenido) in partes)
         {
             Agregar(zip, nombre, contenido);
+        }
+
+        return ruta;
+    }
+
+    /// <summary>
+    /// Igual que <see cref="EscribirOpc"/> pero además escribe partes binarias (las imágenes de
+    /// <c>media/</c>), que no se pueden pasar por un <c>StreamWriter</c> de texto sin corromper
+    /// los bytes.
+    /// </summary>
+    private static string EscribirOpcBinario(
+        string carpeta,
+        string nombreArchivo,
+        string overrides,
+        (string nombre, string contenido)[] partesTexto,
+        (string nombre, byte[] bytes)[] partesBinarias)
+    {
+        string ruta = Path.Combine(carpeta, nombreArchivo);
+
+        using (var fs = new FileStream(ruta, FileMode.Create, FileAccess.Write))
+        using (var zip = new ZipArchive(fs, ZipArchiveMode.Create))
+        {
+            Agregar(zip, "[Content_Types].xml",
+                "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>" +
+                "<Types xmlns=\"http://schemas.openxmlformats.org/package/2006/content-types\">" +
+                "<Default Extension=\"rels\" ContentType=\"application/vnd.openxmlformats-package.relationships+xml\"/>" +
+                "<Default Extension=\"xml\" ContentType=\"application/xml\"/>" +
+                "<Default Extension=\"png\" ContentType=\"image/png\"/>" +
+                overrides + "</Types>");
+
+            Agregar(zip, "_rels/.rels",
+                "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>" +
+                "<Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\">" +
+                "<Relationship Id=\"rId1\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument\" Target=\"word/document.xml\"/>" +
+                "</Relationships>");
+
+            foreach (var (nombre, contenido) in partesTexto)
+            {
+                Agregar(zip, nombre, contenido);
+            }
+
+            foreach (var (nombre, bytes) in partesBinarias)
+            {
+                var entrada = zip.CreateEntry(nombre, CompressionLevel.Fastest);
+                using var s = entrada.Open();
+                s.Write(bytes, 0, bytes.Length);
+            }
         }
 
         return ruta;

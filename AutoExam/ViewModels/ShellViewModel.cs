@@ -36,6 +36,40 @@ public partial class ShellViewModel : ObservableObject, INavegacion
 
         Paginas = new ObservableCollection<PaginaViewModel> { Libros, Asistente, Examen, Historial, Ajustes };
 
+        // US-030 / US-031: la navegacion deja de ser una barra pegada al borde y pasa a una
+        // grilla de cuatro tarjetas grandes, que desde US-031 son ACCIONES y no secciones.
+        //
+        // El spec pedia los cuatro botones de navegacion mas cuatro accesos directos, pero
+        // "generar examen", "ver examenes anteriores" y "ajustes" llevan exactamente a la
+        // misma pantalla que el boton de navegacion homonimo: al pie de la letra quedaban
+        // ocho controles con tres pares identicos, justo lo que el ultimo criterio de US-031
+        // pide evitar. Resuelto con el usuario a favor de las acciones. Las secciones siguen
+        // alcanzables por Ctrl+1..5 (US-004) y por la barra de arriba, y de hecho tres de las
+        // cuatro acciones aterrizan igual en su seccion; la unica que hace algo mas es subir
+        // material, que es la que el spec describe como distinta ("sin pasar primero por
+        // Biblioteca").
+        //
+        // "Examen" no tiene tarjeta: no es un destino que uno elija, es donde la app te lleva
+        // cuando hay un examen para rendir.
+        Inicio = new InicioViewModel(new[]
+        {
+            new AccesoDeInicio(Asistente, "Generar examen", "Wand24",
+                "Preguntas nuevas con IA sobre tu material, o un repaso combinando exámenes que ya rendiste.",
+                AtajoGenerarExamenCommand),
+
+            new AccesoDeInicio(Libros, "Subir material", "DocumentAdd24",
+                "PDF, Word, PowerPoint, Excel o fotos de tus apuntes. Se abre el selector de archivos directo.",
+                AtajoSubirMaterialCommand),
+
+            new AccesoDeInicio(Historial, "Exámenes anteriores", "History24",
+                "Repasá pregunta por pregunta lo que ya rendiste y mirá tu evolución.",
+                AtajoVerHistorialCommand),
+
+            new AccesoDeInicio(Ajustes, "Ajustes", "Settings24",
+                "Clave de Gemini, modelo, tema y tamaño de letra del examen.",
+                AtajoAjustesCommand)
+        });
+
         // Cableado entre paginas. Cada una ignora que las otras existen.
         Onboarding.Entrar += AlEntrar;
         Onboarding.ModelosDetectados += (modelos, elegido) => Ajustes.PoblarModelos(modelos, elegido);
@@ -47,7 +81,18 @@ public partial class ShellViewModel : ObservableObject, INavegacion
         // US-012: borrar el examen original desde Historial descarta la revancha en curso.
         Historial.HayRevanchaEnCursoDe = id => Examen.HayIntentoAbierto && Examen.RegistroActualId == id;
         Historial.ExamenBorrado += Examen.AlBorrarseExamen;
+
+        // US-026 / RN-29: el Historial es un atajo al mismo flujo, no una pantalla distinta.
+        // Tildar ahi y tocar "Armar repaso" lleva al asistente ya en modo repaso, con lo
+        // tildado puesto: el armado vive en un solo lugar.
+        Historial.RepasoPedido += () =>
+        {
+            Asistente.EntrarEnModoRepaso();
+            IrA(Asistente.Clave);
+        };
     }
+
+    public InicioViewModel Inicio { get; }
 
     public OnboardingViewModel Onboarding { get; }
     public BibliotecaViewModel Libros { get; }
@@ -65,7 +110,13 @@ public partial class ShellViewModel : ObservableObject, INavegacion
     /// </summary>
     public AppConfig Config => _sesion.Config;
 
+    // Sin estos dos avisos la barra de seccion queda congelada en lo que hubiera al
+    // enlazarse: EnUnaSeccion y TituloSeccion se calculan a partir de Pagina, y una
+    // propiedad calculada no notifica sola. El sintoma seria la barra "Inicio / Libros"
+    // visible incluso estando en el inicio, sin ningun error en ningun lado.
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(EnUnaSeccion))]
+    [NotifyPropertyChangedFor(nameof(TituloSeccion))]
     private PaginaViewModel? _pagina;
 
     [ObservableProperty]
@@ -84,8 +135,70 @@ public partial class ShellViewModel : ObservableObject, INavegacion
             p.EsActual = ReferenceEquals(p, value);
         }
 
+        if (ReferenceEquals(value, Inicio))
+        {
+            // Se recalcula al entrar y no al arrancar: el menu es lo primero que se ve
+            // despues de rendir un examen o de subir material, y tiene que reflejarlo.
+            Inicio.Actualizar(_biblioteca.Libros.Count, _sesion.Perfil.Historial);
+        }
+
         value?.AlEntrar();
     }
+
+    /// <summary>true salvo cuando lo que se esta mostrando es la propia pantalla de inicio.</summary>
+    public bool EnUnaSeccion => Pagina is not null && !ReferenceEquals(Pagina, Inicio);
+
+    /// <summary>Titulo de la seccion abierta, para la barra de arriba.</summary>
+    public string TituloSeccion => EnUnaSeccion ? Pagina!.Titulo : string.Empty;
+
+    /// <summary>
+    /// Vuelve a la grilla de inicio. Es lo que hace que el inicio no sea un callejon sin
+    /// salida: la eleccion de US-030 cambia la navegacion de "siempre visible al costado" a
+    /// "un click de ida y uno de vuelta", asi que la vuelta tiene que estar siempre a mano.
+    /// </summary>
+    [RelayCommand]
+    public void IrAInicio() => Pagina = Inicio;
+
+    // ------------------------------------------------------------------
+    // Atajos del menu principal (US-031)
+    //
+    // RN-36: son atajos a flujos que ya existen. Ninguno de estos cuatro metodos decide
+    // nada; todos delegan en la pagina que ya sabe hacer esa tarea. Por eso viven en el
+    // shell y no en InicioViewModel: el shell es el unico que conoce a las cuatro paginas,
+    // y asi el menu no necesita una referencia a ninguna.
+    // ------------------------------------------------------------------
+
+    [RelayCommand]
+    private void AtajoGenerarExamen()
+    {
+        // El asistente conserva el estado entre visitas: sin esto, quien lo dejo en el paso
+        // Formato volveria ahi, y el criterio pide el paso Material.
+        Asistente.EmpezarDesdeCero();
+        IrA(Asistente.Clave);
+    }
+
+    /// <summary>
+    /// "Subir material nuevo... sin pasos intermedios extra". Es el unico de los cuatro
+    /// atajos que hace algo mas que navegar, y es el que justifica que el menu tenga
+    /// acciones: el resto de la app no ofrece ninguna otra forma de llegar al selector de
+    /// archivos sin entrar antes a Biblioteca o al paso Material del asistente.
+    ///
+    /// Navega primero y abre el dialogo despues, en ese orden: el archivo que se elija
+    /// aparece en la lista de Biblioteca, y si la pantalla siguiera siendo el menu, el alta
+    /// ocurriria sin que se vea nada.
+    /// </summary>
+    [RelayCommand]
+    private async Task AtajoSubirMaterialAsync()
+    {
+        IrA(Libros.Clave);
+        await Libros.ElegirArchivoCommand.ExecuteAsync(null);
+    }
+
+    [RelayCommand]
+    private void AtajoVerHistorial() => IrA(Historial.Clave);
+
+    [RelayCommand]
+    private void AtajoAjustes() => IrA(Ajustes.Clave);
 
     // ------------------------------------------------------------------
     // Ciclo de vida
@@ -106,6 +219,12 @@ public partial class ShellViewModel : ObservableObject, INavegacion
 
         trasCargarConfig?.Invoke();
 
+        // Recien aca se sabe que examenes siguen en el historial, y por eso la limpieza va
+        // aca y no en App.OnStartup: sus imagenes tienen que sobrevivir para que el detalle
+        // del historial (US-025) y las preguntas con figura (US-018) se sigan viendo
+        // completos meses despues.
+        RutasApp.LimpiarImagenesAntiguas(_sesion.Perfil.Historial.Select(e => e.Id));
+
         await RecuperarHuerfanosAsync();
 
         Ajustes.CargarDesdeConfig();
@@ -115,7 +234,7 @@ public partial class ShellViewModel : ObservableObject, INavegacion
         RefrescarEstadoApi();
 
         Libros.LibroSeleccionado = _biblioteca.Libros.FirstOrDefault();
-        Pagina = Libros;
+        Pagina = Inicio;
 
         Onboarding.Preparar();
         await Onboarding.VerificarGuardadaAsync();
@@ -152,10 +271,20 @@ public partial class ShellViewModel : ObservableObject, INavegacion
         }
     }
 
+    /// <summary>
+    /// Se pasa la bienvenida y se entra a la app.
+    ///
+    /// US-031: se aterriza en el menu principal y no en una seccion. Antes esto empujaba a
+    /// Libros o al asistente segun hubiera material o no, porque no habia ningun lugar que
+    /// dijera que hacer primero. Ahora si lo hay: el menu muestra las cuatro acciones y, el
+    /// primer dia, la invitacion a subir el primer material. Empujar a una seccion ademas
+    /// dejaba al menu sin forma de verse al arrancar, que es justo donde los criterios de
+    /// US-031 lo describen ("cuando entro al menu principal por primera vez").
+    /// </summary>
     private void AlEntrar(string mensaje)
     {
         MostrarBienvenida = false;
-        Pagina = _biblioteca.Libros.Count == 0 ? Libros : Asistente;
+        Pagina = Inicio;
         Estado(mensaje);
     }
 

@@ -48,11 +48,21 @@ public partial class ExamenViewModel : PaginaViewModel
 
     /// <summary>
     /// Mapeo nivel (0..4) -&gt; puntos, para pregunta y opciones (US-005). El nivel 2
-    /// (indice 2, "Normal") reproduce el tamanio de siempre: 17pt/14pt.
+    /// (indice 2, "Normal") es el tamanio por defecto.
+    ///
+    /// US-028 baja la escala entera un escalon: el "Normal" pasa de 17/14 a 15.5/13. El
+    /// pedido de letra mas chica es especifico de esta pantalla —el resto de la app no
+    /// cambia de tamanio—, y por eso se aplica aca y no en la escala tipografica global de
+    /// Theme/Estilos.xaml.
+    ///
+    /// Se corre la escala en vez de restarle al valor calculado, para no romper US-005: el
+    /// alumno que necesita letra mas grande sigue teniendo dos escalones por encima del
+    /// normal, y quien la queria mas chica ahora arranca ya en ese tamanio. Estos dos
+    /// arreglos son el unico lugar que define el tamanio del examen (RN-32).
     /// </summary>
-    private static readonly double[] PuntosPregunta = { 13, 15, 17, 20, 23 };
+    private static readonly double[] PuntosPregunta = { 12, 13.5, 15.5, 18, 21 };
 
-    private static readonly double[] PuntosOpciones = { 11, 12, 14, 16, 18 };
+    private static readonly double[] PuntosOpciones = { 10.5, 11.5, 13, 15, 17 };
 
     public const int NivelTextoMinimo = 0;
     public const int NivelTextoMaximo = 4;
@@ -66,6 +76,12 @@ public partial class ExamenViewModel : PaginaViewModel
 
         _cronometro.Tick += (_, _) => OnPropertyChanged(nameof(Cronometro));
         _avance.Tick += (_, _) => AvanzarSolo();
+
+        // US-027 / RN-30: el color no se copia al examen, se resuelve por el nombre de la
+        // materia cada vez que se dibuja. Por eso alcanza con volver a notificar cuando la
+        // paleta cambia: si el alumno le cambia el color a Fisiologia mientras rinde un
+        // examen de Fisiologia, el acento de esta pantalla lo sigue.
+        PaletaMaterias.Cambio += () => OnPropertyChanged(nameof(ColorMateria));
     }
 
     public ObservableCollection<NavegadorItem> Navegador { get; } = new();
@@ -85,7 +101,23 @@ public partial class ExamenViewModel : PaginaViewModel
     public bool EnResultados => Vista == VistaExamen.Resultados;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ColorMateria))]
+    [NotifyPropertyChangedFor(nameof(HayMateria))]
+    [NotifyPropertyChangedFor(nameof(Materia))]
     private ExamenEnCurso? _examen;
+
+    /// <summary>
+    /// Color de identidad de la materia de este examen (US-027).
+    ///
+    /// Es una propiedad calculada a proposito: RN-30 pide que el color viva en la Materia y
+    /// se resuelva al dibujar. Guardarlo en <see cref="ExamenEnCurso"/> al generar seria mas
+    /// barato, pero congelaria el color del dia en que se genero el examen.
+    /// </summary>
+    public string ColorMateria => PaletaMaterias.ColorDe(Examen?.Materia);
+
+    public string Materia => Examen?.Materia ?? string.Empty;
+
+    public bool HayMateria => !string.IsNullOrWhiteSpace(Materia);
 
     [ObservableProperty]
     private Pregunta? _actual;
@@ -497,7 +529,18 @@ public partial class ExamenViewModel : PaginaViewModel
                 Condicion = resultado.Condicion,
                 Aprobado = resultado.Aprobado,
                 DuracionSegundos = duracion,
-                CompletadoAl100 = resultado.Pendientes == 0
+                CompletadoAl100 = resultado.Pendientes == 0,
+
+                // US-026: el repaso queda identificado como tal en el historial, con los
+                // examenes que lo alimentaron.
+                EsRepaso = examen.EsRepaso,
+                ExamenesDeOrigen = new List<string>(examen.ExamenesDeOrigen),
+
+                // RN-25: el detalle completo, no solo el resumen numerico. Se guardan copias
+                // y no las preguntas vivas porque el intento sigue en pantalla y las rondas
+                // de revancha mueven estado sobre esos mismos objetos: el registro tiene que
+                // ser la foto del intento original.
+                Preguntas = examen.Preguntas.Select(p => p.ClonarParaHistorial()).ToList()
             };
 
             examen.Registro = registro;

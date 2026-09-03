@@ -51,51 +51,48 @@
         </ui:TitleBar>
 
         <!-- ============================================================ -->
-        <!-- Cuerpo: navegacion lateral + pagina activa                    -->
+        <!-- Cuerpo: barra de seccion + pagina activa                      -->
+        <!--                                                               -->
+        <!-- US-030: la barra lateral fija de 228 px se reemplazo por la    -->
+        <!-- pantalla de inicio (InicioView) con una grilla de 4 tarjetas.  -->
+        <!-- Sacar la columna no es solo estetico: el contenido de cada     -->
+        <!-- seccion pasa a disponer del ancho completo, que es lo que le   -->
+        <!-- da margen real al centrado de US-017 (RN-35).                  -->
+        <!--                                                               -->
+        <!-- Lo unico que queda fijo es una barra fina con el nombre de la  -->
+        <!-- seccion abierta y el boton de volver al inicio, que aparece    -->
+        <!-- solo cuando hay una seccion abierta. La navegacion por teclado -->
+        <!-- (Ctrl+1..5) sigue funcionando igual, sin pasar por el inicio.  -->
         <!-- ============================================================ -->
         <Grid Grid.Row="1">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="228" />
-                <ColumnDefinition Width="*" />
-            </Grid.ColumnDefinitions>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
 
-            <!-- Navegacion. Un RadioButton por pagina: el grupo por contenedor
-                 garantiza que siempre haya exactamente una activa. -->
-            <StackPanel Grid.Column="0" Margin="20,10,10,20">
-                <ItemsControl ItemsSource="{Binding Paginas}">
-                    <ItemsControl.ItemTemplate>
-                        <DataTemplate DataType="{x:Type vm:PaginaViewModel}">
-                            <RadioButton Style="{StaticResource ItemNavegacion}"
-                                         AutomationProperties.Name="{Binding Titulo}"
-                                         Command="{Binding DataContext.IrACommand,
-                                                   RelativeSource={RelativeSource AncestorType=Window}}"
-                                         CommandParameter="{Binding Clave}"
-                                         IsEnabled="{Binding Habilitada}"
-                                         IsChecked="{Binding EsActual, Mode=OneWay}">
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="26" />
-                                        <ColumnDefinition Width="*" />
-                                    </Grid.ColumnDefinitions>
+            <Border Grid.Row="0" Margin="26,4,26,10" Padding="0,0,0,10"
+                    BorderThickness="0,0,0,1" BorderBrush="{DynamicResource PincelBorde}"
+                    Visibility="{Binding EnUnaSeccion, Converter={StaticResource BoolToVis}}">
+                <StackPanel Orientation="Horizontal">
+                    <ui:Button Appearance="Secondary" Padding="10,6"
+                               Icon="{ui:SymbolIcon Home24}" Content="Inicio"
+                               ToolTip="Volver a la pantalla de inicio"
+                               AutomationProperties.Name="Volver a la pantalla de inicio"
+                               Command="{Binding IrAInicioCommand}" />
 
-                                    <ui:SymbolIcon Grid.Column="0" Symbol="{Binding Icono}"
-                                                   FontSize="17" VerticalAlignment="Center" />
+                    <TextBlock Text="/" Style="{StaticResource TxtTenue}" Margin="12,0"
+                               VerticalAlignment="Center" />
 
-                                    <StackPanel Grid.Column="1">
-                                        <TextBlock Text="{Binding Titulo}" />
-                                        <TextBlock Text="{Binding Insignia}" Style="{StaticResource TxtTenue}"
-                                                   Visibility="{Binding Insignia, Converter={StaticResource TextoAVisibilidad}}" />
-                                    </StackPanel>
-                                </Grid>
-                            </RadioButton>
-                        </DataTemplate>
-                    </ItemsControl.ItemTemplate>
-                </ItemsControl>
-            </StackPanel>
+                    <TextBlock Text="{Binding TituloSeccion}" Style="{StaticResource TxtCuerpo}"
+                               FontWeight="SemiBold" VerticalAlignment="Center" />
+                </StackPanel>
+            </Border>
 
-            <!-- Pagina activa: WPF elige la vista por el tipo del ViewModel
-                 (los DataTemplate viven en App.xaml). -->
-            <ContentControl Grid.Column="1" Content="{Binding Pagina}" Margin="10,10,26,0"
+            <!-- Pagina activa: WPF elige la vista por el tipo del ViewModel (los
+                 DataTemplate viven en App.xaml). El inicio entra por el mismo
+                 ContentControl que las demas, asi que la transicion suave entre
+                 pantallas (US-029) cubre tambien ir y volver del inicio. -->
+            <ContentControl Grid.Row="1" Content="{Binding Pagina}" Margin="26,0,26,0"
                             Focusable="False" comportamientos:TransicionContenido.Activa="True" />
         </Grid>
 

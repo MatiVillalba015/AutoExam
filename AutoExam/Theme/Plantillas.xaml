@@ -1,0 +1,129 @@
+<!--
+    Plantillas compartidas entre pantallas.
+
+    Este diccionario existe por una sola razon: la tarjeta de correccion de una pregunta la
+    dibujan DOS pantallas —la correccion inmediata al terminar un examen, y el detalle de un
+    examen del historial (US-025), que el criterio pide que se vea "igual que en la pantalla
+    de correccion"—. Con dos copias del XAML esa igualdad dura hasta el primer retoque.
+
+    Los conversores se declaran aca adentro, aunque App.xaml ya registre los mismos: un
+    diccionario que se mergea no ve las claves propias del diccionario que lo mergea, asi que
+    resolverlos desde afuera dependeria de en que contexto se cargue esto. Son instancias sin
+    estado, asi que tener una segunda no cuesta nada y a cambio el archivo es autocontenido:
+    funciona igual en la app y en el host WPF de las pruebas.
+-->
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+                    xmlns:local="clr-namespace:AutoExam"
+                    xmlns:modelos="clr-namespace:AutoExam.Models">
+
+    <local:RutaAImagenConverter x:Key="PlantillaRutaAImagen" />
+    <local:EstadoAPincelConverter x:Key="PlantillaEstadoAPincel" />
+    <local:AprobadoAPincelConverter x:Key="PlantillaAprobadoAPincel" />
+    <local:TextoAVisibilidadConverter x:Key="PlantillaTextoAVisibilidad" />
+    <BooleanToVisibilityConverter x:Key="PlantillaBoolToVis" />
+
+    <DataTemplate x:Key="TarjetaCorreccion" DataType="{x:Type modelos:Pregunta}">
+        <Border Margin="0,0,0,10" CornerRadius="{DynamicResource RadioCampo}"
+                Background="{DynamicResource PincelTarjeta}"
+                BorderBrush="{Binding Resultado, Converter={StaticResource PlantillaEstadoAPincel},
+                              ConverterParameter=borde}"
+                BorderThickness="1">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="4" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+    
+                <Border Grid.Column="0" CornerRadius="10,0,0,10"
+                        Background="{Binding Resultado, Converter={StaticResource PlantillaEstadoAPincel},
+                                     ConverterParameter=borde}" />
+    
+                <StackPanel Grid.Column="1" Margin="18,16">
+                    <TextBlock Text="{Binding TituloResultado}" FontWeight="Bold" FontSize="11"
+                               Margin="0,0,0,8"
+                               Foreground="{Binding Resultado, Converter={StaticResource PlantillaEstadoAPincel},
+                                            ConverterParameter=borde}" />
+    
+                    <TextBox Text="{Binding TextoPregunta, Mode=OneWay}"
+                             Style="{StaticResource TextoSeleccionable}"
+                             Margin="0,0,0,10" />
+    
+                    <Image Source="{Binding RutaImagenAdjunta, Converter={StaticResource PlantillaRutaAImagen}}"
+                           MaxHeight="200" HorizontalAlignment="Left" Margin="0,0,0,10"
+                           Stretch="Uniform"
+                           Visibility="{Binding TieneImagen, Converter={StaticResource PlantillaBoolToVis}}" />
+    
+                    <TextBlock Text="{Binding TextoRespuestaUsuario, StringFormat='Tu respuesta: {0}'}"
+                               Style="{StaticResource TxtSuave}" />
+    
+                    <!--
+                        De donde salio la pregunta. Va en TODAS, tambien en las
+                        falladas: la pagina es lo que necesitas para ir a estudiar,
+                        y no delata cual de las cuatro opciones era la correcta.
+                    -->
+                    <StackPanel Orientation="Horizontal" Margin="0,8,0,0"
+                                Visibility="{Binding ReferenciaFuente, Converter={StaticResource PlantillaTextoAVisibilidad}}">
+                        <ui:SymbolIcon Symbol="BookOpen24" FontSize="13" VerticalAlignment="Center"
+                                       Foreground="{DynamicResource PincelTextoTenue}" />
+                        <TextBlock Text="{Binding ReferenciaFuente}" Style="{StaticResource TxtDato}"
+                                   VerticalAlignment="Center" Margin="7,0,0,0" />
+                    </StackPanel>
+    
+                    <!-- Solo las correctas revelan cita y analisis: si el
+                         error mostrara la respuesta, la revancha no serviria. -->
+                    <StackPanel Margin="0,12,0,0"
+                                Visibility="{Binding MuestraAnalisisCompleto, Converter={StaticResource PlantillaBoolToVis}}">
+                        <TextBox Text="{Binding JustificacionBibliografia, Mode=OneWay}"
+                                 Style="{StaticResource TextoSeleccionable}"
+                                 FontSize="12" Foreground="{DynamicResource PincelTextoSuave}"
+                                 Margin="0,0,0,12" />
+    
+                        <TextBox Text="{Binding AnalisisOpciones.ExplicacionCorrecta, Mode=OneWay}"
+                                 Style="{StaticResource TextoSeleccionable}" Margin="0,0,0,14"
+                                 Visibility="{Binding AnalisisOpciones.ExplicacionCorrecta,
+                                              Converter={StaticResource PlantillaTextoAVisibilidad}}" />
+    
+                        <ItemsControl ItemsSource="{Binding LineasAnalisis}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate DataType="{x:Type modelos:LineaAnalisis}">
+                                    <Grid Margin="0,0,0,8">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="20" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+    
+                                        <TextBlock Grid.Column="0" Text="{Binding Prefijo}"
+                                                   Foreground="{Binding EsCorrecta, Converter={StaticResource PlantillaAprobadoAPincel}}"
+                                                   FontWeight="Bold"
+                                                   FontFamily="{DynamicResource FuenteDato}"
+                                                   FontSize="12" />
+    
+                                        <StackPanel Grid.Column="1">
+                                            <TextBlock TextWrapping="Wrap" FontSize="13"
+                                                       Foreground="{DynamicResource PincelTexto}">
+                                                <Run Text="{Binding Encabezado, Mode=OneWay}" />
+                                                <Run Text="{Binding Marca, Mode=OneWay}"
+                                                     FontStyle="Italic" FontSize="11" />
+                                            </TextBlock>
+                                            <TextBox Text="{Binding Detalle, Mode=OneWay}"
+                                                     Style="{StaticResource TextoSeleccionable}"
+                                                     FontSize="12"
+                                                     Foreground="{DynamicResource PincelTextoSuave}" />
+                                        </StackPanel>
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+    
+                    <TextBlock Style="{StaticResource TxtTenue}" Margin="0,10,0,0"
+                               Visibility="{Binding EsPendiente, Converter={StaticResource PlantillaBoolToVis}}"
+                               Text="La respuesta correcta no se revela. Reintentala hasta acertarla." />
+                </StackPanel>
+            </Grid>
+        </Border>
+    </DataTemplate>
+
+</ResourceDictionary>

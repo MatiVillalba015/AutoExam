@@ -152,3 +152,109 @@ public class RutaAImagenConverter : IValueConverter
     public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
         => Binding.DoNothing;
 }
+
+/// <summary>
+/// true si los dos valores enlazados son el mismo texto (ignorando mayusculas).
+///
+/// Existe para marcar el chip de la materia elegida (US-023): la comparacion es contra una
+/// propiedad del ViewModel, no contra una constante, y ConverterParameter no admite un
+/// Binding — de ahi que sea un multi-converter y no uno simple.
+/// </summary>
+public class SonIgualesConverter : IMultiValueConverter
+{
+    public object Convert(object[] values, Type targetType, object? parameter, CultureInfo culture)
+    {
+        if (values is not { Length: 2 })
+        {
+            return false;
+        }
+
+        return string.Equals(values[0] as string, values[1] as string, StringComparison.OrdinalIgnoreCase);
+    }
+
+    public object[] ConvertBack(object value, Type[] targetTypes, object? parameter, CultureInfo culture)
+        => throw new NotSupportedException();
+}
+
+/// <summary>
+/// Convierte el color de una materia (texto "#RRGGBB", US-027) en un pincel.
+///
+/// Los pinceles se cachean porque el mismo color se pide una vez por cada tarjeta del
+/// historial y por cada libro de la biblioteca: crear un SolidColorBrush nuevo en cada
+/// binding llenaria de objetos el arbol visual sin ninguna ganancia.
+///
+/// Con ConverterParameter="suave" devuelve el mismo tono translucido, para fondos de
+/// encabezado de grupo donde el color pleno taparia el texto.
+/// </summary>
+public class ColorMateriaAPincelConverter : IValueConverter
+{
+    private static readonly Dictionary<string, SolidColorBrush> Cache = new(StringComparer.OrdinalIgnoreCase);
+
+    public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
+    {
+        string texto = value as string ?? string.Empty;
+
+        if (string.IsNullOrWhiteSpace(texto))
+        {
+            texto = PaletaMaterias.Neutro;
+        }
+
+        bool suave = string.Equals(parameter as string, "suave", StringComparison.OrdinalIgnoreCase);
+        string clave = suave ? texto + "|suave" : texto;
+
+        if (Cache.TryGetValue(clave, out var cacheado))
+        {
+            return cacheado;
+        }
+
+        SolidColorBrush pincel;
+
+        try
+        {
+            var color = (Color)ColorConverter.ConvertFromString(texto);
+
+            if (suave)
+            {
+                // Alfa bajo en vez de mezclar contra un fondo fijo: asi el mismo pincel
+                // funciona en tema claro y en oscuro sin calcular dos variantes.
+                color.A = 38;
+            }
+
+            pincel = new SolidColorBrush(color);
+        }
+        catch (FormatException)
+        {
+            // Un color escrito a mano en materias.json que no parsea no puede tumbar el
+            // dibujado de la lista entera.
+            pincel = new SolidColorBrush(Colors.Gray);
+        }
+
+        pincel.Freeze();
+        Cache[clave] = pincel;
+
+        return pincel;
+    }
+
+    public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
+        => throw new NotSupportedException();
+}
+
+/// <summary>
+/// Pincel del color de una materia a partir de su NOMBRE (US-027 / RN-30).
+///
+/// Existe aparte de <see cref="ColorMateriaAPincelConverter"/> porque hay un lugar donde no
+/// se tiene el color a mano: los encabezados de grupo de la biblioteca, cuyo DataContext es
+/// un <c>CollectionViewGroup</c> y lo unico que expone es el nombre por el que se agrupo.
+/// Resolver el nombre contra la paleta es exactamente lo que pide RN-30: el color se busca
+/// al dibujar, no se copia en cada item.
+/// </summary>
+public class NombreDeMateriaAPincelConverter : IValueConverter
+{
+    private static readonly ColorMateriaAPincelConverter Interno = new();
+
+    public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
+        => Interno.Convert(PaletaMaterias.ColorDe(value as string), targetType, parameter, culture);
+
+    public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
+        => throw new NotSupportedException();
+}

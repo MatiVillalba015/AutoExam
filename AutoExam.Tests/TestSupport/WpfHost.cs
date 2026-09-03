@@ -101,6 +101,15 @@ public static class WpfHost
         };
         Application.Current!.Resources.MergedDictionaries.Add(estilos);
 
+        // Plantillas compartidas: desde US-025 la tarjeta de correccion de una pregunta vive
+        // en su propio diccionario, porque la usan tanto ExamenView como el detalle del
+        // historial. Sin mergearlo aca, ExamenView no resuelve "TarjetaCorreccion" y ni
+        // siquiera llega a construirse.
+        Application.Current.Resources.MergedDictionaries.Add(new ResourceDictionary
+        {
+            Source = new Uri("pack://application:,,,/AutoExam;component/Theme/Plantillas.xaml", UriKind.Absolute)
+        });
+
         // Mismas claves que registra AutoExam/App.xaml.cs (Application.Resources), solo las
         // que ExamenView.xaml realmente resuelve por StaticResource.
         Application.Current.Resources["BoolToVis"] = new BooleanToVisibilityConverter();
@@ -108,6 +117,10 @@ public static class WpfHost
         Application.Current.Resources["AprobadoAPincel"] = new AprobadoAPincelConverter();
         Application.Current.Resources["RutaAImagen"] = new RutaAImagenConverter();
         Application.Current.Resources["TextoAVisibilidad"] = new TextoAVisibilidadConverter();
+
+        // US-027: desde que el examen lleva el color de su materia como acento (la pastilla
+        // del encabezado y la barra de progreso), ExamenView tambien resuelve este.
+        Application.Current.Resources["ColorMateria"] = new ColorMateriaAPincelConverter();
 
         _recursosListos = true;
     }

@@ -63,6 +63,8 @@
         <Grid Visibility="{Binding Rindiendo, Converter={StaticResource BoolToVis}}">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
+                <!-- Progreso: fijo, no scrollea con la pregunta (US-030). -->
+                <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="*" />
                 <RowDefinition Height="Auto" />
@@ -78,6 +80,25 @@
                 </Grid.ColumnDefinitions>
 
                 <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                    <!--
+                        US-027 — el color de la materia como acento del examen.
+
+                        Es una pastilla y no un fondo de pantalla porque el criterio pide que
+                        el color aparezca "sin reemplazar los colores de correcto/incorrecto":
+                        tinendo superficies grandes, cualquier materia con un color calido
+                        empieza a competir con el rojo de una respuesta errada. Concentrado en
+                        una pastilla chica y en la barra de progreso, identifica la materia y
+                        no se mete con lo que significa algo.
+                    -->
+                    <Border Padding="9,2" Margin="0,0,0,5" HorizontalAlignment="Left"
+                            CornerRadius="{DynamicResource RadioChip}"
+                            Background="{Binding ColorMateria, Converter={StaticResource ColorMateria},
+                                         ConverterParameter=suave}"
+                            Visibility="{Binding HayMateria, Converter={StaticResource BoolToVis}}">
+                        <TextBlock Text="{Binding Materia}" Style="{StaticResource TxtDato}" FontSize="11"
+                                   Foreground="{Binding ColorMateria, Converter={StaticResource ColorMateria}}" />
+                    </Border>
+
                     <TextBlock Text="{Binding Encabezado}" Style="{StaticResource TxtSeccion}" FontSize="18" />
                     <TextBlock Text="{Binding Subtitulo}" Style="{StaticResource TxtTenue}" />
                 </StackPanel>
@@ -110,9 +131,10 @@
             </Grid>
 
             <!--
-                Navegador de preguntas. Es a la vez el indicador de avance: cada
-                baldosa ES una pregunta y se pinta con su estado, asi que no hace
-                falta una barra de progreso aparte diciendo lo mismo.
+                Navegador de preguntas: cada baldosa ES una pregunta y se pinta con su
+                estado. Convive con la barra de progreso de arriba porque dicen cosas
+                distintas: la barra, cuanto falta de un vistazo; las baldosas, cual quedo
+                salteada y a cual saltar.
             -->
             <!--
                 Scroll vertical, nunca horizontal: un ScrollViewer que puede scrollear
@@ -120,7 +142,36 @@
                 nunca envuelve. Con 60 preguntas quedaba una tira de 2.100 px en una
                 sola fila y la mitad de las baldosas fuera de la ventana.
             -->
-            <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto"
+            <!--
+                US-030 — barra de progreso fija arriba.
+
+                Va en su propia fila del Grid, fuera del ScrollViewer de la pregunta: asi al
+                bajar por un enunciado largo se sigue viendo en que pregunta vas y cuanto
+                falta. Antes "Pregunta 3 de 10" estaba adentro del area que scrollea y era lo
+                primero que desaparecia justo cuando mas se necesita.
+
+                La barra acompania al navegador de baldosas, no lo reemplaza: la barra dice
+                cuanto falta de un vistazo, las baldosas dicen que quedo salteado.
+            -->
+            <StackPanel Grid.Row="1" Margin="0,0,0,12">
+                <Grid Margin="0,0,0,6">
+                    <TextBlock Text="{Binding ProgresoTexto}" Style="{StaticResource TxtTenue}" />
+                    <TextBlock Style="{StaticResource TxtDato}" FontSize="11" HorizontalAlignment="Right"
+                               Text="{Binding Examen.PorcentajeAvance, StringFormat='{}{0:0}% encarado'}" />
+                </Grid>
+
+                <!-- US-027: la barra tambien lleva el color de la materia. Es la superficie de
+                     color mas grande que el criterio nombra explicitamente, y no puede
+                     confundirse con nada: avanzar no es acertar. -->
+                <ProgressBar Height="4" Minimum="0" Maximum="100"
+                             Value="{Binding Examen.PorcentajeAvance, Mode=OneWay}"
+                             Background="{DynamicResource PincelBorde}"
+                             Foreground="{Binding ColorMateria, Converter={StaticResource ColorMateria}}"
+                             BorderThickness="0"
+                             AutomationProperties.Name="Avance del examen" />
+            </StackPanel>
+
+            <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto"
                           HorizontalScrollBarVisibility="Disabled" Margin="0,0,0,18" MaxHeight="112">
                 <ItemsControl ItemsSource="{Binding Navegador}">
                     <ItemsControl.ItemsPanel>
@@ -162,38 +213,55 @@
             </ScrollViewer>
 
             <!-- Pregunta -->
-            <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto" Padding="0,0,14,0">
+            <ScrollViewer Grid.Row="3" VerticalScrollBarVisibility="Auto" Padding="0,0,14,0">
                 <StackPanel MaxWidth="860" HorizontalAlignment="Center">
 
-                    <TextBlock Text="{Binding ProgresoTexto}" Style="{StaticResource TxtTenue}"
-                               Margin="0,0,0,10" />
-
                     <!--
-                        US-005: tamanio ajustable solo aca (Rindiendo), no en Theme/Estilos.xaml.
-                        TamanioTextoPregunta/Opciones son del ExamenViewModel, calculadas a partir
-                        del nivel guardado en AppConfig.TamanioTextoExamen.
-                    -->
-                    <TextBox Text="{Binding Actual.TextoPregunta, Mode=OneWay}"
-                             Style="{StaticResource TextoSeleccionable}"
-                             FontSize="{Binding TamanioTextoPregunta}" Margin="0,0,0,20" />
+                        US-030 — la pregunta y su imagen viven en una tarjeta propia, separada
+                        de las opciones. Antes el enunciado, la figura y las cuatro opciones
+                        eran un bloque continuo de texto sobre el mismo fondo, y en una
+                        pregunta larga costaba ver donde terminaba el enunciado y donde
+                        empezaba lo que hay que elegir.
 
-                    <Border Margin="0,0,0,20" Padding="12" HorizontalAlignment="Left"
-                            Background="{DynamicResource PincelSuperficie}"
-                            BorderBrush="{DynamicResource PincelBorde}" BorderThickness="1"
-                            CornerRadius="{DynamicResource RadioCampo}"
-                            Visibility="{Binding Actual.TieneImagen, Converter={StaticResource BoolToVis}}">
+                        Va en el nivel de profundidad mas alto (TarjetaResumen) y las opciones
+                        en el mas bajo: el criterio pide que "la pregunta tenga mas peso visual
+                        que las opciones". Antes las cuatro opciones eran tarjetas del mismo
+                        tono que el enunciado, y la pantalla se leia como cinco bloques pares
+                        en vez de una pregunta con sus respuestas.
+                    -->
+                    <Border Style="{StaticResource TarjetaResumen}" Margin="0,0,0,18" Padding="22,20">
                         <StackPanel>
-                            <!-- US-017: centrada dentro de la tarjeta. Una figura mas angosta que
-                                 el tope quedaba contra el borde izquierdo con el resto del
-                                 espacio en blanco a la derecha. -->
-                            <Image Source="{Binding Actual.RutaImagenAdjunta, Converter={StaticResource RutaAImagen}}"
-                                   MaxHeight="320" MaxWidth="740" Stretch="Uniform"
-                                   HorizontalAlignment="Center"
-                                   RenderOptions.BitmapScalingMode="HighQuality" />
-                            <TextBlock Text="{Binding PieImagen}" Style="{StaticResource TxtTenue}"
-                                       Margin="2,10,0,0" />
+                            <!--
+                                US-005/US-028: el tamanio se ajusta solo aca (Rindiendo), no en
+                                Theme/Estilos.xaml. TamanioTextoPregunta/Opciones son del
+                                ExamenViewModel, calculadas a partir del nivel guardado en
+                                AppConfig.TamanioTextoExamen.
+                            -->
+                            <TextBox Text="{Binding Actual.TextoPregunta, Mode=OneWay}"
+                                     Style="{StaticResource TextoSeleccionable}"
+                                     FontSize="{Binding TamanioTextoPregunta}" />
+
+                            <Border Margin="0,18,0,0" Padding="12"
+                                    Background="{DynamicResource PincelSuperficie}"
+                                    BorderBrush="{DynamicResource PincelBorde}" BorderThickness="1"
+                                    CornerRadius="{DynamicResource RadioCampo}"
+                                    Visibility="{Binding Actual.TieneImagen, Converter={StaticResource BoolToVis}}">
+                                <StackPanel>
+                                    <!-- US-017: centrada dentro de la tarjeta. Una figura mas angosta que
+                                         el tope quedaba contra el borde izquierdo con el resto del
+                                         espacio en blanco a la derecha. -->
+                                    <Image Source="{Binding Actual.RutaImagenAdjunta, Converter={StaticResource RutaAImagen}}"
+                                           MaxHeight="320" MaxWidth="740" Stretch="Uniform"
+                                           HorizontalAlignment="Center"
+                                           RenderOptions.BitmapScalingMode="HighQuality" />
+                                    <TextBlock Text="{Binding PieImagen}" Style="{StaticResource TxtTenue}"
+                                               Margin="2,10,0,0" />
+                                </StackPanel>
+                            </Border>
                         </StackPanel>
                     </Border>
+
+                    <TextBlock Text="ELEGI UNA OPCION" Style="{StaticResource TxtRotulo}" />
 
                     <ItemsControl ItemsSource="{Binding Opciones}">
                         <ItemsControl.ItemTemplate>
@@ -210,10 +278,25 @@
                                             <ColumnDefinition Width="*" />
                                         </Grid.ColumnDefinitions>
 
+                                        <!-- US-030: la letra tambien se pinta al elegir la
+                                             opcion. Son dos senales de lo mismo (la barra de
+                                             acento y la letra) porque la barra vive en el
+                                             canto izquierdo y la letra donde ya esta mirando
+                                             el ojo al leer la respuesta. -->
                                         <TextBlock Grid.Column="0" Text="{Binding Letra}"
                                                    FontFamily="{DynamicResource FuenteDato}"
-                                                   FontWeight="Bold" VerticalAlignment="Top"
-                                                   Foreground="{DynamicResource PincelTextoSuave}" />
+                                                   FontWeight="Bold" VerticalAlignment="Top">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock">
+                                                    <Setter Property="Foreground" Value="{DynamicResource PincelTextoSuave}" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding Elegida}" Value="True">
+                                                            <Setter Property="Foreground" Value="{DynamicResource PincelMarcaFuerte}" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
 
                                         <!--
                                             TextBlock y no TextBox: un TextBox marca el click
@@ -235,7 +318,7 @@
             </ScrollViewer>
 
             <!-- Barra inferior -->
-            <Grid Grid.Row="3" Margin="0,18,0,16">
+            <Grid Grid.Row="4" Margin="0,18,0,16">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="Auto" />
@@ -311,8 +394,10 @@
                 <RowDefinition Height="*" />
             </Grid.RowDefinitions>
 
-            <!-- Mismo ancho que la lista de correccion: una sola columna de lectura. -->
-            <Border Grid.Row="0" Style="{StaticResource Tarjeta}" Margin="0,0,0,22"
+            <!-- Mismo ancho que la lista de correccion: una sola columna de lectura.
+                 US-030: es el resumen final de la pantalla, asi que va en el nivel de
+                 profundidad mas alto, por encima de las tarjetas de cada pregunta. -->
+            <Border Grid.Row="0" Style="{StaticResource TarjetaResumen}" Margin="0,0,0,22"
                     MaxWidth="920" HorizontalAlignment="Center">
                 <Grid>
                     <Grid.ColumnDefinitions>
@@ -402,111 +487,12 @@
             </Border>
 
             <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Padding="0,0,14,14">
-                <ItemsControl ItemsSource="{Binding Correccion}" MaxWidth="920" HorizontalAlignment="Center">
-                    <ItemsControl.ItemTemplate>
-                        <DataTemplate DataType="{x:Type modelos:Pregunta}">
-                            <Border Margin="0,0,0,10" CornerRadius="{DynamicResource RadioCampo}"
-                                    Background="{DynamicResource PincelTarjeta}"
-                                    BorderBrush="{Binding Resultado, Converter={StaticResource EstadoAPincel},
-                                                  ConverterParameter=borde}"
-                                    BorderThickness="1">
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="4" />
-                                        <ColumnDefinition Width="*" />
-                                    </Grid.ColumnDefinitions>
-
-                                    <Border Grid.Column="0" CornerRadius="10,0,0,10"
-                                            Background="{Binding Resultado, Converter={StaticResource EstadoAPincel},
-                                                         ConverterParameter=borde}" />
-
-                                    <StackPanel Grid.Column="1" Margin="18,16">
-                                        <TextBlock Text="{Binding TituloResultado}" FontWeight="Bold" FontSize="11"
-                                                   Margin="0,0,0,8"
-                                                   Foreground="{Binding Resultado, Converter={StaticResource EstadoAPincel},
-                                                                ConverterParameter=borde}" />
-
-                                        <TextBox Text="{Binding TextoPregunta, Mode=OneWay}"
-                                                 Style="{StaticResource TextoSeleccionable}"
-                                                 Margin="0,0,0,10" />
-
-                                        <Image Source="{Binding RutaImagenAdjunta, Converter={StaticResource RutaAImagen}}"
-                                               MaxHeight="200" HorizontalAlignment="Left" Margin="0,0,0,10"
-                                               Stretch="Uniform"
-                                               Visibility="{Binding TieneImagen, Converter={StaticResource BoolToVis}}" />
-
-                                        <TextBlock Text="{Binding TextoRespuestaUsuario, StringFormat='Tu respuesta: {0}'}"
-                                                   Style="{StaticResource TxtSuave}" />
-
-                                        <!--
-                                            De donde salio la pregunta. Va en TODAS, tambien en las
-                                            falladas: la pagina es lo que necesitas para ir a estudiar,
-                                            y no delata cual de las cuatro opciones era la correcta.
-                                        -->
-                                        <StackPanel Orientation="Horizontal" Margin="0,8,0,0"
-                                                    Visibility="{Binding ReferenciaFuente, Converter={StaticResource TextoAVisibilidad}}">
-                                            <ui:SymbolIcon Symbol="BookOpen24" FontSize="13" VerticalAlignment="Center"
-                                                           Foreground="{DynamicResource PincelTextoTenue}" />
-                                            <TextBlock Text="{Binding ReferenciaFuente}" Style="{StaticResource TxtDato}"
-                                                       VerticalAlignment="Center" Margin="7,0,0,0" />
-                                        </StackPanel>
-
-                                        <!-- Solo las correctas revelan cita y analisis: si el
-                                             error mostrara la respuesta, la revancha no serviria. -->
-                                        <StackPanel Margin="0,12,0,0"
-                                                    Visibility="{Binding MuestraAnalisisCompleto, Converter={StaticResource BoolToVis}}">
-                                            <TextBox Text="{Binding JustificacionBibliografia, Mode=OneWay}"
-                                                     Style="{StaticResource TextoSeleccionable}"
-                                                     FontSize="12" Foreground="{DynamicResource PincelTextoSuave}"
-                                                     Margin="0,0,0,12" />
-
-                                            <TextBox Text="{Binding AnalisisOpciones.ExplicacionCorrecta, Mode=OneWay}"
-                                                     Style="{StaticResource TextoSeleccionable}" Margin="0,0,0,14"
-                                                     Visibility="{Binding AnalisisOpciones.ExplicacionCorrecta,
-                                                                  Converter={StaticResource TextoAVisibilidad}}" />
-
-                                            <ItemsControl ItemsSource="{Binding LineasAnalisis}">
-                                                <ItemsControl.ItemTemplate>
-                                                    <DataTemplate DataType="{x:Type modelos:LineaAnalisis}">
-                                                        <Grid Margin="0,0,0,8">
-                                                            <Grid.ColumnDefinitions>
-                                                                <ColumnDefinition Width="20" />
-                                                                <ColumnDefinition Width="*" />
-                                                            </Grid.ColumnDefinitions>
-
-                                                            <TextBlock Grid.Column="0" Text="{Binding Prefijo}"
-                                                                       Foreground="{Binding EsCorrecta, Converter={StaticResource AprobadoAPincel}}"
-                                                                       FontWeight="Bold"
-                                                                       FontFamily="{DynamicResource FuenteDato}"
-                                                                       FontSize="12" />
-
-                                                            <StackPanel Grid.Column="1">
-                                                                <TextBlock TextWrapping="Wrap" FontSize="13"
-                                                                           Foreground="{DynamicResource PincelTexto}">
-                                                                    <Run Text="{Binding Encabezado, Mode=OneWay}" />
-                                                                    <Run Text="{Binding Marca, Mode=OneWay}"
-                                                                         FontStyle="Italic" FontSize="11" />
-                                                                </TextBlock>
-                                                                <TextBox Text="{Binding Detalle, Mode=OneWay}"
-                                                                         Style="{StaticResource TextoSeleccionable}"
-                                                                         FontSize="12"
-                                                                         Foreground="{DynamicResource PincelTextoSuave}" />
-                                                            </StackPanel>
-                                                        </Grid>
-                                                    </DataTemplate>
-                                                </ItemsControl.ItemTemplate>
-                                            </ItemsControl>
-                                        </StackPanel>
-
-                                        <TextBlock Style="{StaticResource TxtTenue}" Margin="0,10,0,0"
-                                                   Visibility="{Binding EsPendiente, Converter={StaticResource BoolToVis}}"
-                                                   Text="La respuesta correcta no se revela. Reintentala hasta acertarla." />
-                                    </StackPanel>
-                                </Grid>
-                            </Border>
-                        </DataTemplate>
-                    </ItemsControl.ItemTemplate>
-                </ItemsControl>
+                <!-- La tarjeta de cada pregunta vive en App.xaml (TarjetaCorreccion): la
+                     comparte con el detalle de un examen del historial (US-025), que tiene
+                     que verse igual que esta pantalla. -->
+                <ItemsControl ItemsSource="{Binding Correccion}" MaxWidth="920"
+                              HorizontalAlignment="Center"
+                              ItemTemplate="{StaticResource TarjetaCorreccion}" />
             </ScrollViewer>
         </Grid>
     </Grid>

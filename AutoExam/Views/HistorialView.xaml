@@ -108,15 +108,54 @@
                  Visibility="{Binding HayExamenes, Converter={StaticResource BoolToVis}}">
             <ListBox.ItemTemplate>
                 <DataTemplate DataType="{x:Type modelos:ExamenRendido}">
-                    <Grid MaxWidth="880" HorizontalAlignment="Center">
+                    <!--
+                        US-030: cada examen es una tarjeta y no una fila de texto, con una
+                        franja del color de su materia (US-027 / RN-34) para reconocer de que
+                        materia es sin leer el titulo.
+
+                        La franja se pinta desde ColorMateria, que resuelve el color por el
+                        NOMBRE de la materia al dibujar (RN-30). Por eso cambiarle el color a
+                        una materia repinta tambien los examenes que ya estaban rendidos.
+                    -->
+                    <!-- Profundidad de tarjeta seleccionable (US-030): estas se tildan para
+                         armar un repaso, asi que van al ras. Es el nivel mas bajo de los tres
+                         tambien por una razon practica: son muchas juntas, y con la sombra de
+                         una tarjeta informativa la lista entera se ensucia. -->
+                    <Border MaxWidth="880" HorizontalAlignment="Center" Margin="0,3"
+                            Background="{DynamicResource PincelTarjeta}"
+                            BorderBrush="{DynamicResource PincelBorde}" BorderThickness="1"
+                            CornerRadius="{DynamicResource RadioCampo}"
+                            Effect="{DynamicResource SombraTarjetaSuave}">
+                    <Grid>
                         <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
                             <ColumnDefinition Width="52" />
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="Auto" />
                             <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
 
-                        <Border Grid.Column="0" Width="38" Height="38" CornerRadius="19"
+                        <!-- Franja de materia, pegada al borde izquierdo de la tarjeta. -->
+                        <Border Grid.Column="0" Width="5" CornerRadius="9,0,0,9"
+                                Background="{Binding ColorMateria, Converter={StaticResource ColorMateria}}" />
+
+                        <Border Grid.Column="1" Width="14" Background="Transparent" />
+
+                        <!-- US-026: tildar para incluir este examen en un repaso combinado.
+                             Solo aparece en los que pueden aportar preguntas: un examen de
+                             antes de US-025 no guardo el detalle, y un repaso no alimenta
+                             otro repaso. Dejar la casilla visible pero muerta seria peor que
+                             no mostrarla. -->
+                        <CheckBox Grid.Column="2" Margin="0,0,10,0" VerticalAlignment="Center"
+                                  IsChecked="{Binding Seleccionado, Mode=TwoWay}"
+                                  AutomationProperties.Name="{Binding TituloTexto}"
+                                  ToolTip="Incluir este examen en un repaso combinado"
+                                  Visibility="{Binding PuedeAlimentarRepaso, Converter={StaticResource BoolToVis}}" />
+
+                        <Border Grid.Column="3" Width="38" Height="38" CornerRadius="19"
                                 HorizontalAlignment="Left" BorderThickness="2"
                                 BorderBrush="{Binding Aprobado, Converter={StaticResource AprobadoAPincel}}"
                                 Background="{Binding Aprobado, Converter={StaticResource AprobadoAPincel},
@@ -127,16 +166,39 @@
                                        HorizontalAlignment="Center" VerticalAlignment="Center" />
                         </Border>
 
-                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                            <TextBlock Text="{Binding TituloTexto}" Style="{StaticResource TxtCuerpo}" />
+                        <StackPanel Grid.Column="4" VerticalAlignment="Center">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="{Binding TituloTexto}" Style="{StaticResource TxtCuerpo}"
+                                           TextTrimming="CharacterEllipsis" />
+
+                                <!-- US-026: un repaso se distingue de un examen generado con
+                                     IA, para que no parezca un intento nuevo del original. -->
+                                <Border Margin="8,0,0,0" Padding="6,1" VerticalAlignment="Center"
+                                        CornerRadius="{DynamicResource RadioCampo}"
+                                        Background="{DynamicResource PincelMarcaSuave}"
+                                        Visibility="{Binding EsRepaso, Converter={StaticResource BoolToVis}}">
+                                    <TextBlock Text="{Binding EtiquetaTipo}" FontSize="10"
+                                               Foreground="{DynamicResource PincelMarcaFuerte}" />
+                                </Border>
+                            </StackPanel>
                             <TextBlock Text="{Binding DetalleTexto}" Style="{StaticResource TxtTenue}" />
                         </StackPanel>
 
-                        <TextBlock Grid.Column="2" Text="{Binding FechaTexto}" Style="{StaticResource TxtDato}"
+                        <TextBlock Grid.Column="5" Text="{Binding FechaTexto}" Style="{StaticResource TxtDato}"
                                    FontSize="11" VerticalAlignment="Center" Margin="16,0,0,0" />
 
+                        <!-- US-025: entrar a revisar pregunta por pregunta -->
+                        <ui:Button Grid.Column="6" Appearance="Secondary" Padding="7" Margin="12,0,0,0"
+                                   VerticalAlignment="Center"
+                                   Icon="{ui:SymbolIcon DocumentSearch24}"
+                                   ToolTip="Ver el detalle: pregunta por pregunta, que contestaste y cual era la correcta"
+                                   AutomationProperties.Name="Ver el detalle de este examen"
+                                   Command="{Binding DataContext.VerDetalleCommand,
+                                             RelativeSource={RelativeSource AncestorType=ListBox}}"
+                                   CommandParameter="{Binding}" />
+
                         <!-- US-012: borrar este examen del historial -->
-                        <ui:Button Grid.Column="3" Appearance="Secondary" Padding="7" Margin="12,0,0,0"
+                        <ui:Button Grid.Column="7" Appearance="Secondary" Padding="7" Margin="8,0,0,0"
                                    VerticalAlignment="Center"
                                    Icon="{ui:SymbolIcon Delete24}"
                                    ToolTip="Borrar este examen del historial"
@@ -145,11 +207,56 @@
                                              RelativeSource={RelativeSource AncestorType=ListBox}}"
                                    CommandParameter="{Binding}" />
                     </Grid>
+                    </Border>
                 </DataTemplate>
             </ListBox.ItemTemplate>
         </ListBox>
 
-        <ui:CardExpander Grid.Row="3" Icon="{ui:SymbolIcon Info24}" ContentPadding="18" Margin="0,16,14,14">
+
+
+        <!-- ================================================================ -->
+        <!-- US-026 / RN-29 — atajo al repaso combinado.                       -->
+        <!--                                                                   -->
+        <!-- Aca NO se arma el examen: el flujo vive en el asistente de Nuevo   -->
+        <!-- examen, que es el punto de entrada principal. Esto es lo que la    -->
+        <!-- regla llama "un atajo al mismo flujo, no una pantalla distinta":   -->
+        <!-- tildar mientras se navega el historial y saltar al asistente con   -->
+        <!-- lo tildado ya puesto.                                              -->
+        <!--                                                                   -->
+        <!-- Se esconde entero cuando no hay al menos dos examenes que puedan   -->
+        <!-- aportar preguntas, para no ofrecer algo inerte.                     -->
+        <!-- ================================================================ -->
+        <StackPanel Grid.Row="3">
+        <Border Style="{StaticResource TarjetaPlana}" Padding="18" Margin="0,16,14,0"
+                Visibility="{Binding HayElegiblesParaRepaso, Converter={StaticResource BoolToVis}}">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                    <TextBlock Text="Repaso combinado" Style="{StaticResource TxtCuerpo}"
+                               FontWeight="SemiBold" />
+                    <TextBlock Text="{Binding ResumenRepaso}" Style="{StaticResource TxtTenue}"
+                               TextWrapping="Wrap" Margin="0,3,0,0" />
+                </StackPanel>
+
+                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center"
+                            Margin="14,0,0,0">
+                    <Button Content="Destildar todos" Style="{StaticResource ChipAccion}"
+                            VerticalAlignment="Center" Margin="0,0,10,0"
+                            Command="{Binding DestildarExamenesCommand}" />
+
+                    <ui:Button Content="Armar repaso" Appearance="Primary" Padding="16,9"
+                               Icon="{ui:SymbolIcon ArrowShuffle24}"
+                               ToolTip="Lleva a Nuevo examen con estos examenes ya tildados"
+                               AutomationProperties.Name="Armar un repaso con los examenes tildados"
+                               Command="{Binding IrAlRepasoCommand}" />
+                </StackPanel>
+            </Grid>
+        </Border>
+        <ui:CardExpander Icon="{ui:SymbolIcon Info24}" ContentPadding="18" Margin="0,16,14,14">
             <ui:CardExpander.Header>
                 <TextBlock Text="Escala UBA y datos guardados" Style="{StaticResource TxtCuerpo}"
                            FontWeight="SemiBold" />
@@ -180,5 +287,66 @@
                 </ItemsControl>
             </Grid>
         </ui:CardExpander>
+        </StackPanel>
+        <!-- ================================================================ -->
+        <!-- US-025 — detalle de un examen del historial.                      -->
+        <!--                                                                   -->
+        <!-- Se muestra encima de la lista y no en otra pagina: entrar y salir -->
+        <!-- del detalle es lo que uno hace varias veces seguidas al repasar,  -->
+        <!-- y una navegacion completa haria perder la posicion de la lista.   -->
+        <!--                                                                   -->
+        <!-- Las tarjetas de pregunta usan la MISMA plantilla que la pantalla  -->
+        <!-- de correccion (TarjetaCorreccion, en App.xaml), que es lo que     -->
+        <!-- pide el criterio: "igual que en la pantalla de correccion".       -->
+        <!-- ================================================================ -->
+        <Border Grid.Row="1" Grid.RowSpan="3" Margin="0,0,14,0" Padding="0"
+                Background="{DynamicResource PincelFondo}"
+                Visibility="{Binding HayDetalleAbierto, Converter={StaticResource BoolToVis}}">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+
+                <Border Grid.Row="0" Style="{StaticResource Tarjeta}" Margin="0,0,0,14" Padding="20,16">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                            <TextBlock Text="{Binding TituloDetalle}" Style="{StaticResource TxtCuerpo}"
+                                       FontWeight="SemiBold" TextWrapping="Wrap" />
+                            <TextBlock Text="{Binding ResumenDetalle}" Style="{StaticResource TxtTenue}"
+                                       Margin="0,3,0,0" TextWrapping="Wrap" />
+                        </StackPanel>
+
+                        <ui:Button Grid.Column="1" Appearance="Secondary" Padding="12,7"
+                                   VerticalAlignment="Center" Margin="14,0,0,0"
+                                   Icon="{ui:SymbolIcon ArrowLeft24}" Content="Volver al historial"
+                                   AutomationProperties.Name="Cerrar el detalle y volver al historial"
+                                   Command="{Binding CerrarDetalleCommand}" />
+                    </Grid>
+                </Border>
+
+                <!-- RN-26: un examen de antes de US-025 no tiene detalle guardado. Se explica
+                     por que en vez de mostrar una lista vacia, que se leeria como una falla
+                     de la app y no como lo que es. -->
+                <ui:InfoBar Grid.Row="1" Severity="Informational" IsClosable="False"
+                            VerticalAlignment="Top" Margin="0,0,0,14"
+                            Title="Este examen no tiene el detalle guardado"
+                            Message="{Binding AvisoSinDetalle}"
+                            IsOpen="{Binding HayAvisoSinDetalle, Mode=OneWay}" />
+
+                <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Padding="0,0,14,14"
+                              Visibility="{Binding HayAvisoSinDetalle, Converter={StaticResource BoolAVisibilidad},
+                                           ConverterParameter=invertir}">
+                    <ItemsControl ItemsSource="{Binding DetallePreguntas}" MaxWidth="920"
+                                  HorizontalAlignment="Center"
+                                  ItemTemplate="{StaticResource TarjetaCorreccion}" />
+                </ScrollViewer>
+            </Grid>
+        </Border>
     </Grid>
 </UserControl>

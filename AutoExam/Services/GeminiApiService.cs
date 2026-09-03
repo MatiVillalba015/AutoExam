@@ -91,6 +91,17 @@ public class SolicitudGeneracion
     public string TituloLibro { get; set; } = string.Empty;
     public string Materia { get; set; } = string.Empty;
 
+    /// <summary>
+    /// Titulos de los documentos que alimentan este examen, en el orden en que se
+    /// combinaron (US-024). Con uno solo queda vacia o con un unico elemento y nada cambia
+    /// respecto de antes; con dos o mas, el esquema suma el campo "DocumentoOrigen" y cada
+    /// pregunta tiene que decir de cual salio (RN-24).
+    /// </summary>
+    public List<string> Documentos { get; set; } = new();
+
+    /// <summary>true si el examen combina varios documentos: activa la trazabilidad de RN-24.</summary>
+    public bool EsCombinado => Documentos.Count > 1;
+
     /// <summary>Texto libre del usuario para orientar el examen (ej. "Contratos y Obligaciones").</summary>
     public string TemaLibre { get; set; } = string.Empty;
 
@@ -1401,7 +1412,7 @@ public class GeminiApiService
                 // la forma de la respuesta la impone la API y no la buena voluntad del
                 // modelo, asi que desaparecen los reintentos por "devolvio algo que no era
                 // un array de preguntas" (cada uno de esos costaba una peticion de la cuota).
-                ["responseSchema"] = EsquemaPreguntas()
+                ["responseSchema"] = EsquemaPreguntas(solicitud.EsCombinado)
             },
             ["safetySettings"] = new JsonArray
             {
@@ -1455,7 +1466,7 @@ public class GeminiApiService
 
         string textoJson = ExtraerTextoRespuesta(respuesta, diagnostico, out bool truncado);
 
-        var mapeadas = MapearPreguntas(textoJson, fragmentos, figuras, paginas, diagnostico);
+        var mapeadas = MapearPreguntas(textoJson, fragmentos, figuras, paginas, solicitud.Documentos, diagnostico);
 
         if (mapeadas.Count == 0 && textoJson.Length > 0)
         {
@@ -1511,7 +1522,7 @@ public class GeminiApiService
     /// campos, y emitir el enunciado y las opciones antes que el analisis largo hace que una
     /// respuesta truncada igual traiga preguntas utilizables.
     /// </summary>
-    private static JsonObject EsquemaPreguntas()
+    private static JsonObject EsquemaPreguntas(bool combinado)
     {
         static JsonObject Texto(string descripcion) => new()
         {
@@ -1576,6 +1587,27 @@ public class GeminiApiService
                 "PaginaOrigen", "JustificacionBibliografia", "AnalisisOpciones"
             }
         };
+
+        // RN-24: solo cuando el examen combina varios documentos (US-024). Con una sola
+        // fuente el campo seria el titulo del examen repetido en cada pregunta, y agregarlo
+        // al esquema costaria tokens de salida en todos los examenes para no decir nada.
+        if (combinado)
+        {
+            var props = pregunta["properties"]!.AsObject();
+            props["DocumentoOrigen"] = Texto(
+                "Titulo EXACTO del documento del que sale la respuesta, copiado tal cual de la " +
+                "cabecera del fragmento usado.");
+
+            pregunta["required"]!.AsArray().Add("DocumentoOrigen");
+
+            // Antes de PaginaOrigen: primero de que documento, despues que pagina de ese
+            // documento. Una respuesta truncada conserva asi el dato mas grueso.
+            pregunta["propertyOrdering"] = new JsonArray
+            {
+                "TextoPregunta", "Opciones", "IndiceRespuestaCorrecta", "ImagenReferencia",
+                "DocumentoOrigen", "PaginaOrigen", "JustificacionBibliografia", "AnalisisOpciones"
+            };
+        }
 
         return new JsonObject
         {
@@ -1704,6 +1736,18 @@ public class GeminiApiService
         // veces por la misma instruccion en cada uno de los lotes.
         sb.AppendLine($"MATERIA: {s.Materia}");
         sb.AppendLine($"BIBLIOGRAFIA: {s.TituloLibro}");
+
+        if (s.EsCombinado)
+        {
+            // US-024: el material de abajo viene de varios documentos y cada fragmento trae
+            // su documento en la cabecera. Nombrarlos aca le da al modelo la lista cerrada de
+            // valores validos para "DocumentoOrigen", que si no tiende a resumir o traducir.
+            sb.AppendLine($"El material combina {s.Documentos.Count} documentos de esta materia:");
+            foreach (string doc in s.Documentos)
+            {
+                sb.AppendLine($"  - \"{doc}\"");
+            }
+        }
         if (!string.IsNullOrWhiteSpace(s.AlcanceDescripcion))
         {
             sb.AppendLine($"ALCANCE: {s.AlcanceDescripcion}");
@@ -1736,6 +1780,15 @@ public class GeminiApiService
         sb.AppendLine("7. \"JustificacionBibliografia\": UNA sola oracion que empieza por la pagina. Formato \"Pagina N: <razon>\". El material trae cada pagina marcada con [Pagina N]; usa ese numero, nunca uno inventado ni el numero impreso en el pie de pagina.");
         sb.AppendLine("7b. \"PaginaOrigen\" es OBLIGATORIO y va como numero entero: la pagina [Pagina N] de la que sacaste la respuesta. Si la respuesta se apoya en varias paginas, poné la principal. Nunca dejes 0 ni un numero que no aparezca en el material entregado.");
         sb.AppendLine("8. \"AnalisisPorOpcion\" lleva exactamente 4 entradas, una por opcion en el mismo orden: por que la correcta lo es, y para cada incorrecta el error puntual.");
+
+        if (s.EsCombinado)
+        {
+            // RN-24: sin esta regla el modelo devuelve la pagina pero no el documento, y la
+            // pagina sola no ubica nada cuando hay tres apuntes con pagina 12.
+            sb.AppendLine("9. \"DocumentoOrigen\" es OBLIGATORIO: copiá el titulo del documento tal como figura en la cabecera del fragmento que usaste (las lineas \"--- Titulo, pags. N-M ---\"). Tiene que ser uno de los titulos listados arriba, escrito igual. No lo abrevies ni lo traduzcas.");
+            sb.AppendLine("9b. \"PaginaOrigen\" es la pagina DENTRO de ese documento, no una numeracion corrida entre todos.");
+            sb.AppendLine("9c. Repartí las preguntas entre los documentos: no saques todas del primero.");
+        }
 
         if (figuras.Count > 0)
         {
@@ -2306,6 +2359,9 @@ public class GeminiApiService
         public string? JustificacionBibliografia { get; set; }
         public AnalisisDto? AnalisisOpciones { get; set; }
         public int PaginaOrigen { get; set; }
+
+        /// <summary>Solo lo pide el esquema cuando el examen combina documentos (RN-24).</summary>
+        public string? DocumentoOrigen { get; set; }
     }
 
     private class AnalisisDto
@@ -2319,6 +2375,7 @@ public class GeminiApiService
         List<FragmentoTexto> fragmentos,
         List<ImagenExtraida> figuras,
         List<ImagenExtraida> paginas,
+        IReadOnlyList<string> documentos,
         DiagnosticoGeneracion? diagnostico = null)
     {
         var dtos = DeserializarArray(textoJson);
@@ -2425,6 +2482,7 @@ public class GeminiApiService
                 PaginaOrigen = ResolverPagina(dto.PaginaOrigen, paginaImagen, minimaPagina, maximaPagina),
                 PaginasAlcance = alcancePaginas,
                 ModuloOrigen = etiquetaModulo,
+                DocumentoOrigen = ResolverDocumento(dto.DocumentoOrigen, documentos),
                 AnalisisOpciones = analisis
             });
         }
@@ -2886,6 +2944,48 @@ public class GeminiApiService
     /// tuvo delante es una invencion, y mandarlo a leer una pagina equivocada es peor
     /// que no darle ninguna: en ese caso se prefiere el tramo del lote.
     /// </summary>
+    /// <summary>
+    /// Traduce el documento que declaro el modelo a uno de los titulos reales (RN-24).
+    ///
+    /// No se acepta el texto crudo: el modelo abrevia, cambia la capitalizacion o inventa un
+    /// titulo que no corresponde a ningun material, y esa cadena terminaria mostrandose en la
+    /// correccion como si fuera la fuente verdadera. Solo se devuelve un titulo que exista.
+    ///
+    /// Con un unico documento devuelve vacio a proposito: repetir el titulo del examen en
+    /// cada pregunta no aporta trazabilidad, no hay con que confundirlo.
+    /// </summary>
+    private static string ResolverDocumento(string? declarado, IReadOnlyList<string> documentos)
+    {
+        if (documentos.Count < 2)
+        {
+            return string.Empty;
+        }
+
+        string texto = (declarado ?? string.Empty).Trim();
+
+        if (texto.Length == 0)
+        {
+            return string.Empty;
+        }
+
+        var exacto = documentos.FirstOrDefault(d => string.Equals(d, texto, StringComparison.OrdinalIgnoreCase));
+        if (exacto is not null)
+        {
+            return exacto;
+        }
+
+        // El modelo suele devolver el titulo con la cabecera pegada ("Guyton, pags. 12-20")
+        // o recortado. Se acepta si un unico documento lo contiene o esta contenido en el:
+        // con dos candidatos no hay forma de saber cual, y una atribucion inventada es peor
+        // que no decir nada.
+        var parciales = documentos
+            .Where(d => texto.Contains(d, StringComparison.OrdinalIgnoreCase) ||
+                        d.Contains(texto, StringComparison.OrdinalIgnoreCase))
+            .ToList();
+
+        return parciales.Count == 1 ? parciales[0] : string.Empty;
+    }
+
     private static int ResolverPagina(int declarada, int paginaImagen, int minima, int maxima)
     {
         bool dentroDelRango(int p) => p > 0 && (minima == 0 || (p >= minima && p <= maxima));

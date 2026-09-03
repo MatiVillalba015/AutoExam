@@ -49,7 +49,11 @@ public class EstilosXamlAnimacionesHoverPresionTests
 {
     private static readonly string[] EstilosAlcanzados =
     {
-        "Chip", "ChipAccion", "OpcionExamen", "BaldosaPregunta", "ItemNavegacion", "ItemLibro", "ZonaSoltar",
+        // US-030 reemplazo la barra lateral por la grilla de inicio: el estilo del menu
+        // principal ya no es ItemNavegacion (se elimino con ella) sino TarjetaAcceso, la
+        // tarjeta de cada seccion. El contrato de US-011 no cambia, cambia el control que lo
+        // tiene que cumplir.
+        "Chip", "ChipAccion", "OpcionExamen", "BaldosaPregunta", "TarjetaAcceso", "ItemLibro", "ZonaSoltar",
     };
 
     public static IEnumerable<object[]> NombresDeEstilos() =>

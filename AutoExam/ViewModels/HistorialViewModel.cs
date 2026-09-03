@@ -22,11 +22,29 @@ public partial class HistorialViewModel : PaginaViewModel
         _nav = nav;
 
         Escala = new ObservableCollection<string>(EvaluadorUBA.DescribirEscala());
+
+        // RN-30: el color es de la materia, no del examen. Si el alumno le cambia el color a
+        // "Fisiologia" desde Libros, los examenes de fisiologia que ya estan dibujados en el
+        // historial tienen que repintarse — pero cada ExamenRendido resuelve su color solo al
+        // preguntar, asi que hay que pedirle que lo vuelva a preguntar.
+        PaletaMaterias.Cambio += RepintarMaterias;
+    }
+
+    private void RepintarMaterias()
+    {
+        foreach (var examen in _sesion.Historial)
+        {
+            examen.NotificarColorMateria();
+        }
     }
 
     public ObservableCollection<ExamenRendido> Examenes => _sesion.Historial;
 
     public ObservableCollection<string> Escala { get; }
+
+    /// <summary>Preguntas del examen abierto en el detalle (US-025).</summary>
+    public ObservableCollection<Pregunta> DetallePreguntas { get; } = new();
+
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HayExamenes))]
@@ -55,6 +73,12 @@ public partial class HistorialViewModel : PaginaViewModel
         Total = perfil.TotalExamenes;
         Insignia = Total == 0 ? string.Empty : $"{Total} rendidos";
 
+        // La lista de examenes se reconstruye entera al refrescar, asi que lo tildado y los
+        // conteos del repaso hay que recalcularlos contra las instancias nuevas.
+        OnPropertyChanged(nameof(ElegiblesParaRepaso));
+        OnPropertyChanged(nameof(HayElegiblesParaRepaso));
+        RecalcularRepaso();
+
         if (Total == 0)
         {
             Resumen = "Todavia no rendiste ningun examen.";
@@ -78,6 +102,180 @@ public partial class HistorialViewModel : PaginaViewModel
 
     public override void AlEntrar() => Refrescar();
 
+    // ------------------------------------------------------------------
+    // US-025 — detalle de un examen del historial
+    // ------------------------------------------------------------------
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HayDetalleAbierto))]
+    private ExamenRendido? _examenAbierto;
+
+    public bool HayDetalleAbierto => ExamenAbierto is not null;
+
+    /// <summary>
+    /// RN-26: texto que explica por que un examen no tiene detalle. Vacio cuando si lo tiene.
+    /// Nunca se deja la lista vacia sin decir nada: una pantalla en blanco se lee como un
+    /// error de la app, no como "este examen es viejo".
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HayAvisoSinDetalle))]
+    private string _avisoSinDetalle = string.Empty;
+
+    public bool HayAvisoSinDetalle => !string.IsNullOrWhiteSpace(AvisoSinDetalle);
+
+    [ObservableProperty]
+    private string _tituloDetalle = string.Empty;
+
+    [ObservableProperty]
+    private string _resumenDetalle = string.Empty;
+
+    [RelayCommand]
+    private void VerDetalle(ExamenRendido? examen)
+    {
+        if (examen is null)
+        {
+            return;
+        }
+
+        ExamenAbierto = examen;
+        TituloDetalle = examen.TituloTexto;
+        ResumenDetalle = $"{examen.FechaTexto} · nota {examen.NotaTexto} · {examen.DetalleTexto}";
+
+        DetallePreguntas.Clear();
+        AvisoSinDetalle = string.Empty;
+
+        if (!examen.TieneDetalle)
+        {
+            // RN-26. No se intenta reconstruir nada (RN-25): las preguntas de aquel intento
+            // no se guardaron y no hay de donde sacarlas.
+            AvisoSinDetalle =
+                "Este examen se rindio con una version anterior de la app, que solo guardaba el " +
+                "resultado y no las preguntas. Su detalle no se puede recuperar. Los examenes que " +
+                "rindas de ahora en mas si lo van a tener.";
+            return;
+        }
+
+        foreach (var pregunta in examen.Preguntas)
+        {
+            // Aca se revela todo, tambien en las falladas. Al corregir en el momento se
+            // esconden para que el Modo Revancha sirva; entrar al detalle de un examen viejo
+            // es exactamente lo contrario: se viene a ver en que te equivocaste.
+            pregunta.RevelarAnalisis = true;
+            DetallePreguntas.Add(pregunta);
+        }
+    }
+
+    [RelayCommand]
+    private void CerrarDetalle()
+    {
+        // Volver a dejar las preguntas como estaban: el examen no se toca al mirarlo
+        // (US-025 es de solo lectura).
+        foreach (var pregunta in DetallePreguntas)
+        {
+            pregunta.RevelarAnalisis = false;
+        }
+
+        DetallePreguntas.Clear();
+        ExamenAbierto = null;
+        AvisoSinDetalle = string.Empty;
+        TituloDetalle = ResumenDetalle = string.Empty;
+    }
+    // ------------------------------------------------------------------
+    // US-026 / RN-29 — atajo al repaso combinado
+    //
+    // El punto de entrada del repaso es el asistente de Nuevo examen, y RN-29 es explicita en
+    // que lo del Historial "es un atajo al mismo flujo, no una pantalla distinta". Por eso
+    // aca NO se arma ningun examen: se tildan los examenes —que es lo natural mientras se
+    // navega el historial— y el boton lleva al asistente ya en modo repaso, con lo tildado
+    // puesto.
+    //
+    // Tener el armado duplicado en las dos pantallas fue el primer intento, y era un error:
+    // dos copias de la misma logica se separan al primer retoque, y el alumno terminaria
+    // viendo dos formularios parecidos que se comportan distinto.
+    // ------------------------------------------------------------------
+
+    /// <summary>
+    /// Lo levanta el shell para llevar al asistente en modo repaso. La seleccion no viaja en
+    /// el evento porque no hace falta: esta marcada en los propios <see cref="ExamenRendido"/>
+    /// del historial, que son las mismas instancias que el asistente lista.
+    /// </summary>
+    public event Action? RepasoPedido;
+
+    /// <summary>
+    /// Examenes que pueden aportar preguntas a un repaso: los que tienen detalle guardado y
+    /// no son ellos mismos un repaso. Los de antes de US-025 no aparecen tildables porque no
+    /// tienen preguntas que prestar, y encadenar repasos de repasos esta fuera de alcance.
+    /// </summary>
+    public IReadOnlyList<ExamenRendido> ElegiblesParaRepaso =>
+        Examenes.Where(e => e.PuedeAlimentarRepaso).ToList();
+
+    /// <summary>
+    /// Con menos de dos elegibles no se puede armar nada: la tarjeta se esconde en vez de
+    /// quedar visible pero inerte. Es el caso de quien recien empieza, y tambien el de quien
+    /// tiene historial pero todo anterior a US-025.
+    /// </summary>
+    public bool HayElegiblesParaRepaso => ElegiblesParaRepaso.Count >= 2;
+
+    public IReadOnlyList<ExamenRendido> SeleccionadosParaRepaso =>
+        ElegiblesParaRepaso.Where(e => e.Seleccionado).ToList();
+
+    public int PreguntasDisponibles => CombinadorDeExamenes.ContarDisponibles(SeleccionadosParaRepaso);
+
+    /// <summary>true con dos o mas examenes tildados: el repaso es, por definicion, combinado.</summary>
+    public bool PuedeArmarRepaso => SeleccionadosParaRepaso.Count >= 2 && PreguntasDisponibles > 0;
+
+    public string ResumenRepaso
+    {
+        get
+        {
+            int elegidos = SeleccionadosParaRepaso.Count;
+
+            if (elegidos == 0)
+            {
+                return "Tilda dos o mas examenes de la lista para armar un repaso mezclado.";
+            }
+
+            if (elegidos == 1)
+            {
+                return "Tilda al menos otro examen: el repaso mezcla preguntas de varios.";
+            }
+
+            return $"{elegidos} examenes tildados · {PreguntasDisponibles} preguntas para elegir.";
+        }
+    }
+
+    /// <summary>La llama la vista al tildar o destildar un examen.</summary>
+    public void RecalcularRepaso()
+    {
+        OnPropertyChanged(nameof(SeleccionadosParaRepaso));
+        OnPropertyChanged(nameof(PreguntasDisponibles));
+        OnPropertyChanged(nameof(PuedeArmarRepaso));
+        OnPropertyChanged(nameof(ResumenRepaso));
+        IrAlRepasoCommand.NotifyCanExecuteChanged();
+    }
+
+    /// <summary>
+    /// Lleva al asistente en modo repaso con lo tildado. No arma el examen: de eso se encarga
+    /// el asistente, que es donde vive el flujo (RN-29).
+    /// </summary>
+    [RelayCommand(CanExecute = nameof(PuedeArmarRepaso))]
+    private void IrAlRepaso()
+    {
+        CerrarDetalle();
+        RepasoPedido?.Invoke();
+    }
+
+    [RelayCommand]
+    private void DestildarExamenes()
+    {
+        foreach (var examen in Examenes)
+        {
+            examen.Seleccionado = false;
+        }
+
+        RecalcularRepaso();
+    }
+
     [RelayCommand]
     private void Borrar()
     {
@@ -86,6 +284,7 @@ public partial class HistorialViewModel : PaginaViewModel
             return;
         }
 
+        CerrarDetalle();
         _sesion.BorrarHistorial();
         Refrescar();
         _nav.Estado("Historial borrado.");
@@ -126,6 +325,17 @@ public partial class HistorialViewModel : PaginaViewModel
         if (!_dialogos.Confirmar(mensaje))
         {
             return;
+        }
+
+        // RN-28: al borrar el registro se va tambien su detalle de preguntas, porque vive
+        // dentro del propio ExamenRendido en perfil.json. Las imagenes las limpia
+        // LimpiarImagenesAsync. Un repaso (US-026) ya generado a partir de este examen no se
+        // ve afectado: se llevo su propia copia de las preguntas al armarse.
+        if (ExamenAbierto?.Id == examen.Id)
+        {
+            // Si estaba abierto en el detalle, se cierra: dejarlo mostraria las preguntas de
+            // un examen que ya no existe.
+            CerrarDetalle();
         }
 
         _sesion.BorrarExamen(examen.Id);

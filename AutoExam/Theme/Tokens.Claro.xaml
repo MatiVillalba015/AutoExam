@@ -40,8 +40,22 @@
     <SolidColorBrush x:Key="PincelPendiente" Color="#FFCA65" />
     <SolidColorBrush x:Key="PincelPendienteSuave" Color="#88661D" />
 
-    <!-- Sombra unica. Sobre papel tiene que ser apenas perceptible. -->
+    <!--
+        Tres niveles de profundidad, no uno (US-030).
+
+        El criterio pide que una tarjeta informativa, una seleccionable y un resumen final no
+        se vean todas iguales. Sobre papel la diferencia tiene que ser de grado y no de clase:
+        si el escalon entre niveles es grande, la pantalla se llena de recortes flotando. Lo
+        que cambia entre los tres es el difuminado y la opacidad; la direccion y el color son
+        siempre los mismos, para que la luz venga de un solo lado en toda la app.
+    -->
+    <DropShadowEffect x:Key="SombraTarjetaSuave" BlurRadius="10" ShadowDepth="1" Direction="270"
+                      Color="#2A3040" Opacity="0.08" />
+
     <DropShadowEffect x:Key="SombraTarjeta" BlurRadius="18" ShadowDepth="2" Direction="270"
                       Color="#2A3040" Opacity="0.13" />
+
+    <DropShadowEffect x:Key="SombraTarjetaElevada" BlurRadius="28" ShadowDepth="5" Direction="270"
+                      Color="#2A3040" Opacity="0.19" />
 
 </ResourceDictionary>

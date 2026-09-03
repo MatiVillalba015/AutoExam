@@ -178,11 +178,26 @@
         <!-- ============================================================ -->
         <!-- Contenido del paso                                            -->
         <!-- ============================================================ -->
-        <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto" Padding="0,0,12,0">
-            <Grid>
+        <!--
+            US-030 — el paso se centra a lo alto cuando no llena la ventana.
+
+            El paso de Formato son tres campos; maximizada, la app dejaba media pantalla
+            vacia abajo con todo apretado contra el riel de pasos. Poner VerticalAlignment
+            Center a secas no hace nada acá: un ScrollViewer mide su contenido con alto
+            infinito, asi que el Grid termina midiendo exactamente lo que ocupa y no le queda
+            espacio sobrante que repartir.
+
+            Atar MinHeight al alto visible del propio ScrollViewer es lo que le da ese
+            espacio: cuando el paso entra, el Grid ocupa toda la ventana y centra; cuando no
+            entra (el paso de Material con veinte documentos), MinHeight queda por debajo del
+            alto real, no aplica, y scrollea como siempre desde arriba.
+        -->
+        <ScrollViewer x:Name="AreaDelPaso" Grid.Row="2" VerticalScrollBarVisibility="Auto"
+                      Padding="0,0,12,0">
+            <Grid MinHeight="{Binding ViewportHeight, ElementName=AreaDelPaso}">
 
                 <!-- PASO 1: material -->
-                <StackPanel>
+                <StackPanel VerticalAlignment="Center">
                     <StackPanel.Style>
                         <Style TargetType="StackPanel">
                             <Setter Property="Visibility" Value="Collapsed" />
@@ -194,36 +209,208 @@
                         </Style>
                     </StackPanel.Style>
 
+                    <!-- ============================================================ -->
+                    <!-- US-026 / RN-29 — de donde salen las preguntas.                -->
+                    <!--                                                               -->
+                    <!-- Este es el punto de entrada principal del repaso combinado:    -->
+                    <!-- esta siempre disponible aca, se haya llegado desde el inicio o -->
+                    <!-- desde el Historial. El atajo del Historial lleva al mismo      -->
+                    <!-- flujo, no a otra pantalla.                                     -->
+                    <!-- ============================================================ -->
+                    <TextBlock Text="¿De donde salen las preguntas?" Style="{StaticResource TxtCuerpo}"
+                               Margin="0,0,0,12" />
+
+                    <UniformGrid Columns="2" Margin="0,0,0,20">
+                        <RadioButton Style="{StaticResource Chip}" GroupName="OrigenPreguntas"
+                                     MinHeight="70" Margin="0,0,6,0"
+                                     HorizontalContentAlignment="Stretch"
+                                     IsChecked="{Binding ModoMaterial, Mode=OneWay}"
+                                     Command="{Binding UsarMaterialCommand}"
+                                     AutomationProperties.Name="Generar preguntas nuevas con IA a partir de material">
+                            <StackPanel>
+                                <TextBlock Text="Material nuevo" FontWeight="SemiBold" />
+                                <TextBlock Text="Genera preguntas con IA desde tus libros y apuntes. Usa cuota."
+                                           Style="{StaticResource TxtTenue}" TextWrapping="Wrap" Margin="0,3,0,0" />
+                            </StackPanel>
+                        </RadioButton>
+
+                        <RadioButton Style="{StaticResource Chip}" GroupName="OrigenPreguntas"
+                                     MinHeight="70" Margin="6,0,0,0"
+                                     HorizontalContentAlignment="Stretch"
+                                     IsChecked="{Binding ModoRepaso, Mode=OneWay}"
+                                     Command="{Binding UsarExamenesAnterioresCommand}"
+                                     AutomationProperties.Name="Combinar examenes que ya rendiste">
+                            <StackPanel>
+                                <TextBlock Text="Examenes anteriores" FontWeight="SemiBold" />
+                                <TextBlock Text="Mezcla preguntas de examenes que ya rendiste. Instantaneo y sin cuota."
+                                           Style="{StaticResource TxtTenue}" TextWrapping="Wrap" Margin="0,3,0,0" />
+                            </StackPanel>
+                        </RadioButton>
+                    </UniformGrid>
+
+                    <!-- ============================================================ -->
+                    <!-- Modo repaso: elegir los examenes a combinar                   -->
+                    <!-- ============================================================ -->
+                    <StackPanel Visibility="{Binding ModoRepaso, Converter={StaticResource BoolToVis}}">
+                        <TextBlock Text="{Binding ResumenRepaso}" Style="{StaticResource TxtSuave}"
+                                   TextWrapping="Wrap" Margin="0,0,0,12" />
+
+                        <!-- Buscador: el historial puede tener cientos de intentos, y sin
+                             filtro elegir dos de una materia concreta seria bajar por una
+                             lista larguisima. -->
+                        <ui:TextBox Text="{Binding FiltroExamenes, UpdateSourceTrigger=PropertyChanged}"
+                                    PlaceholderText="Buscar por examen o materia..."
+                                    Icon="{ui:SymbolIcon Search24}"
+                                    AutomationProperties.Name="Buscar entre los examenes rendidos"
+                                    Margin="0,0,0,12"
+                                    Visibility="{Binding HayExamenesParaRepaso, Converter={StaticResource BoolToVis}}" />
+
+                        <ListBox ItemsSource="{Binding ExamenesParaRepaso}" MaxHeight="320"
+                                 Background="Transparent" BorderThickness="0"
+                                 ItemContainerStyle="{StaticResource ItemLibro}"
+                                 ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                 AutomationProperties.Name="Examenes rendidos para combinar">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate DataType="{x:Type modelos:ExamenRendido}">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+
+                                        <CheckBox Grid.Column="0" Margin="0,0,10,0" VerticalAlignment="Center"
+                                                  IsChecked="{Binding Seleccionado, Mode=TwoWay}"
+                                                  AutomationProperties.Name="{Binding TituloTexto}" />
+
+                                        <!-- Franja del color de la materia (US-027 / RN-34):
+                                             el mismo que usan la biblioteca y el historial. -->
+                                        <Border Grid.Column="1" Width="3" Height="26" CornerRadius="2"
+                                                Margin="0,0,10,0" VerticalAlignment="Center"
+                                                Background="{Binding ColorMateria, Converter={StaticResource ColorMateria}}" />
+
+                                        <StackPanel Grid.Column="2" VerticalAlignment="Center">
+                                            <TextBlock Text="{Binding TituloTexto}" Style="{StaticResource TxtCuerpo}"
+                                                       TextTrimming="CharacterEllipsis" />
+                                            <TextBlock Style="{StaticResource TxtTenue}">
+                                                <Run Text="{Binding Materia, Mode=OneWay}" />
+                                                <Run Text=" · " />
+                                                <Run Text="{Binding FechaTexto, Mode=OneWay}" />
+                                            </TextBlock>
+                                        </StackPanel>
+
+                                        <TextBlock Grid.Column="3" Style="{StaticResource TxtDato}"
+                                                   FontSize="11" VerticalAlignment="Center"
+                                                   Text="{Binding TotalPreguntas, StringFormat='{}{0} preg.'}" />
+                                    </Grid>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+
+                        <Button Content="Destildar todos" Style="{StaticResource ChipAccion}"
+                                HorizontalAlignment="Left" Margin="0,12,0,0"
+                                Command="{Binding DestildarExamenesCommand}"
+                                Visibility="{Binding HayExamenesParaRepaso, Converter={StaticResource BoolToVis}}" />
+                    </StackPanel>
+
+                    <!-- ============================================================ -->
+                    <!-- Modo material: lo de siempre                                   -->
+                    <!-- ============================================================ -->
+                    <StackPanel Visibility="{Binding ModoMaterial, Converter={StaticResource BoolToVis}}">
                     <TextBlock Text="¿De que material?" Style="{StaticResource TxtCuerpo}" Margin="0,0,0,14" />
 
-                    <ListBox ItemsSource="{Binding Libros}" MaxHeight="300"
+                    <!-- ============================================================ -->
+                    <!-- US-024 — Materia primero, despues los documentos.             -->
+                    <!--                                                               -->
+                    <!-- Filtrar por materia no es solo comodidad: es lo que hace      -->
+                    <!-- cumplir RN-23 por construccion, porque nunca llegan a verse   -->
+                    <!-- juntos dos documentos de materias distintas para poder        -->
+                    <!-- tildarlos a la vez.                                           -->
+                    <!-- ============================================================ -->
+                    <TextBlock Text="MATERIA" Style="{StaticResource TxtRotulo}"
+                               Visibility="{Binding HayLibros, Converter={StaticResource BoolToVis}}" />
+                    <ItemsControl ItemsSource="{Binding Materias}" Margin="0,0,0,16"
+                                  Visibility="{Binding HayLibros, Converter={StaticResource BoolToVis}}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <WrapPanel />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <RadioButton Style="{StaticResource Chip}"
+                                             GroupName="MateriasAsistente"
+                                             AutomationProperties.Name="{Binding Nombre}"
+                                             Command="{Binding DataContext.ElegirMateriaCommand,
+                                                       RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                             CommandParameter="{Binding Nombre}">
+                                    <RadioButton.Content>
+                                        <StackPanel Orientation="Horizontal">
+                                            <Ellipse Width="9" Height="9" VerticalAlignment="Center" Margin="0,0,8,0"
+                                                     Fill="{Binding Color, Converter={StaticResource ColorMateria}}" />
+                                            <TextBlock Text="{Binding Nombre}" VerticalAlignment="Center" />
+                                        </StackPanel>
+                                    </RadioButton.Content>
+                                    <RadioButton.IsChecked>
+                                        <MultiBinding Converter="{StaticResource SonIguales}" Mode="OneWay">
+                                            <Binding Path="Nombre" />
+                                            <Binding Path="DataContext.MateriaElegida"
+                                                     RelativeSource="{RelativeSource AncestorType=ItemsControl}" />
+                                        </MultiBinding>
+                                    </RadioButton.IsChecked>
+                                </RadioButton>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <TextBlock Style="{StaticResource TxtAyuda}"
+                               TextWrapping="Wrap"
+                               Visibility="{Binding HayLibros, Converter={StaticResource BoolToVis}}"
+                               Text="Tilda uno o varios documentos para combinarlos en un mismo examen. Sin ninguno tildado se usa el que este resaltado." />
+
+                    <ListBox ItemsSource="{Binding LibrosDeLaMateria}" MaxHeight="300"
                              SelectedItem="{Binding Libro, Mode=TwoWay}"
                              ItemContainerStyle="{StaticResource ItemLibro}"
-                             Background="Transparent" BorderThickness="0" Margin="0,0,0,16"
+                             Background="Transparent" BorderThickness="0" Margin="0,0,0,10"
                              ScrollViewer.HorizontalScrollBarVisibility="Disabled"
-                             AutomationProperties.Name="Libro para el examen"
+                             AutomationProperties.Name="Documentos para el examen"
                              Visibility="{Binding HayLibros, Converter={StaticResource BoolToVis}}">
                         <ListBox.ItemTemplate>
                             <DataTemplate DataType="{x:Type modelos:Libro}">
                                 <Grid>
                                     <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
                                         <ColumnDefinition Width="*" />
                                         <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
 
-                                    <StackPanel Grid.Column="0">
+                                    <!-- El tilde decide que entra al examen; la fila
+                                         resaltada decide de cual se ven los capitulos en el
+                                         paso Alcance. Son dos cosas distintas y por eso son
+                                         dos controles distintos (US-024). -->
+                                    <CheckBox Grid.Column="0" Margin="0,0,10,0" VerticalAlignment="Center"
+                                              IsChecked="{Binding Seleccionado, Mode=TwoWay}"
+                                              AutomationProperties.Name="{Binding Titulo}"
+                                              ToolTip="Incluir este documento en el examen" />
+
+                                    <StackPanel Grid.Column="1">
                                         <TextBlock Text="{Binding Titulo}" Style="{StaticResource TxtCuerpo}"
                                                    FontWeight="SemiBold" />
                                         <TextBlock Text="{Binding Materia}" Style="{StaticResource TxtTenue}" />
                                     </StackPanel>
 
-                                    <TextBlock Grid.Column="1" Style="{StaticResource TxtDato}"
+                                    <TextBlock Grid.Column="2" Style="{StaticResource TxtDato}"
                                                VerticalAlignment="Center"
                                                Text="{Binding MedidaTamanio}" />
                                 </Grid>
                             </DataTemplate>
                         </ListBox.ItemTemplate>
                     </ListBox>
+
+                    <TextBlock Text="{Binding ResumenSeleccion}" Style="{StaticResource TxtSuave}"
+                               Margin="0,0,0,16" TextWrapping="Wrap"
+                               Visibility="{Binding HayLibros, Converter={StaticResource BoolToVis}}" />
 
                     <Button Style="{StaticResource ZonaSoltar}"
                             Command="{Binding ElegirArchivoCommand}"
@@ -244,10 +431,11 @@
                         <TextBlock Text="Analizando el material..." Style="{StaticResource TxtSuave}"
                                    VerticalAlignment="Center" Margin="8,0,0,0" />
                     </StackPanel>
+                    </StackPanel>
                 </StackPanel>
 
                 <!-- PASO 2: alcance -->
-                <StackPanel>
+                <StackPanel VerticalAlignment="Center">
                     <StackPanel.Style>
                         <Style TargetType="StackPanel">
                             <Setter Property="Visibility" Value="Collapsed" />
@@ -266,9 +454,22 @@
                                Visibility="{Binding EsFuentePdf, Converter={StaticResource BoolToVis}, ConverterParameter=invertir}"
                                Text="Este material se toma completo. Para acotar el examen, usa el eje tematico de abajo." />
 
+                    <!-- US-024: con varios documentos, los capitulos que se ven aca son los
+                         del documento resaltado en el paso Material. Para acotar otro, se
+                         vuelve atras y se lo resalta. El eje tematico si vale para todos. -->
+                    <Border Style="{StaticResource TarjetaPlana}" Padding="14" Margin="0,0,0,14"
+                            Visibility="{Binding EsExamenCombinado, Converter={StaticResource BoolToVis}}">
+                        <StackPanel>
+                            <TextBlock Style="{StaticResource TxtCuerpo}" TextWrapping="Wrap" Margin="0,0,0,4"
+                                       Text="{Binding ResumenSeleccion}" FontWeight="SemiBold" />
+                            <TextBlock Style="{StaticResource TxtTenue}" TextWrapping="Wrap"
+                                       Text="Cada documento entra completo, salvo los capitulos que le hayas marcado. Los capitulos de abajo son los del documento resaltado en el paso Material: para acotar otro, volve y resaltalo. El eje tematico vale para todos." />
+                        </StackPanel>
+                    </Border>
+
                     <StackPanel Visibility="{Binding EsFuentePdf, Converter={StaticResource BoolToVis}}">
                     <TextBlock Text="CAPITULOS" Style="{StaticResource TxtRotulo}" />
-                    <TextBlock Style="{StaticResource TxtTenue}" Margin="0,0,0,12"
+                    <TextBlock Style="{StaticResource TxtAyuda}"
                                Text="Toca los que quieras y se combinan, salteados incluidos (1, 2, 5, 7...). Sin ninguno marcado entra el libro entero." />
 
                     <!-- Sin capitulos cargados los chips no existen y la pantalla parece
@@ -356,12 +557,12 @@
                     <ui:TextBox Text="{Binding Tema, UpdateSourceTrigger=PropertyChanged}"
                                 PlaceholderText="Potenciales de accion, arritmias..."
                                 AutomationProperties.Name="Eje tematico" />
-                    <TextBlock Style="{StaticResource TxtTenue}" Margin="0,6,0,0"
+                    <TextBlock Style="{StaticResource TxtAyuda}"
                                Text="Acota las preguntas a un tema puntual dentro de las paginas elegidas." />
                 </StackPanel>
 
                 <!-- PASO 3: formato -->
-                <StackPanel>
+                <StackPanel VerticalAlignment="Center">
                     <StackPanel.Style>
                         <Style TargetType="StackPanel">
                             <Setter Property="Visibility" Value="Collapsed" />
@@ -393,11 +594,29 @@
                                       Visibility="{Binding CantidadAMano, Converter={StaticResource BoolToVis}}" />
                     </WrapPanel>
 
+                    <!-- Solo aplica al modo material: un repaso no genera preguntas, las
+                         toma de examenes ya rendidos, asi que no hay nada que pedirle a la
+                         IA sobre imagenes (US-026). -->
                     <CheckBox IsChecked="{Binding IncluirImagenes, Mode=TwoWay}" Margin="0,14,0,24"
-                              Content="Incluir preguntas sobre graficos e imagenes del material" />
+                              Content="Incluir preguntas sobre graficos e imagenes del material"
+                              Visibility="{Binding ModoMaterial, Converter={StaticResource BoolToVis}}" />
 
-                    <!-- Resumen antes de gastar cuota: que entra, cuanto y con que -->
-                    <Border Style="{StaticResource Tarjeta}" Margin="0,0,0,20">
+                    <Border Style="{StaticResource TarjetaPlana}" Padding="16" Margin="0,14,0,20"
+                            Visibility="{Binding ModoRepaso, Converter={StaticResource BoolToVis}}">
+                        <StackPanel>
+                            <TextBlock Text="{Binding ResumenRepaso}" Style="{StaticResource TxtCuerpo}"
+                                       TextWrapping="Wrap" />
+                            <TextBlock Style="{StaticResource TxtTenue}" TextWrapping="Wrap" Margin="0,6,0,0"
+                                       Text="Las preguntas salen mezcladas al azar y ninguna se repite. Es instantaneo: no usa la IA ni gasta cuota, porque ya estaban generadas." />
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Resumen antes de gastar cuota: que entra, cuanto y con que.
+                         US-030: es el "resumen final" que nombra el criterio, asi que va en el
+                         nivel de profundidad mas alto. Es lo ultimo que hay que leer antes de
+                         apretar generar, y hasta ahora se veia igual que los dos bloques
+                         informativos de arriba. -->
+                    <Border Style="{StaticResource TarjetaResumen}" Margin="0,0,0,20">
                         <StackPanel>
                             <TextBlock Text="Vas a generar" Style="{StaticResource TxtRotulo}" />
 

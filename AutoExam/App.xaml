@@ -16,6 +16,10 @@
                      cambiar entre claro y oscuro. -->
                 <ResourceDictionary Source="Theme/Tokens.Oscuro.xaml" />
                 <ResourceDictionary Source="Theme/Estilos.xaml" />
+
+                <!-- Plantillas compartidas entre pantallas (la tarjeta de correccion de una
+                     pregunta la usan la correccion inmediata y el detalle del historial). -->
+                <ResourceDictionary Source="Theme/Plantillas.xaml" />
             </ResourceDictionary.MergedDictionaries>
 
             <!-- Convertidores compartidos -->
@@ -28,10 +32,17 @@
             <local:AprobadoAPincelConverter x:Key="AprobadoAPincel" />
             <local:SeveridadConverter x:Key="Severidad" />
             <local:MayorQueCeroConverter x:Key="MayorQueCero" />
+            <local:SonIgualesConverter x:Key="SonIguales" />
+            <local:ColorMateriaAPincelConverter x:Key="ColorMateria" />
+            <local:NombreDeMateriaAPincelConverter x:Key="ColorDeMateriaPorNombre" />
             <BooleanToVisibilityConverter x:Key="BoolToVis" />
 
             <!-- Cada pagina se dibuja sola: el shell muestra el ViewModel activo
                  en un ContentControl y WPF elige la vista por tipo. -->
+            <DataTemplate DataType="{x:Type vm:InicioViewModel}">
+                <vistas:InicioView />
+            </DataTemplate>
+
             <DataTemplate DataType="{x:Type vm:BibliotecaViewModel}">
                 <vistas:BibliotecaView />
             </DataTemplate>

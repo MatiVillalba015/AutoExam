@@ -21,13 +21,35 @@
     <CornerRadius x:Key="RadioCampo">10</CornerRadius>
     <CornerRadius x:Key="RadioChip">18</CornerRadius>
 
-    <FontFamily x:Key="FuenteTitulo">Segoe UI Variable Display, Segoe UI Semibold, Segoe UI</FontFamily>
-    <FontFamily x:Key="FuenteCuerpo">Segoe UI Variable Text, Segoe UI</FontFamily>
+    <!-- ==============================================================
+         Tipografia (US-028 / RN-32).
+
+         Cada familia es una CADENA de respaldo, no una fuente sola: WPF baja al
+         siguiente nombre cuando el anterior no esta instalado. Por eso la app se ve
+         igual de prolija en un Windows 11 (que trae Segoe UI Variable) que en un
+         Windows 10 que solo tiene Segoe UI, sin ningun chequeo en codigo.
+
+         "Inter" va primera aunque Windows no la traiga: si el usuario la instala
+         alguna vez, la app la toma sola; si no, cae a la de siempre y no se nota.
+         Nunca queda un hueco ni una fuente ajena: el ultimo eslabon de cada cadena
+         es una familia que existe en todo Windows soportado.
+
+         Los tamanios son la UNICA fuente de verdad de la escala: ninguna vista
+         escribe un FontSize literal (RN-32). El de la pantalla de examen no esta
+         aca sino en ExamenViewModel, porque el alumno lo ajusta en vivo (US-005);
+         ahi tambien hay un solo lugar que lo define.
+         ============================================================== -->
+    <FontFamily x:Key="FuenteTitulo">Inter Display, Inter, Segoe UI Variable Display, Segoe UI Semibold, Segoe UI</FontFamily>
+    <FontFamily x:Key="FuenteCuerpo">Inter, Segoe UI Variable Text, Segoe UI</FontFamily>
     <FontFamily x:Key="FuenteDato">Cascadia Mono, Consolas, Courier New</FontFamily>
 
-    <sys:Double x:Key="TamTitulo">30</sys:Double>
-    <sys:Double x:Key="TamSeccion">20</sys:Double>
-    <sys:Double x:Key="TamEnunciado">17</sys:Double>
+    <!-- Escala afinada: los titulos bajan (30 era tamanio de portada, no de seccion) y
+         el cuerpo sube medio punto. El contraste entre niveles se apoya mas en el peso
+         y en el espaciado que en el salto de tamanio, que es lo que hacia que la
+         pantalla se viera cargada. -->
+    <sys:Double x:Key="TamTitulo">26</sys:Double>
+    <sys:Double x:Key="TamSeccion">19</sys:Double>
+    <sys:Double x:Key="TamEnunciado">16</sys:Double>
     <sys:Double x:Key="TamCuerpo">14</sys:Double>
     <sys:Double x:Key="TamMenor">12.5</sys:Double>
     <sys:Double x:Key="TamMinimo">11</sys:Double>
@@ -38,7 +60,7 @@
     <!-- instancia de cada uno alcanza para todos los templates de abajo.-->
     <!-- ============================================================== -->
     <Duration x:Key="DuracionHover">0:0:0.14</Duration>
-    <Duration x:Key="DuracionPresion">0:0:0.08</Duration>
+    <Duration x:Key="DuracionPresion">0:0:0.13</Duration>
     <QuadraticEase x:Key="SuavizadoSalida" EasingMode="EaseOut" />
     <!-- Transicion de seccion del shell (US-007, Behaviors/TransicionContenido.cs). Mismo
          criterio de instancia unica que las dos de arriba. -->
@@ -47,12 +69,16 @@
     <!-- ============================================================== -->
     <!-- Tipografia                                                      -->
     <!-- ============================================================== -->
+    <!-- Peso SemiBold y no Light: a 26px el Light se veia desvaido y sin jerarquia. Lo que
+         separa un titulo de un parrafo grande ahora es el peso, no el tamanio, que es lo que
+         permitio bajar la escala sin perder lectura. -->
     <Style x:Key="TxtTitulo" TargetType="TextBlock">
         <Setter Property="FontFamily" Value="{DynamicResource FuenteTitulo}" />
         <Setter Property="FontSize" Value="{DynamicResource TamTitulo}" />
-        <Setter Property="FontWeight" Value="Light" />
+        <Setter Property="FontWeight" Value="SemiBold" />
         <Setter Property="Foreground" Value="{DynamicResource PincelTexto}" />
         <Setter Property="TextWrapping" Value="Wrap" />
+        <Setter Property="TextOptions.TextRenderingMode" Value="ClearType" />
     </Style>
 
     <Style x:Key="TxtSeccion" TargetType="TextBlock">
@@ -91,8 +117,30 @@
         <Setter Property="FontFamily" Value="{DynamicResource FuenteCuerpo}" />
         <Setter Property="FontSize" Value="{DynamicResource TamMinimo}" />
         <Setter Property="FontWeight" Value="SemiBold" />
-        <Setter Property="Foreground" Value="{DynamicResource PincelTextoSuave}" />
+        <Setter Property="Foreground" Value="{DynamicResource PincelTextoTenue}" />
         <Setter Property="Margin" Value="0,0,0,8" />
+        <!-- El rotulo se lee como etiqueta y no como texto. A este tamanio el espaciado
+             entre letras hace ese trabajo mejor que subir el peso, que ya esta usado. -->
+        <Setter Property="TextBlock.LineHeight" Value="15" />
+    </Style>
+
+    <!--
+        Texto de ayuda debajo de un rotulo de seccion (US-030).
+
+        Existe como estilo propio y no como un TxtTenue con margenes a mano porque el
+        problema que resuelve es de ritmo, no de una pantalla puntual: la aclaracion de
+        "Capitulos", la de "Materia" y la de "Eje tematico" venian cada una con su propio
+        margen, y en dos de las tres quedaba pegada al rotulo de arriba. Al ser una sola
+        regla, el espacio sobre el texto y el interlineado son los mismos en toda la app.
+
+        LineStackingStrategy es necesario: sin el, LineHeight en WPF se interpreta como un
+        minimo y el interlineado real lo sigue fijando la fuente, asi que el valor no
+        tendria ningun efecto visible a este tamanio.
+    -->
+    <Style x:Key="TxtAyuda" TargetType="TextBlock" BasedOn="{StaticResource TxtTenue}">
+        <Setter Property="Margin" Value="0,2,0,14" />
+        <Setter Property="LineHeight" Value="17" />
+        <Setter Property="LineStackingStrategy" Value="BlockLineHeight" />
     </Style>
 
     <Style x:Key="TxtDato" TargetType="TextBlock">
@@ -137,7 +185,19 @@
 
     <!-- ============================================================== -->
     <!-- Tarjetas                                                        -->
+    <!--                                                                 -->
+    <!-- US-030 pide una jerarquia visual entre tres tipos de tarjeta:    -->
+    <!-- la informativa (lo que hay), la seleccionable (lo que se elige)  -->
+    <!-- y el resumen o bloque protagonista de la pantalla. La diferencia -->
+    <!-- se lleva en la profundidad, no en el color: cambiar el fondo de  -->
+    <!-- cada tipo obligaria a un tono distinto por tema y por estado, y  -->
+    <!-- terminaria compitiendo con el color de materia (US-027) y con    -->
+    <!-- los de correcto/incorrecto, que son los unicos que significan    -->
+    <!-- algo. La sombra ordena sin decir nada.                           -->
     <!-- ============================================================== -->
+
+    <!-- Nivel 2 de 3 — informativa. Es el default historico de la app y sigue      -->
+    <!-- siendo el que usan las tarjetas que solo muestran algo.                    -->
     <Style x:Key="Tarjeta" TargetType="Border">
         <Setter Property="Background" Value="{DynamicResource PincelTarjeta}" />
         <Setter Property="BorderBrush" Value="{DynamicResource PincelBorde}" />
@@ -145,6 +205,25 @@
         <Setter Property="CornerRadius" Value="{DynamicResource RadioTarjeta}" />
         <Setter Property="Padding" Value="22" />
         <Setter Property="Effect" Value="{DynamicResource SombraTarjeta}" />
+    </Style>
+
+    <!-- Nivel 1 de 3 — seleccionable. Va mas al ras que una informativa a proposito:
+         lo que se elige tiene que verse disponible, no ya resuelto. Es la que usan las
+         listas de items que se tildan (documentos, examenes del historial), donde ademas
+         hay muchas juntas y apilar sombras profundas ensucia la pantalla entera. -->
+    <Style x:Key="TarjetaSeleccionable" TargetType="Border" BasedOn="{StaticResource Tarjeta}">
+        <Setter Property="Effect" Value="{DynamicResource SombraTarjetaSuave}" />
+    </Style>
+
+    <!-- Nivel 3 de 3 — resumen / bloque protagonista. La usan el resumen de "vas a
+         generar", la tarjeta del resultado y el enunciado de la pregunta en el examen:
+         es lo unico que tiene que ganarle visualmente a todo lo demas de su pantalla.
+         El borde de 2 px acompania a la sombra porque en tema oscuro la profundidad sola
+         no alcanza para separar la tarjeta del fondo. -->
+    <Style x:Key="TarjetaResumen" TargetType="Border" BasedOn="{StaticResource Tarjeta}">
+        <Setter Property="Effect" Value="{DynamicResource SombraTarjetaElevada}" />
+        <Setter Property="BorderThickness" Value="2" />
+        <Setter Property="BorderBrush" Value="{DynamicResource PincelBordeFuerte}" />
     </Style>
 
     <!-- Variante sin sombra para tarjetas anidadas: apilar sombras ensucia. -->
@@ -222,15 +301,19 @@
                             <MultiTrigger.Conditions>
                                 <Condition Property="IsPressed" Value="True" />
                                 <Condition Property="IsEnabled" Value="True" />
+                                <!-- US-029 / RN-33: el pulsado tampoco se anima con "reducir movimiento" del SO.
+                                     Esta condicion faltaba solo en el pulsado: el resto de la app ya respetaba la
+                                     preferencia, pero el boton seguia dando el saltito igual. -->
+                                <Condition Property="comportamientos:Animaciones.MovimientoReducido" Value="False" />
                             </MultiTrigger.Conditions>
                             <MultiTrigger.EnterActions>
                                 <BeginStoryboard>
                                     <Storyboard>
                                         <DoubleAnimation Storyboard.TargetName="Escala" Storyboard.TargetProperty="ScaleX"
-                                                         To="0.97" Duration="{StaticResource DuracionPresion}"
+                                                         To="0.985" Duration="{StaticResource DuracionPresion}"
                                                          EasingFunction="{StaticResource SuavizadoSalida}" />
                                         <DoubleAnimation Storyboard.TargetName="Escala" Storyboard.TargetProperty="ScaleY"
-                                                         To="0.97" Duration="{StaticResource DuracionPresion}"
+                                                         To="0.985" Duration="{StaticResource DuracionPresion}"
                                                          EasingFunction="{StaticResource SuavizadoSalida}" />
                                     </Storyboard>
                                 </BeginStoryboard>
@@ -329,15 +412,19 @@
                             <MultiTrigger.Conditions>
                                 <Condition Property="IsPressed" Value="True" />
                                 <Condition Property="IsEnabled" Value="True" />
+                                <!-- US-029 / RN-33: el pulsado tampoco se anima con "reducir movimiento" del SO.
+                                     Esta condicion faltaba solo en el pulsado: el resto de la app ya respetaba la
+                                     preferencia, pero el boton seguia dando el saltito igual. -->
+                                <Condition Property="comportamientos:Animaciones.MovimientoReducido" Value="False" />
                             </MultiTrigger.Conditions>
                             <MultiTrigger.EnterActions>
                                 <BeginStoryboard>
                                     <Storyboard>
                                         <DoubleAnimation Storyboard.TargetName="Escala" Storyboard.TargetProperty="ScaleX"
-                                                         To="0.97" Duration="{StaticResource DuracionPresion}"
+                                                         To="0.985" Duration="{StaticResource DuracionPresion}"
                                                          EasingFunction="{StaticResource SuavizadoSalida}" />
                                         <DoubleAnimation Storyboard.TargetName="Escala" Storyboard.TargetProperty="ScaleY"
-                                                         To="0.97" Duration="{StaticResource DuracionPresion}"
+                                                         To="0.985" Duration="{StaticResource DuracionPresion}"
                                                          EasingFunction="{StaticResource SuavizadoSalida}" />
                                     </Storyboard>
                                 </BeginStoryboard>
@@ -393,6 +480,25 @@
                         <Border x:Name="FondoHover" Background="{DynamicResource PincelTarjetaHover}"
                                 CornerRadius="{DynamicResource RadioCampo}" Opacity="0"
                                 IsHitTestVisible="False" />
+
+                        <!--
+                            US-030 — barra de acento de la opcion elegida.
+
+                            El criterio pide que "seleccionado" se vea claramente distinto al
+                            resto, "no un cambio sutil". El fondo tenue mas el borde de 2 px que
+                            habia antes es exactamente eso: con cuatro tarjetas iguales apiladas
+                            hay que comparar dos tonos parecidos entre si para saber cual esta
+                            marcada. Una barra plena en el canto izquierdo se ve sin comparar
+                            nada.
+
+                            Va superpuesta en el Grid y no como una columna del contenido: asi
+                            aparecer y desaparecer no corre el texto de la opcion ni un pixel.
+                            Sale del color de marca y no de los de correcto/incorrecto porque
+                            mientras se responde todavia no hay nada correcto que senalar.
+                        -->
+                        <Border x:Name="Acento" Width="5" HorizontalAlignment="Left" Opacity="0"
+                                Background="{DynamicResource PincelMarca}" IsHitTestVisible="False"
+                                CornerRadius="{DynamicResource RadioCampo}" />
                     </Grid>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
@@ -428,15 +534,19 @@
                             <MultiTrigger.Conditions>
                                 <Condition Property="IsPressed" Value="True" />
                                 <Condition Property="IsEnabled" Value="True" />
+                                <!-- US-029 / RN-33: el pulsado tampoco se anima con "reducir movimiento" del SO.
+                                     Esta condicion faltaba solo en el pulsado: el resto de la app ya respetaba la
+                                     preferencia, pero el boton seguia dando el saltito igual. -->
+                                <Condition Property="comportamientos:Animaciones.MovimientoReducido" Value="False" />
                             </MultiTrigger.Conditions>
                             <MultiTrigger.EnterActions>
                                 <BeginStoryboard>
                                     <Storyboard>
                                         <DoubleAnimation Storyboard.TargetName="Escala" Storyboard.TargetProperty="ScaleX"
-                                                         To="0.97" Duration="{StaticResource DuracionPresion}"
+                                                         To="0.985" Duration="{StaticResource DuracionPresion}"
                                                          EasingFunction="{StaticResource SuavizadoSalida}" />
                                         <DoubleAnimation Storyboard.TargetName="Escala" Storyboard.TargetProperty="ScaleY"
-                                                         To="0.97" Duration="{StaticResource DuracionPresion}"
+                                                         To="0.985" Duration="{StaticResource DuracionPresion}"
                                                          EasingFunction="{StaticResource SuavizadoSalida}" />
                                     </Storyboard>
                                 </BeginStoryboard>
@@ -456,9 +566,12 @@
                         </MultiTrigger>
                         <Trigger Property="IsChecked" Value="True">
                             <Setter TargetName="Fondo" Property="Background" Value="{DynamicResource PincelMarcaSuave}" />
-                            <Setter TargetName="Fondo" Property="BorderBrush" Value="{DynamicResource PincelMarca}" />
+                            <Setter TargetName="Fondo" Property="BorderBrush" Value="{DynamicResource PincelMarcaFuerte}" />
                             <Setter TargetName="Fondo" Property="BorderThickness" Value="2" />
                             <Setter TargetName="Fondo" Property="Padding" Value="15,13" />
+                            <!-- US-030: el acento es lo que hace que la opcion elegida se lea
+                                 de un vistazo; el fondo y el borde solos no alcanzaban. -->
+                            <Setter TargetName="Acento" Property="Opacity" Value="1" />
                         </Trigger>
                         <Trigger Property="IsKeyboardFocused" Value="True">
                             <Setter TargetName="Fondo" Property="BorderBrush" Value="{DynamicResource PincelMarcaFuerte}" />
@@ -528,15 +641,19 @@
                             <MultiTrigger.Conditions>
                                 <Condition Property="IsPressed" Value="True" />
                                 <Condition Property="IsEnabled" Value="True" />
+                                <!-- US-029 / RN-33: el pulsado tampoco se anima con "reducir movimiento" del SO.
+                                     Esta condicion faltaba solo en el pulsado: el resto de la app ya respetaba la
+                                     preferencia, pero el boton seguia dando el saltito igual. -->
+                                <Condition Property="comportamientos:Animaciones.MovimientoReducido" Value="False" />
                             </MultiTrigger.Conditions>
                             <MultiTrigger.EnterActions>
                                 <BeginStoryboard>
                                     <Storyboard>
                                         <DoubleAnimation Storyboard.TargetName="Escala" Storyboard.TargetProperty="ScaleX"
-                                                         To="0.97" Duration="{StaticResource DuracionPresion}"
+                                                         To="0.985" Duration="{StaticResource DuracionPresion}"
                                                          EasingFunction="{StaticResource SuavizadoSalida}" />
                                         <DoubleAnimation Storyboard.TargetName="Escala" Storyboard.TargetProperty="ScaleY"
-                                                         To="0.97" Duration="{StaticResource DuracionPresion}"
+                                                         To="0.985" Duration="{StaticResource DuracionPresion}"
                                                          EasingFunction="{StaticResource SuavizadoSalida}" />
                                     </Storyboard>
                                 </BeginStoryboard>
@@ -567,46 +684,183 @@
     <!-- ============================================================== -->
     <!-- Navegacion lateral del shell                                    -->
     <!-- ============================================================== -->
-    <Style x:Key="ItemNavegacion" TargetType="RadioButton">
-        <Setter Property="Margin" Value="0,0,0,4" />
-        <Setter Property="Padding" Value="14,11" />
+
+    <!-- ==============================================================
+         Tarjeta de acceso de la pantalla de inicio (US-030).
+
+         El hover NO escala (US-029): el zoom es justo lo que se sentia como un
+         salto. Lo que se mueve es la elevacion —un fondo mas claro y un borde de
+         marca que aparecen interpolados— mas un desplazamiento de 2 px hacia
+         arriba, suficiente para que la tarjeta se sienta viva sin que el texto de
+         adentro cambie de tamanio ni se vuelva a rasterizar.
+
+         Duracion, suavizado y la guarda de "reducir movimiento" son los mismos
+         recursos centralizados que usan los otros siete templates (RN-33): aca no
+         hay ningun sistema de animacion nuevo.
+         ============================================================== -->
+    <Style x:Key="TarjetaAcceso" TargetType="Button">
+        <Setter Property="Background" Value="{DynamicResource PincelTarjeta}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource PincelBorde}" />
+        <Setter Property="Foreground" Value="{DynamicResource PincelTexto}" />
         <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="Margin" Value="10" />
+        <Setter Property="MinHeight" Value="190" />
+        <Setter Property="Padding" Value="24,26" />
         <Setter Property="HorizontalContentAlignment" Value="Stretch" />
-        <Setter Property="FontFamily" Value="{DynamicResource FuenteCuerpo}" />
-        <Setter Property="FontSize" Value="{DynamicResource TamCuerpo}" />
-        <Setter Property="Foreground" Value="{DynamicResource PincelTextoSuave}" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
         <Setter Property="Template">
             <Setter.Value>
-                <ControlTemplate TargetType="RadioButton">
+                <ControlTemplate TargetType="Button">
                     <Grid x:Name="Raiz" RenderTransformOrigin="0.5,0.5">
                         <Grid.RenderTransform>
-                            <ScaleTransform x:Name="Escala" ScaleX="1" ScaleY="1" />
+                            <TranslateTransform x:Name="Elevacion" Y="0" />
                         </Grid.RenderTransform>
-                        <Border x:Name="Fondo" Background="Transparent" CornerRadius="{DynamicResource RadioCampo}"
-                                Padding="{TemplateBinding Padding}">
-                            <ContentPresenter VerticalAlignment="Center" />
+
+                        <Border x:Name="Fondo"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="1"
+                                CornerRadius="{DynamicResource RadioTarjeta}"
+                                Padding="{TemplateBinding Padding}"
+                                SnapsToDevicePixels="True">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
                         </Border>
-                        <Border x:Name="FondoHover" Background="{DynamicResource PincelTarjetaHover}"
-                                CornerRadius="{DynamicResource RadioCampo}" Opacity="0"
+
+                        <!-- Se anima la Opacity de esta capa y no el Brush del fondo: animar un
+                             Brush lo congela y rompe el cambio de tema claro/oscuro. -->
+                        <Border x:Name="Realce" Background="{DynamicResource PincelTarjetaHover}"
+                                BorderBrush="{DynamicResource PincelMarca}" BorderThickness="1"
+                                CornerRadius="{DynamicResource RadioTarjeta}" Opacity="0"
                                 IsHitTestVisible="False" />
-                        <!-- Marcador de pagina activa: barra a la izquierda. Es la unica
-                             pista posicional del shell, por eso no se pinta en hover. -->
-                        <Border x:Name="Marca" Width="3" Height="18" HorizontalAlignment="Left"
-                                CornerRadius="2" Background="{DynamicResource PincelMarca}"
-                                Visibility="Collapsed" />
                     </Grid>
+
                     <ControlTemplate.Triggers>
                         <MultiTrigger>
                             <MultiTrigger.Conditions>
                                 <Condition Property="IsMouseOver" Value="True" />
                                 <Condition Property="IsEnabled" Value="True" />
-                                <!-- US-011 / NFR-47: no dispara con "reducir movimiento" del SO activo. -->
                                 <Condition Property="comportamientos:Animaciones.MovimientoReducido" Value="False" />
                             </MultiTrigger.Conditions>
                             <MultiTrigger.EnterActions>
                                 <BeginStoryboard>
                                     <Storyboard>
-                                        <DoubleAnimation Storyboard.TargetName="FondoHover" Storyboard.TargetProperty="Opacity"
+                                        <DoubleAnimation Storyboard.TargetName="Realce" Storyboard.TargetProperty="Opacity"
+                                                         To="1" Duration="{StaticResource DuracionHover}"
+                                                         EasingFunction="{StaticResource SuavizadoSalida}" />
+                                        <DoubleAnimation Storyboard.TargetName="Elevacion" Storyboard.TargetProperty="Y"
+                                                         To="-2" Duration="{StaticResource DuracionHover}"
+                                                         EasingFunction="{StaticResource SuavizadoSalida}" />
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </MultiTrigger.EnterActions>
+                            <MultiTrigger.ExitActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="Realce" Storyboard.TargetProperty="Opacity"
+                                                         To="0" Duration="{StaticResource DuracionHover}"
+                                                         EasingFunction="{StaticResource SuavizadoSalida}" />
+                                        <DoubleAnimation Storyboard.TargetName="Elevacion" Storyboard.TargetProperty="Y"
+                                                         To="0" Duration="{StaticResource DuracionHover}"
+                                                         EasingFunction="{StaticResource SuavizadoSalida}" />
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </MultiTrigger.ExitActions>
+                        </MultiTrigger>
+
+                        <!-- Con "reducir movimiento" el hover sigue existiendo, pero como un
+                             cambio de estado directo: la tarjeta se resalta sin desplazarse. -->
+                        <MultiTrigger>
+                            <MultiTrigger.Conditions>
+                                <Condition Property="IsMouseOver" Value="True" />
+                                <Condition Property="IsEnabled" Value="True" />
+                                <Condition Property="comportamientos:Animaciones.MovimientoReducido" Value="True" />
+                            </MultiTrigger.Conditions>
+                            <Setter TargetName="Realce" Property="Opacity" Value="1" />
+                        </MultiTrigger>
+
+                        <MultiTrigger>
+                            <MultiTrigger.Conditions>
+                                <Condition Property="IsPressed" Value="True" />
+                                <Condition Property="IsEnabled" Value="True" />
+                                <Condition Property="comportamientos:Animaciones.MovimientoReducido" Value="False" />
+                            </MultiTrigger.Conditions>
+                            <MultiTrigger.EnterActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="Elevacion" Storyboard.TargetProperty="Y"
+                                                         To="1" Duration="{StaticResource DuracionPresion}"
+                                                         EasingFunction="{StaticResource SuavizadoSalida}" />
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </MultiTrigger.EnterActions>
+                            <MultiTrigger.ExitActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="Elevacion" Storyboard.TargetProperty="Y"
+                                                         To="-2" Duration="{StaticResource DuracionPresion}"
+                                                         EasingFunction="{StaticResource SuavizadoSalida}" />
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </MultiTrigger.ExitActions>
+                        </MultiTrigger>
+
+                        <Trigger Property="IsKeyboardFocused" Value="True">
+                            <Setter TargetName="Fondo" Property="BorderBrush" Value="{DynamicResource PincelMarcaFuerte}" />
+                            <Setter TargetName="Fondo" Property="BorderThickness" Value="2" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- ==============================================================
+         Fila del resumen de actividad reciente del menu (US-031).
+
+         Es un boton y no un Border con un gesto de click encima porque tiene que
+         llegar por teclado y anunciarse como algo que se puede activar: es la unica
+         forma de que "ultimo examen: 8/10" lleve al Historial sin mouse.
+
+         Deliberadamente discreta: RN-37 dice que el resumen es de solo lectura y que
+         a lo sumo navega. Si se viera como las cuatro tarjetas de accion, competiria
+         con ellas por el primer click, que es justo lo contrario de lo que el menu
+         tiene que lograr.
+
+         Sin escala en el hover (US-029) y con la guarda de "reducir movimiento" en el
+         pulsado (RN-33), igual que los otros templates.
+         ============================================================== -->
+    <Style x:Key="FilaDeActividad" TargetType="Button">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="Padding" Value="10,9" />
+        <Setter Property="Margin" Value="0,4,0,0" />
+        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Grid>
+                        <Border x:Name="Fondo" Background="{TemplateBinding Background}"
+                                CornerRadius="{DynamicResource RadioCampo}"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter />
+                        </Border>
+
+                        <Border x:Name="Realce" Background="{DynamicResource PincelTarjetaHover}"
+                                CornerRadius="{DynamicResource RadioCampo}" Opacity="0"
+                                IsHitTestVisible="False" />
+                    </Grid>
+
+                    <ControlTemplate.Triggers>
+                        <MultiTrigger>
+                            <MultiTrigger.Conditions>
+                                <Condition Property="IsMouseOver" Value="True" />
+                                <Condition Property="IsEnabled" Value="True" />
+                                <Condition Property="comportamientos:Animaciones.MovimientoReducido" Value="False" />
+                            </MultiTrigger.Conditions>
+                            <MultiTrigger.EnterActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="Realce" Storyboard.TargetProperty="Opacity"
                                                          To="1" Duration="{StaticResource DuracionHover}"
                                                          EasingFunction="{StaticResource SuavizadoSalida}" />
                                     </Storyboard>
@@ -615,54 +869,27 @@
                             <MultiTrigger.ExitActions>
                                 <BeginStoryboard>
                                     <Storyboard>
-                                        <DoubleAnimation Storyboard.TargetName="FondoHover" Storyboard.TargetProperty="Opacity"
+                                        <DoubleAnimation Storyboard.TargetName="Realce" Storyboard.TargetProperty="Opacity"
                                                          To="0" Duration="{StaticResource DuracionHover}"
                                                          EasingFunction="{StaticResource SuavizadoSalida}" />
                                     </Storyboard>
                                 </BeginStoryboard>
                             </MultiTrigger.ExitActions>
                         </MultiTrigger>
+
                         <MultiTrigger>
                             <MultiTrigger.Conditions>
-                                <Condition Property="IsPressed" Value="True" />
+                                <Condition Property="IsMouseOver" Value="True" />
                                 <Condition Property="IsEnabled" Value="True" />
+                                <Condition Property="comportamientos:Animaciones.MovimientoReducido" Value="True" />
                             </MultiTrigger.Conditions>
-                            <MultiTrigger.EnterActions>
-                                <BeginStoryboard>
-                                    <Storyboard>
-                                        <DoubleAnimation Storyboard.TargetName="Escala" Storyboard.TargetProperty="ScaleX"
-                                                         To="0.97" Duration="{StaticResource DuracionPresion}"
-                                                         EasingFunction="{StaticResource SuavizadoSalida}" />
-                                        <DoubleAnimation Storyboard.TargetName="Escala" Storyboard.TargetProperty="ScaleY"
-                                                         To="0.97" Duration="{StaticResource DuracionPresion}"
-                                                         EasingFunction="{StaticResource SuavizadoSalida}" />
-                                    </Storyboard>
-                                </BeginStoryboard>
-                            </MultiTrigger.EnterActions>
-                            <MultiTrigger.ExitActions>
-                                <BeginStoryboard>
-                                    <Storyboard>
-                                        <DoubleAnimation Storyboard.TargetName="Escala" Storyboard.TargetProperty="ScaleX"
-                                                         To="1" Duration="{StaticResource DuracionPresion}"
-                                                         EasingFunction="{StaticResource SuavizadoSalida}" />
-                                        <DoubleAnimation Storyboard.TargetName="Escala" Storyboard.TargetProperty="ScaleY"
-                                                         To="1" Duration="{StaticResource DuracionPresion}"
-                                                         EasingFunction="{StaticResource SuavizadoSalida}" />
-                                    </Storyboard>
-                                </BeginStoryboard>
-                            </MultiTrigger.ExitActions>
+                            <Setter TargetName="Realce" Property="Opacity" Value="1" />
                         </MultiTrigger>
-                        <Trigger Property="IsChecked" Value="True">
-                            <Setter TargetName="Fondo" Property="Background" Value="{DynamicResource PincelMarcaSuave}" />
-                            <Setter TargetName="Marca" Property="Visibility" Value="Visible" />
-                            <Setter Property="Foreground" Value="{DynamicResource PincelTexto}" />
-                            <Setter Property="FontWeight" Value="SemiBold" />
-                        </Trigger>
+
                         <Trigger Property="IsKeyboardFocused" Value="True">
-                            <Setter TargetName="Fondo" Property="Background" Value="{DynamicResource PincelTarjetaHover}" />
-                        </Trigger>
-                        <Trigger Property="IsEnabled" Value="False">
-                            <Setter Property="Opacity" Value="0.35" />
+                            <Setter TargetName="Fondo" Property="BorderBrush" Value="{DynamicResource PincelMarcaFuerte}" />
+                            <Setter TargetName="Fondo" Property="BorderThickness" Value="2" />
+                            <Setter TargetName="Fondo" Property="Padding" Value="8,7" />
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
@@ -754,15 +981,19 @@
                             <MultiTrigger.Conditions>
                                 <Condition Property="comportamientos:Presionable.EstaPresionado" Value="True" />
                                 <Condition Property="IsEnabled" Value="True" />
+                                <!-- US-029 / RN-33: el pulsado tampoco se anima con "reducir movimiento" del SO.
+                                     Esta condicion faltaba solo en el pulsado: el resto de la app ya respetaba la
+                                     preferencia, pero el boton seguia dando el saltito igual. -->
+                                <Condition Property="comportamientos:Animaciones.MovimientoReducido" Value="False" />
                             </MultiTrigger.Conditions>
                             <MultiTrigger.EnterActions>
                                 <BeginStoryboard>
                                     <Storyboard>
                                         <DoubleAnimation Storyboard.TargetName="Escala" Storyboard.TargetProperty="ScaleX"
-                                                         To="0.97" Duration="{StaticResource DuracionPresion}"
+                                                         To="0.985" Duration="{StaticResource DuracionPresion}"
                                                          EasingFunction="{StaticResource SuavizadoSalida}" />
                                         <DoubleAnimation Storyboard.TargetName="Escala" Storyboard.TargetProperty="ScaleY"
-                                                         To="0.97" Duration="{StaticResource DuracionPresion}"
+                                                         To="0.985" Duration="{StaticResource DuracionPresion}"
                                                          EasingFunction="{StaticResource SuavizadoSalida}" />
                                     </Storyboard>
                                 </BeginStoryboard>
@@ -855,15 +1086,19 @@
                             <MultiTrigger.Conditions>
                                 <Condition Property="IsPressed" Value="True" />
                                 <Condition Property="IsEnabled" Value="True" />
+                                <!-- US-029 / RN-33: el pulsado tampoco se anima con "reducir movimiento" del SO.
+                                     Esta condicion faltaba solo en el pulsado: el resto de la app ya respetaba la
+                                     preferencia, pero el boton seguia dando el saltito igual. -->
+                                <Condition Property="comportamientos:Animaciones.MovimientoReducido" Value="False" />
                             </MultiTrigger.Conditions>
                             <MultiTrigger.EnterActions>
                                 <BeginStoryboard>
                                     <Storyboard>
                                         <DoubleAnimation Storyboard.TargetName="Escala" Storyboard.TargetProperty="ScaleX"
-                                                         To="0.97" Duration="{StaticResource DuracionPresion}"
+                                                         To="0.985" Duration="{StaticResource DuracionPresion}"
                                                          EasingFunction="{StaticResource SuavizadoSalida}" />
                                         <DoubleAnimation Storyboard.TargetName="Escala" Storyboard.TargetProperty="ScaleY"
-                                                         To="0.97" Duration="{StaticResource DuracionPresion}"
+                                                         To="0.985" Duration="{StaticResource DuracionPresion}"
                                                          EasingFunction="{StaticResource SuavizadoSalida}" />
                                     </Storyboard>
                                 </BeginStoryboard>

@@ -24,6 +24,16 @@ public class ExamenEnCurso : ObservableBase
     /// <summary>0 = intento original. 1, 2, 3... = rondas de revancha.</summary>
     public int Ronda { get; set; }
 
+    /// <summary>
+    /// True si este examen se armo mezclando preguntas de intentos anteriores (US-026) en
+    /// vez de generarse desde material con IA. Viaja hasta el registro del historial para
+    /// que el repaso quede identificado como tal y no se lo pueda usar como fuente de otro.
+    /// </summary>
+    public bool EsRepaso { get; set; }
+
+    /// <summary>Titulos de los examenes que alimentaron este repaso, en el orden elegido.</summary>
+    public List<string> ExamenesDeOrigen { get; set; } = new();
+
     /// <summary>Registro persistido del intento original; las revanchas lo van actualizando.</summary>
     public ExamenRendido? Registro { get; set; }
 

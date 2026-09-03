@@ -201,7 +201,15 @@ public class AsistenteViewModelAlcancePorTipoTests
             ArchivoFuenteHelper.RutaFuente("AutoExam/ViewModels/AsistenteViewModel.cs"));
 
         // recorte.Paginas = null cuando no es PDF (AC-T47 en el camino real).
-        Assert.Matches(new Regex(@"Paginas\s*=\s*esPdf\s*\?\s*rangos\s*:\s*null"), fuente);
+        //
+        // Desde US-024 la condicion se evalua POR DOCUMENTO y no una vez para toda la
+        // generacion: un examen puede combinar un PDF con un .docx, y el rango de paginas
+        // solo tiene sentido para el primero. La regla que este test protege no cambio —lo
+        // que no es PDF nunca lleva paginas—, cambio de "esPdf" (la fuente unica) a
+        // "doc.Tipo" (el documento que se esta extrayendo en esa vuelta).
+        Assert.Matches(
+            new Regex(@"Paginas\s*=\s*doc\.Tipo\s*==\s*TipoFuente\.Pdf\s*\?\s*ConstruirRangos\(\s*doc\s*,\s*out\s+_\s*\)\s*:\s*null"),
+            fuente);
 
         // El set de imágenes toma su límite de AppConfig.MaxImagenesPorMaterial antes de extraer (NFR-43).
         Assert.Matches(

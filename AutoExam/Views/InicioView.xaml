@@ -1,0 +1,164 @@
+<UserControl x:Class="AutoExam.Views.InicioView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+             xmlns:vm="clr-namespace:AutoExam.ViewModels"
+             mc:Ignorable="d"
+             d:DataContext="{d:DesignInstance Type=vm:InicioViewModel}">
+
+    <!--
+        US-030 / US-031 — menu principal.
+
+        Reemplaza la barra lateral que estaba pegada al borde izquierdo por una grilla de
+        cuatro tarjetas centrada, con el icono grande arriba y el texto abajo. Desde US-031
+        cada tarjeta es una accion, no una seccion (el porque esta en ShellViewModel, donde
+        se arman), y debajo va el resumen de lo ultimo que se rindio.
+
+        El ancho maximo y el centrado son los mismos que usa el resto de la app (US-017 /
+        RN-13 / RN-35): la grilla crece con la ventana hasta 940 px y despues queda centrada
+        con aire a los costados, en vez de estirar cuatro tarjetas gigantes en un monitor
+        ancho. En una ventana chica el UniformGrid mantiene las dos columnas y las tarjetas
+        se angostan, que sigue siendo usable sin scroll horizontal.
+
+        El MinHeight atado al alto visible del ScrollViewer es lo que centra el bloque a lo
+        alto cuando sobra espacio (US-030). Sin el, VerticalAlignment="Center" no hace nada:
+        un ScrollViewer mide su contenido con alto infinito, asi que el Grid termina midiendo
+        exactamente lo que ocupa y no le queda espacio sobrante que repartir.
+    -->
+    <ScrollViewer x:Name="Area" VerticalScrollBarVisibility="Auto"
+                  HorizontalScrollBarVisibility="Disabled">
+        <Grid MinHeight="{Binding ViewportHeight, ElementName=Area}">
+            <Grid MaxWidth="940" HorizontalAlignment="Center" Margin="0,10,14,20"
+                  VerticalAlignment="Center">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <StackPanel Grid.Row="0" Margin="6,0,6,26" HorizontalAlignment="Center">
+                    <TextBlock Text="{Binding Saludo}" Style="{StaticResource TxtTitulo}"
+                               HorizontalAlignment="Center" />
+                    <TextBlock Text="{Binding Bajada}" Style="{StaticResource TxtSuave}"
+                               HorizontalAlignment="Center" TextAlignment="Center"
+                               Margin="0,6,0,0" MaxWidth="520" />
+                </StackPanel>
+
+                <!-- ============================================================ -->
+                <!-- Las cuatro acciones                                           -->
+                <!-- ============================================================ -->
+                <ItemsControl Grid.Row="1" ItemsSource="{Binding Accesos}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <UniformGrid Columns="2" />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate DataType="{x:Type vm:AccesoDeInicio}">
+                            <!-- El estilo TarjetaAcceso vive en Theme/Estilos.xaml junto al
+                                 resto de los templates animados: el hover y el pulsado usan
+                                 los mismos parametros centralizados que todo lo demas
+                                 (RN-33). El comando lo trae cada acceso, asi que la vista no
+                                 conoce ninguna pagina. -->
+                            <Button Style="{StaticResource TarjetaAcceso}"
+                                    AutomationProperties.Name="{Binding Titulo}"
+                                    Command="{Binding Comando}">
+                                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                                    <ui:SymbolIcon Symbol="{Binding Icono}" FontSize="34"
+                                                   HorizontalAlignment="Center"
+                                                   Foreground="{DynamicResource PincelMarca}" />
+
+                                    <TextBlock Text="{Binding Titulo}" Style="{StaticResource TxtSeccion}"
+                                               HorizontalAlignment="Center" Margin="0,16,0,0" />
+
+                                    <TextBlock Text="{Binding Descripcion}" Style="{StaticResource TxtTenue}"
+                                               HorizontalAlignment="Center" TextAlignment="Center"
+                                               Margin="0,8,0,0" MaxWidth="280" />
+
+                                    <!-- Dato vivo de la seccion relacionada. Solo aparece
+                                         cuando hay algo que contar: "0 libros" no informa,
+                                         ocupa. -->
+                                    <Border Margin="0,14,0,0" Padding="10,3" HorizontalAlignment="Center"
+                                            CornerRadius="{DynamicResource RadioChip}"
+                                            Background="{DynamicResource PincelMarcaSuave}"
+                                            Visibility="{Binding Insignia, Converter={StaticResource TextoAVisibilidad}}">
+                                        <TextBlock Text="{Binding Insignia}" Style="{StaticResource TxtDato}"
+                                                   FontSize="11"
+                                                   Foreground="{DynamicResource PincelMarcaFuerte}" />
+                                    </Border>
+                                </StackPanel>
+                            </Button>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+
+                <!-- ============================================================ -->
+                <!-- US-031 — actividad reciente                                   -->
+                <!--                                                               -->
+                <!-- De solo lectura (RN-37): cada linea lleva al Historial y nada  -->
+                <!-- mas. La franja usa el nivel de profundidad mas bajo de la      -->
+                <!-- jerarquia de US-030 porque no compite con las acciones: esta   -->
+                <!-- para informar, no para que se la toque primero.                -->
+                <!-- ============================================================ -->
+                <Border Grid.Row="2" Style="{StaticResource TarjetaSeleccionable}" Margin="6,24,6,0"
+                        Padding="20,16">
+                    <StackPanel>
+                        <TextBlock Text="LO ULTIMO QUE RENDISTE" Style="{StaticResource TxtRotulo}" />
+
+                        <ItemsControl ItemsSource="{Binding Actividad}"
+                                      Visibility="{Binding HayActividad, Converter={StaticResource BoolToVis}}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate DataType="{x:Type vm:ActividadReciente}">
+                                    <Button Style="{StaticResource FilaDeActividad}"
+                                            AutomationProperties.Name="{Binding Accesible}"
+                                            ToolTip="Ver este examen en el Historial"
+                                            Command="{Binding DataContext.AtajoVerHistorialCommand,
+                                                      RelativeSource={RelativeSource AncestorType=Window}}">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+
+                                            <!-- Franja de la materia: el mismo color que ya
+                                                 identifica a esa materia en Historial y en
+                                                 Biblioteca (US-027 / RN-34). -->
+                                            <Border Grid.Column="0" Width="4" CornerRadius="2"
+                                                    Margin="0,0,12,0"
+                                                    Background="{Binding ColorMateria,
+                                                                 Converter={StaticResource ColorMateria}}" />
+
+                                            <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                                <TextBlock Text="{Binding Titulo}" Style="{StaticResource TxtCuerpo}"
+                                                           TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" />
+                                                <TextBlock Text="{Binding Detalle}" Style="{StaticResource TxtTenue}" />
+                                            </StackPanel>
+
+                                            <TextBlock Grid.Column="2" Text="{Binding Nota}"
+                                                       Style="{StaticResource TxtDato}" FontSize="20"
+                                                       FontWeight="Bold" VerticalAlignment="Center"
+                                                       Margin="12,0,0,0"
+                                                       Foreground="{Binding Aprobado,
+                                                                    Converter={StaticResource AprobadoAPincel}}" />
+                                        </Grid>
+                                    </Button>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <!-- Sin actividad todavia: el criterio pide invitar a la primera
+                             accion en vez de dejar la franja vacia, que se lee como algo
+                             roto y no como "todavia no empezaste". -->
+                        <TextBlock Text="{Binding Invitacion}" Style="{StaticResource TxtSuave}"
+                                   TextWrapping="Wrap" Margin="0,2,0,2"
+                                   Visibility="{Binding HaySinActividad, Converter={StaticResource BoolToVis}}" />
+                    </StackPanel>
+                </Border>
+            </Grid>
+        </Grid>
+    </ScrollViewer>
+</UserControl>
