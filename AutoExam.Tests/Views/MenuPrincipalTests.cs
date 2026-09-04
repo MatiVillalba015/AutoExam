@@ -106,7 +106,10 @@ public class MenuPrincipalTests
 
         string cuerpo = asistente.Substring(inicio, 220);
 
-        Assert.Contains("ModoRepaso = false", cuerpo, StringComparison.Ordinal);
+        // Desde US-032/US-037 el asistente tiene cuatro origenes de preguntas y el modo dejo
+        // de ser un bool, pero la garantia es la misma: el atajo del menu deja el asistente en
+        // material propio y en el primer paso.
+        Assert.Contains("Origen = OrigenPreguntas.Material", cuerpo, StringComparison.Ordinal);
         Assert.Contains("Paso = PrimerPaso", cuerpo, StringComparison.Ordinal);
     }
 

@@ -182,10 +182,43 @@
                 </StackPanel>
             </Button>
 
+            <!-- ============================================================ -->
+            <!-- US-035 — buscador. Filtra la misma vista agrupada, asi que    -->
+            <!-- buscar no aplana la lista: los resultados siguen saliendo     -->
+            <!-- ordenados y agrupados por materia.                            -->
+            <!-- ============================================================ -->
+            <Grid Grid.Row="2" VerticalAlignment="Top" Margin="0,0,0,12">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <ui:TextBox Grid.Column="0" Text="{Binding Filtro, UpdateSourceTrigger=PropertyChanged}"
+                            PlaceholderText="Buscar por titulo, materia o archivo..."
+                            Icon="{ui:SymbolIcon Search24}"
+                            AutomationProperties.Name="Buscar en la biblioteca" />
+
+                <Button Grid.Column="1" Content="Limpiar" Style="{StaticResource ChipAccion}"
+                        Margin="8,0,0,0" VerticalAlignment="Center"
+                        ToolTip="Borra la busqueda y vuelve a mostrar todo el material"
+                        Command="{Binding LimpiarFiltroCommand}"
+                        Visibility="{Binding Filtro, Converter={StaticResource TextoAVisibilidad}}" />
+            </Grid>
+
+            <StackPanel Grid.Row="2" VerticalAlignment="Center" HorizontalAlignment="Center" MaxWidth="320"
+                        Visibility="{Binding SinResultados, Converter={StaticResource BoolToVis}}">
+                <ui:SymbolIcon Symbol="Search24" FontSize="28" HorizontalAlignment="Center"
+                               Foreground="{DynamicResource PincelTextoTenue}" />
+                <TextBlock Text="{Binding AvisoSinResultados}" Style="{StaticResource TxtCuerpo}"
+                           HorizontalAlignment="Center" TextAlignment="Center" Margin="0,14,0,4" />
+                <TextBlock Text="Probá con otra palabra, o limpiá la búsqueda para ver todo."
+                           Style="{StaticResource TxtTenue}" TextAlignment="Center" />
+            </StackPanel>
+
             <!-- US-023: la lista va agrupada por materia, no como una tira plana. La vista
                  agrupada la arma el ViewModel (LibrosPorMateria) con agrupacion "en vivo",
                  asi que reasignar un libro lo mueve de grupo sin rearmar la lista. -->
-            <ListBox Grid.Row="2" ItemsSource="{Binding LibrosPorMateria}"
+            <ListBox Grid.Row="2" ItemsSource="{Binding LibrosPorMateria}" Margin="0,52,0,0"
                      SelectedItem="{Binding LibroSeleccionado, Mode=TwoWay}"
                      ItemContainerStyle="{StaticResource ItemLibro}"
                      Background="Transparent" BorderThickness="0"

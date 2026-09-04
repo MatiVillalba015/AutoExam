@@ -8,7 +8,8 @@
              xmlns:vm="clr-namespace:AutoExam.ViewModels"
              xmlns:comportamientos="clr-namespace:AutoExam.Behaviors"
              mc:Ignorable="d"
-             d:DataContext="{d:DesignInstance Type=vm:ExamenViewModel}">
+             d:DataContext="{d:DesignInstance Type=vm:ExamenViewModel}"
+             comportamientos:AtajosDeExamen.Activos="True">
 
     <!--
         Atajos del examen. Van como InputBindings y no como manejadores de teclado:
@@ -21,25 +22,17 @@
         Los InputBindings igual funcionan, porque se buscan desde el elemento con
         foco hacia arriba y el foco queda en un descendiente de esta vista.
     -->
-    <UserControl.InputBindings>
-        <KeyBinding Key="D1" Command="{Binding ResponderCommand}" CommandParameter="0" />
-        <KeyBinding Key="D2" Command="{Binding ResponderCommand}" CommandParameter="1" />
-        <KeyBinding Key="D3" Command="{Binding ResponderCommand}" CommandParameter="2" />
-        <KeyBinding Key="D4" Command="{Binding ResponderCommand}" CommandParameter="3" />
-        <KeyBinding Key="NumPad1" Command="{Binding ResponderCommand}" CommandParameter="0" />
-        <KeyBinding Key="NumPad2" Command="{Binding ResponderCommand}" CommandParameter="1" />
-        <KeyBinding Key="NumPad3" Command="{Binding ResponderCommand}" CommandParameter="2" />
-        <KeyBinding Key="NumPad4" Command="{Binding ResponderCommand}" CommandParameter="3" />
-        <KeyBinding Key="A" Command="{Binding ResponderCommand}" CommandParameter="0" />
-        <KeyBinding Key="B" Command="{Binding ResponderCommand}" CommandParameter="1" />
-        <KeyBinding Key="C" Command="{Binding ResponderCommand}" CommandParameter="2" />
-        <KeyBinding Key="D" Command="{Binding ResponderCommand}" CommandParameter="3" />
-        <KeyBinding Key="Right" Command="{Binding SiguienteCommand}" />
-        <KeyBinding Key="Enter" Command="{Binding SiguienteCommand}" />
-        <KeyBinding Key="Left" Command="{Binding AnteriorCommand}" />
-        <KeyBinding Key="S" Command="{Binding SaltearCommand}" />
-    </UserControl.InputBindings>
+    <!--
+        US-036 / RN-44 — los atajos ya no viven aca.
 
+        Hasta ahora eran dieciseis KeyBinding escritos a mano en este archivo. RN-44 pide un
+        mapeo centralizado, asi que las teclas se declaran en Models/AtajosExamen.cs y este
+        comportamiento las aplica. Dos cosas mejoran con el cambio, ademas de la regla:
+        la referencia que se le muestra al alumno se arma de la misma lista (no puede mentir),
+        y los atajos dejan de dispararse cuando hay un campo de texto con foco — un KeyBinding
+        se resuelve antes de que el control con foco vea la tecla, asi que desde ahi no habia
+        forma de dejarla pasar.
+    -->
     <Grid>
 
         <!-- ============================================================ -->
@@ -104,9 +97,32 @@
                 </StackPanel>
 
                 <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="0,0,14,0">
-                    <TextBlock Text="{Binding Cronometro}" Style="{StaticResource TxtDato}"
-                               FontSize="19" Foreground="{DynamicResource PincelTexto}"
-                               HorizontalAlignment="Right" />
+                    <!--
+                        US-034 — el mismo lugar muestra dos cosas distintas: cuanto llevas
+                        (modo de siempre) o cuanto te queda (modo cronometro). Se pinta de
+                        error en los ultimos dos minutos, que es el aviso que pide el criterio.
+                        Un dialogo a dos minutos del final robaria justamente el tiempo que
+                        queda.
+                    -->
+                    <TextBlock Text="{Binding Cronometro}"
+                               FontSize="19" HorizontalAlignment="Right">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock" BasedOn="{StaticResource TxtDato}">
+                                <Setter Property="Foreground" Value="{DynamicResource PincelTexto}" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding TiempoCritico}" Value="True">
+                                        <Setter Property="Foreground" Value="{DynamicResource PincelError}" />
+                                        <Setter Property="FontWeight" Value="Bold" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+
+                    <TextBlock Text="{Binding RotuloTiempo}" Style="{StaticResource TxtTenue}"
+                               HorizontalAlignment="Right" FontSize="10"
+                               Visibility="{Binding ConCronometro, Converter={StaticResource BoolToVis}}" />
+
                     <TextBlock Text="{Binding Contadores}" Style="{StaticResource TxtTenue}"
                                HorizontalAlignment="Right" />
                 </StackPanel>
@@ -154,6 +170,64 @@
                 cuanto falta de un vistazo, las baldosas dicen que quedo salteado.
             -->
             <StackPanel Grid.Row="1" Margin="0,0,0,12">
+                <!--
+                    US-036 — referencia de atajos, solo la primera vez que se entra a un
+                    examen. Discreta y descartable: una ayuda que reaparece siempre deja de
+                    leerse y pasa a estorbar, asi que el "Entendido" se recuerda entre
+                    reinicios (AppConfig.AtajosExamenVistos).
+
+                    Las filas salen de AtajosExamen.Referencia, la misma lista de la que la
+                    vista toma las teclas (RN-44): no puede quedar diciendo una tecla que ya
+                    no hace nada.
+                -->
+                <Border Style="{StaticResource TarjetaSeleccionable}" Padding="16,12" Margin="0,0,0,12"
+                        Visibility="{Binding MostrarAtajos, Converter={StaticResource BoolToVis}}">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <ui:SymbolIcon Grid.Column="0" Symbol="Keyboard24" FontSize="18"
+                                       VerticalAlignment="Center" Margin="0,0,14,0"
+                                       Foreground="{DynamicResource PincelMarca}" />
+
+                        <StackPanel Grid.Column="1">
+                            <TextBlock Text="Podés rendir con el teclado" Style="{StaticResource TxtCuerpo}"
+                                       FontWeight="SemiBold" Margin="0,0,0,6" />
+
+                            <ItemsControl ItemsSource="{Binding Atajos}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <WrapPanel Orientation="Horizontal" />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <StackPanel Orientation="Horizontal" Margin="0,0,22,4">
+                                            <Border Padding="7,2" Margin="0,0,7,0"
+                                                    CornerRadius="{DynamicResource RadioChip}"
+                                                    Background="{DynamicResource PincelMarcaSuave}">
+                                                <TextBlock Text="{Binding Teclas}" Style="{StaticResource TxtDato}"
+                                                           FontSize="11"
+                                                           Foreground="{DynamicResource PincelMarcaFuerte}" />
+                                            </Border>
+                                            <TextBlock Text="{Binding Que}" Style="{StaticResource TxtTenue}"
+                                                       VerticalAlignment="Center" />
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+
+                        <Button Grid.Column="2" Content="Entendido" Style="{StaticResource ChipAccion}"
+                                VerticalAlignment="Center" Margin="14,0,0,0"
+                                ToolTip="No volver a mostrar los atajos al empezar un examen"
+                                Command="{Binding OcultarAtajosCommand}" />
+                    </Grid>
+                </Border>
+
                 <Grid Margin="0,0,0,6">
                     <TextBlock Text="{Binding ProgresoTexto}" Style="{StaticResource TxtTenue}" />
                     <TextBlock Style="{StaticResource TxtDato}" FontSize="11" HorizontalAlignment="Right"
@@ -480,6 +554,13 @@
                                    Icon="{ui:SymbolIcon ArrowRepeatAll24}"
                                    Content="{Binding TextoRevancha}" Command="{Binding RevanchaCommand}"
                                    Visibility="{Binding HayPendientes, Converter={StaticResource BoolToVis}}" />
+                        <!-- US-037: compartir el examen recien rendido. El archivo lleva las
+                             preguntas y nada de este alumno: ni su nota ni que contesto (RN-45). -->
+                        <Button Content="Compartir este examen" Style="{StaticResource ChipAccion}"
+                                HorizontalAlignment="Center" Margin="0,0,0,8"
+                                Command="{Binding ExportarCommand}"
+                                ToolTip="Guarda un archivo para que otra persona rinda el mismo examen sin gastar su cuota de Gemini" />
+
                         <Button Content="Armar otro examen" Style="{StaticResource ChipAccion}" ToolTip="Vuelve al asistente para generar un examen nuevo"
                                 HorizontalAlignment="Center" Command="{Binding ArmarOtroCommand}" />
                     </StackPanel>

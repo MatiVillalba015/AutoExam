@@ -28,6 +28,35 @@ public partial class AjustesViewModel : PaginaViewModel
 
     public string CarpetaDatos => RutasApp.Raiz;
 
+    // ------------------------------------------------------------------
+    // US-040 — notas de version
+    // ------------------------------------------------------------------
+
+    /// <summary>
+    /// Todas las versiones con notas, de la mas nueva a la mas vieja. Salen del CHANGELOG.md
+    /// embebido en el ejecutable (RN-51): estan disponibles sin conexion, que es justo cuando
+    /// se las quiere leer — despues de que la app se actualizo sola.
+    /// </summary>
+    public IReadOnlyList<NotasDeUnaVersion> Versiones => NotasDeVersion.Todas;
+
+    [ObservableProperty]
+    private bool _mostrarNotas;
+
+    /// <summary>
+    /// True cuando la version instalada no tiene entrada en el archivo. El criterio pide
+    /// decirlo con claridad en vez de dejar la seccion vacia: pasa en un build de prueba
+    /// hecho entre dos releases, y una pantalla en blanco ahi se lee como una falla.
+    /// </summary>
+    public bool FaltanNotasDeEstaVersion => NotasDeVersion.FaltanLasDeLaInstalada;
+
+    public string AvisoSinNotas => NotasDeVersion.AvisoSinNotas;
+
+    /// <summary>Si hay al menos una version con notas para mostrar.</summary>
+    public bool HayNotas => Versiones.Count > 0;
+
+    [RelayCommand]
+    private void AlternarNotas() => MostrarNotas = !MostrarNotas;
+
     /// <summary>Version instalada, para saber contra que se compara el manifiesto de GitHub.</summary>
     public string VersionActual => ActualizacionService.VersionActual;
 

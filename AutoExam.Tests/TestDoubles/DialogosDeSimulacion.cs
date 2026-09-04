@@ -21,6 +21,14 @@ public class DialogosDeSimulacion : IDialogos
     /// <summary>Valor que devuelve <see cref="ElegirFuentes"/> (null = el usuario cancelo).</summary>
     public string[]? RutasFuentesAElegir { get; set; }
 
+    /// <summary>Valor que devuelve <see cref="ElegirExamenCompartido"/> (US-037).</summary>
+    public string? RutaExamenAImportar { get; set; }
+
+    /// <summary>Valor que devuelve <see cref="ElegirDondeGuardarExamen"/> (US-037).</summary>
+    public string? RutaDondeExportar { get; set; }
+
+    public List<string> NombresSugeridosParaExportar { get; } = new();
+
     public int LlamadasConfirmar { get; private set; }
     public int LlamadasAviso { get; private set; }
     public int LlamadasError { get; private set; }
@@ -51,6 +59,14 @@ public class DialogosDeSimulacion : IDialogos
     }
 
     public string[]? ElegirFuentes() => RutasFuentesAElegir;
+
+    public string? ElegirExamenCompartido() => RutaExamenAImportar;
+
+    public string? ElegirDondeGuardarExamen(string nombreSugerido)
+    {
+        NombresSugeridosParaExportar.Add(nombreSugerido);
+        return RutaDondeExportar;
+    }
 
     public void AbrirCarpeta(string ruta)
     {

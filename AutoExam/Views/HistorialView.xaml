@@ -5,6 +5,7 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
              xmlns:modelos="clr-namespace:AutoExam.Models"
+             xmlns:servicios="clr-namespace:AutoExam.Services"
              xmlns:vm="clr-namespace:AutoExam.ViewModels"
              xmlns:comportamientos="clr-namespace:AutoExam.Behaviors"
              mc:Ignorable="d"
@@ -101,7 +102,42 @@
             <TextBlock Text="{Binding Detalle}" Style="{StaticResource TxtTenue}" TextAlignment="Center" />
         </StackPanel>
 
-        <ListBox Grid.Row="2" ItemsSource="{Binding Examenes}" Background="Transparent" BorderThickness="0"
+        <!-- ============================================================ -->
+        <!-- US-035 — buscador. Filtra la lista, no las estadisticas de    -->
+        <!-- arriba: lo que se esconde sigue existiendo y sigue contando.  -->
+        <!-- ============================================================ -->
+        <Grid Grid.Row="2" VerticalAlignment="Top" Margin="0,0,14,12"
+              Visibility="{Binding HayExamenes, Converter={StaticResource BoolToVis}}">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+            <ui:TextBox Grid.Column="0" Text="{Binding Filtro, UpdateSourceTrigger=PropertyChanged}"
+                        PlaceholderText="Buscar por examen, materia o tema..."
+                        Icon="{ui:SymbolIcon Search24}"
+                        AutomationProperties.Name="Buscar en el historial" />
+
+            <Button Grid.Column="1" Content="Limpiar" Style="{StaticResource ChipAccion}"
+                    Margin="8,0,0,0" VerticalAlignment="Center"
+                    ToolTip="Borra la busqueda y vuelve a mostrar todos los examenes"
+                    Command="{Binding LimpiarFiltroCommand}"
+                    Visibility="{Binding Filtro, Converter={StaticResource TextoAVisibilidad}}" />
+        </Grid>
+
+        <!-- Busqueda sin resultados: se dice, no se deja una lista vacia sin explicacion. -->
+        <StackPanel Grid.Row="2" VerticalAlignment="Center" HorizontalAlignment="Center" MaxWidth="340"
+                    Visibility="{Binding SinResultados, Converter={StaticResource BoolToVis}}">
+            <ui:SymbolIcon Symbol="Search24" FontSize="28" HorizontalAlignment="Center"
+                           Foreground="{DynamicResource PincelTextoTenue}" />
+            <TextBlock Text="{Binding AvisoSinResultados}" Style="{StaticResource TxtCuerpo}"
+                       HorizontalAlignment="Center" TextAlignment="Center" Margin="0,14,0,4" />
+            <TextBlock Text="Probá con otra palabra, o limpiá la búsqueda para ver todo."
+                       Style="{StaticResource TxtTenue}" TextAlignment="Center" />
+        </StackPanel>
+
+        <ListBox Grid.Row="2" ItemsSource="{Binding ExamenesFiltrados}" Background="Transparent"
+                 BorderThickness="0" Margin="0,52,0,0"
                  ItemContainerStyle="{StaticResource ItemLibro}"
                  ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                  AutomationProperties.Name="Examenes rendidos"
@@ -226,7 +262,177 @@
         <!-- Se esconde entero cuando no hay al menos dos examenes que puedan   -->
         <!-- aportar preguntas, para no ofrecer algo inerte.                     -->
         <!-- ================================================================ -->
-        <StackPanel Grid.Row="3">
+        <!--
+            Las secciones de abajo van adentro de un ScrollViewer con tope de alto.
+
+            Sin el tope, abrir el grafico de evolucion (US-033) le come TODO el alto a la
+            fila de la lista —que es la fila estrella del Grid— y los examenes rendidos
+            desaparecen de la pantalla. Con el tope, el bloque de abajo crece hasta donde
+            puede y despues scrollea solo, y la lista siempre conserva su lugar.
+        -->
+        <ScrollViewer Grid.Row="3" MaxHeight="380" VerticalScrollBarVisibility="Auto"
+                      HorizontalScrollBarVisibility="Disabled">
+        <StackPanel>
+
+        <!-- ============================================================ -->
+        <!-- US-033 — evolucion de notas por materia                       -->
+        <!--                                                               -->
+        <!-- RN-42: sale entero de lo que ExamenRendido ya guarda (fecha,   -->
+        <!-- nota, materia), sin persistir nada nuevo. Por eso funciona     -->
+        <!-- tambien con examenes viejos que no tienen detalle de preguntas.-->
+        <!-- ============================================================ -->
+        <ui:CardExpander Margin="0,16,14,0" IsExpanded="False"
+                         Visibility="{Binding HayMateriasParaGraficar, Converter={StaticResource BoolToVis}}">
+            <ui:CardExpander.Header>
+                <TextBlock Text="Mi evolución por materia" Style="{StaticResource TxtCuerpo}"
+                           FontWeight="SemiBold" />
+            </ui:CardExpander.Header>
+
+            <StackPanel Margin="0,8,0,0">
+                <!-- Elegir materia: el criterio pide poder ver una puntual, no todo mezclado. -->
+                <ItemsControl ItemsSource="{Binding MateriasConExamenes}" Margin="0,0,0,14">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <WrapPanel />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <RadioButton Style="{StaticResource Chip}" GroupName="MateriaEvolucion"
+                                         Content="{Binding}"
+                                         AutomationProperties.Name="{Binding}"
+                                         Command="{Binding DataContext.VerEvolucionDeCommand,
+                                                   RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                         CommandParameter="{Binding}">
+                                <RadioButton.IsChecked>
+                                    <MultiBinding Converter="{StaticResource SonIguales}" Mode="OneWay">
+                                        <Binding Path="." />
+                                        <Binding Path="DataContext.MateriaEnEvolucion"
+                                                 RelativeSource="{RelativeSource AncestorType=ItemsControl}" />
+                                    </MultiBinding>
+                                </RadioButton.IsChecked>
+                            </RadioButton>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+
+                <!-- Menos de dos intentos: se explica en vez de dibujar una linea de un punto. -->
+                <TextBlock Text="{Binding Evolucion.Aviso}" Style="{StaticResource TxtSuave}"
+                           TextWrapping="Wrap" Margin="0,0,0,8"
+                           Visibility="{Binding Evolucion.Aviso, Converter={StaticResource TextoAVisibilidad}}" />
+
+                <StackPanel Visibility="{Binding Evolucion.SePuedeGraficar, Converter={StaticResource BoolToVis}}">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+
+                        <!-- Eje: 10 arriba, 1 abajo. Es fijo y no se autoajusta al rango de la
+                             serie: con un eje que se acomoda, pasar de 7 a 8 se ve igual de
+                             dramatico que pasar de 2 a 9 y el grafico termina mintiendo. -->
+                        <Grid Grid.Column="0" Margin="0,0,10,0" Height="170">
+                            <TextBlock Text="10" Style="{StaticResource TxtTenue}" VerticalAlignment="Top" />
+                            <TextBlock Text="1" Style="{StaticResource TxtTenue}" VerticalAlignment="Bottom" />
+                        </Grid>
+
+                        <!-- El padding de 9 no es decorativo: el primer y el ultimo marcador
+                             caen justo sobre los bordes del lienzo, y con menos aire (o con
+                             ClipToBounds) quedan cortados a la mitad. -->
+                        <Border Grid.Column="1" Height="170" Padding="9"
+                                Background="{DynamicResource PincelSuperficie}"
+                                BorderBrush="{DynamicResource PincelBorde}" BorderThickness="1"
+                                CornerRadius="{DynamicResource RadioCampo}">
+                            <Canvas x:Name="Lienzo">
+                                <!-- Linea de aprobacion (nota 4, RN-1): sin ella la linea de
+                                     notas no dice si un intento aprobo o no. -->
+                                <Line X1="0" X2="{Binding ActualWidth, ElementName=Lienzo}"
+                                      Stroke="{DynamicResource PincelBordeFuerte}" StrokeThickness="1"
+                                      StrokeDashArray="4 4">
+                                    <Line.Y1>
+                                        <MultiBinding Converter="{StaticResource FraccionAPixel}"
+                                                      ConverterParameter="invertir">
+                                            <Binding Path="Evolucion.AlturaAprobacion" />
+                                            <Binding Path="ActualHeight" ElementName="Lienzo" />
+                                        </MultiBinding>
+                                    </Line.Y1>
+                                    <Line.Y2>
+                                        <MultiBinding Converter="{StaticResource FraccionAPixel}"
+                                                      ConverterParameter="invertir">
+                                            <Binding Path="Evolucion.AlturaAprobacion" />
+                                            <Binding Path="ActualHeight" ElementName="Lienzo" />
+                                        </MultiBinding>
+                                    </Line.Y2>
+                                </Line>
+
+                                <!-- La linea de notas, en el color de la materia (US-027). -->
+                                <Polyline StrokeThickness="2" StrokeLineJoin="Round"
+                                          Stroke="{Binding ColorDeLaMateria, Converter={StaticResource ColorMateria}}">
+                                    <Polyline.Points>
+                                        <MultiBinding Converter="{StaticResource EvolucionAPolilinea}">
+                                            <Binding Path="Evolucion" />
+                                            <Binding Path="ActualWidth" ElementName="Lienzo" />
+                                            <Binding Path="ActualHeight" ElementName="Lienzo" />
+                                        </MultiBinding>
+                                    </Polyline.Points>
+                                </Polyline>
+
+                                <!-- Un marcador por intento, para poder leer cada nota. -->
+                                <ItemsControl ItemsSource="{Binding Evolucion.Marcadores}">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <Canvas />
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemContainerStyle>
+                                        <Style TargetType="ContentPresenter">
+                                            <Setter Property="Canvas.Left">
+                                                <Setter.Value>
+                                                    <MultiBinding Converter="{StaticResource FraccionAPixel}"
+                                                                  ConverterParameter="5">
+                                                        <Binding Path="X" />
+                                                        <Binding Path="ActualWidth" ElementName="Lienzo" />
+                                                    </MultiBinding>
+                                                </Setter.Value>
+                                            </Setter>
+                                            <Setter Property="Canvas.Top">
+                                                <Setter.Value>
+                                                    <MultiBinding Converter="{StaticResource FraccionAPixel}"
+                                                                  ConverterParameter="invertir,5">
+                                                        <Binding Path="Y" />
+                                                        <Binding Path="ActualHeight" ElementName="Lienzo" />
+                                                    </MultiBinding>
+                                                </Setter.Value>
+                                            </Setter>
+                                        </Style>
+                                    </ItemsControl.ItemContainerStyle>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate DataType="{x:Type servicios:MarcadorEvolucion}">
+                                            <Ellipse Width="10" Height="10" StrokeThickness="2"
+                                                     ToolTip="{Binding Dato.Detalle}"
+                                                     Fill="{DynamicResource PincelTarjeta}"
+                                                     Stroke="{Binding DataContext.ColorDeLaMateria,
+                                                              RelativeSource={RelativeSource AncestorType=ItemsControl},
+                                                              Converter={StaticResource ColorMateria}}" />
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </Canvas>
+                        </Border>
+                    </Grid>
+
+                    <TextBlock Text="{Binding Evolucion.TextoProgreso}" Style="{StaticResource TxtCuerpo}"
+                               TextWrapping="Wrap" Margin="0,12,0,0" />
+                    <TextBlock Style="{StaticResource TxtTenue}" Margin="0,4,0,0">
+                        <Run Text="Promedio" /><Run Text=" " /><Run Text="{Binding Evolucion.PromedioNota, Mode=OneWay}" />
+                        <Run Text=" · mejor " /><Run Text="{Binding Evolucion.Mejor, Mode=OneWay}" />
+                        <Run Text=" · peor " /><Run Text="{Binding Evolucion.Peor, Mode=OneWay}" />
+                        <Run Text=" · la linea punteada es el 4" />
+                    </TextBlock>
+                </StackPanel>
+            </StackPanel>
+        </ui:CardExpander>
+
         <Border Style="{StaticResource TarjetaPlana}" Padding="18" Margin="0,16,14,0"
                 Visibility="{Binding HayElegiblesParaRepaso, Converter={StaticResource BoolToVis}}">
             <Grid>
@@ -288,6 +494,7 @@
             </Grid>
         </ui:CardExpander>
         </StackPanel>
+        </ScrollViewer>
         <!-- ================================================================ -->
         <!-- US-025 — detalle de un examen del historial.                      -->
         <!--                                                                   -->
@@ -313,6 +520,7 @@
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
 
                         <StackPanel Grid.Column="0" VerticalAlignment="Center">
@@ -322,8 +530,17 @@
                                        Margin="0,3,0,0" TextWrapping="Wrap" />
                         </StackPanel>
 
-                        <ui:Button Grid.Column="1" Appearance="Secondary" Padding="12,7"
-                                   VerticalAlignment="Center" Margin="14,0,0,0"
+                        <!-- US-037: compartir este examen con un compañero. Solo aparece si
+                             guardo su detalle (US-025): de un resumen numerico no sale un
+                             examen rendible. -->
+                        <Button Grid.Column="1" Content="Compartir" Style="{StaticResource ChipAccion}"
+                                VerticalAlignment="Center" Margin="14,0,0,0"
+                                ToolTip="Guarda un archivo con las preguntas para que otra persona rinda el mismo examen. No incluye tu nota"
+                                Command="{Binding CompartirExamenCommand}"
+                                Visibility="{Binding SePuedeCompartir, Converter={StaticResource BoolToVis}}" />
+
+                        <ui:Button Grid.Column="2" Appearance="Secondary" Padding="12,7"
+                                   VerticalAlignment="Center" Margin="10,0,0,0"
                                    Icon="{ui:SymbolIcon ArrowLeft24}" Content="Volver al historial"
                                    AutomationProperties.Name="Cerrar el detalle y volver al historial"
                                    Command="{Binding CerrarDetalleCommand}" />

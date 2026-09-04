@@ -155,6 +155,22 @@ public static class WpfHost
         raiz.Focus();
         var destino = (Keyboard.FocusedElement as UIElement) ?? raiz;
 
+        // Se levanta primero el evento de tunel y despues el de burbujeo, que es el orden real
+        // de WPF. Importa desde US-036: los atajos del examen pasaron de KeyBinding a un
+        // manejador de PreviewKeyDown —para poder dejar pasar la tecla cuando hay un campo de
+        // texto con foco—, y con solo el evento de burbujeo esta suite no los veria disparar.
+        var tunel = new KeyEventArgs(Keyboard.PrimaryDevice, origen, 0, tecla)
+        {
+            RoutedEvent = Keyboard.PreviewKeyDownEvent,
+        };
+
+        destino.RaiseEvent(tunel);
+
+        if (tunel.Handled)
+        {
+            return true;
+        }
+
         var args = new KeyEventArgs(Keyboard.PrimaryDevice, origen, 0, tecla)
         {
             RoutedEvent = Keyboard.KeyDownEvent,

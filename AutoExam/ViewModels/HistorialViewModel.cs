@@ -42,6 +42,120 @@ public partial class HistorialViewModel : PaginaViewModel
 
     public ObservableCollection<string> Escala { get; }
 
+    // ------------------------------------------------------------------
+    // US-035 — buscador
+    // ------------------------------------------------------------------
+
+    /// <summary>
+    /// Lo que se muestra en la lista. Es una coleccion aparte y no la del historial porque
+    /// filtrar no puede sacar examenes del perfil: lo que se esconde sigue existiendo, y las
+    /// estadisticas de arriba se siguen calculando sobre todos.
+    /// </summary>
+    public ObservableCollection<ExamenRendido> ExamenesFiltrados { get; } = new();
+
+    [ObservableProperty]
+    private string _filtro = string.Empty;
+
+    partial void OnFiltroChanged(string value) => AplicarFiltro();
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(AvisoSinResultados))]
+    private bool _sinResultados;
+
+    public string AvisoSinResultados => $"No se encontró nada para \"{Filtro.Trim()}\".";
+
+    /// <summary>
+    /// Filtra por titulo, materia y alcance/tema, que es lo que pide el criterio y tambien
+    /// lo unico por lo que uno se acuerda de un examen viejo.
+    /// </summary>
+    private void AplicarFiltro()
+    {
+        string texto = Filtro.Trim();
+
+        ExamenesFiltrados.Clear();
+
+        foreach (var examen in _sesion.Historial)
+        {
+            if (texto.Length == 0 || Coincide(examen, texto))
+            {
+                ExamenesFiltrados.Add(examen);
+            }
+        }
+
+        // Con el buscador vacio nunca hay "sin resultados": no hay busqueda que fallar. Un
+        // historial vacio ya tiene su propio estado vacio, que dice otra cosa.
+        SinResultados = texto.Length > 0 && ExamenesFiltrados.Count == 0;
+    }
+
+    private static bool Coincide(ExamenRendido examen, string texto) =>
+        examen.TituloTexto.Contains(texto, StringComparison.OrdinalIgnoreCase) ||
+        examen.LibroTitulo.Contains(texto, StringComparison.OrdinalIgnoreCase) ||
+        examen.Materia.Contains(texto, StringComparison.OrdinalIgnoreCase) ||
+        examen.AlcanceDescripcion.Contains(texto, StringComparison.OrdinalIgnoreCase);
+
+    [RelayCommand]
+    private void LimpiarFiltro() => Filtro = string.Empty;
+
+    // ------------------------------------------------------------------
+    // US-033 — evolucion por materia
+    // ------------------------------------------------------------------
+
+    /// <summary>Materias que tienen al menos un examen rendido.</summary>
+    public ObservableCollection<string> MateriasConExamenes { get; } = new();
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ColorDeLaMateria))]
+    private string _materiaEnEvolucion = string.Empty;
+
+    partial void OnMateriaEnEvolucionChanged(string value) => RecalcularEvolucion();
+
+    /// <summary>La serie de la materia elegida, ya lista para dibujar.</summary>
+    [ObservableProperty]
+    private EvolucionMateria? _evolucion;
+
+    public bool HayMateriasParaGraficar => MateriasConExamenes.Count > 0;
+
+    /// <summary>US-033 pide el color de la materia como acento; sale de la paleta (RN-30/RN-34).</summary>
+    public string ColorDeLaMateria => PaletaMaterias.ColorDe(MateriaEnEvolucion);
+
+    [RelayCommand]
+    private void VerEvolucionDe(string? materia)
+    {
+        if (!string.IsNullOrWhiteSpace(materia))
+        {
+            MateriaEnEvolucion = materia;
+        }
+    }
+
+    private void RecalcularEvolucion()
+    {
+        Evolucion = string.IsNullOrWhiteSpace(MateriaEnEvolucion)
+            ? null
+            : EvolucionDeMateria.De(_sesion.Historial, MateriaEnEvolucion);
+    }
+
+    private void RefrescarMaterias()
+    {
+        string anterior = MateriaEnEvolucion;
+
+        MateriasConExamenes.Clear();
+
+        foreach (string materia in EvolucionDeMateria.MateriasConExamenes(_sesion.Historial))
+        {
+            MateriasConExamenes.Add(materia);
+        }
+
+        OnPropertyChanged(nameof(HayMateriasParaGraficar));
+
+        // Se conserva la materia que estaba abierta si sigue teniendo examenes; si no, la
+        // primera. Sin esto, borrar un examen dejaba el grafico apuntando a la nada.
+        MateriaEnEvolucion = MateriasConExamenes.Contains(anterior)
+            ? anterior
+            : MateriasConExamenes.FirstOrDefault() ?? string.Empty;
+
+        RecalcularEvolucion();
+    }
+
     /// <summary>Preguntas del examen abierto en el detalle (US-025).</summary>
     public ObservableCollection<Pregunta> DetallePreguntas { get; } = new();
 
@@ -79,6 +193,10 @@ public partial class HistorialViewModel : PaginaViewModel
         OnPropertyChanged(nameof(HayElegiblesParaRepaso));
         RecalcularRepaso();
 
+        // US-035 y US-033 leen del mismo historial: al cambiar, los dos se rehacen.
+        AplicarFiltro();
+        RefrescarMaterias();
+
         if (Total == 0)
         {
             Resumen = "Todavia no rendiste ningun examen.";
@@ -108,9 +226,54 @@ public partial class HistorialViewModel : PaginaViewModel
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HayDetalleAbierto))]
+    [NotifyPropertyChangedFor(nameof(SePuedeCompartir))]
+    [NotifyCanExecuteChangedFor(nameof(CompartirExamenCommand))]
     private ExamenRendido? _examenAbierto;
 
     public bool HayDetalleAbierto => ExamenAbierto is not null;
+
+    /// <summary>
+    /// US-037: solo se puede compartir un examen cuyo detalle se guardo (US-025). Uno de antes
+    /// de esa version solo tiene el resumen numerico, y de ahi no sale un examen rendible.
+    /// </summary>
+    public bool SePuedeCompartir => ExamenAbierto?.TieneDetalle == true;
+
+    /// <summary>
+    /// Exporta el examen abierto para pasarselo a un compañero (US-037). Es el mismo servicio
+    /// que usa la pantalla de examen: el archivo lleva las preguntas y nada del alumno que lo
+    /// rindio — ni su nota, ni que contesto, ni su historial (RN-45).
+    /// </summary>
+    [RelayCommand(CanExecute = nameof(SePuedeCompartir))]
+    private void CompartirExamen()
+    {
+        if (ExamenAbierto is not ExamenRendido examen)
+        {
+            return;
+        }
+
+        string? destino = _dialogos.ElegirDondeGuardarExamen(
+            CompartirExamenService.NombreSugerido(examen.TituloTexto));
+
+        if (string.IsNullOrWhiteSpace(destino))
+        {
+            return;
+        }
+
+        try
+        {
+            CompartirExamenService.Guardar(CompartirExamenService.Empaquetar(examen), destino);
+            _nav.Estado($"Examen exportado: {Path.GetFileName(destino)}");
+
+            _dialogos.Aviso("Examen exportado",
+                "Pasale ese archivo a quien quieras y que lo importe desde Nuevo examen. " +
+                "No incluye tu nota ni tus respuestas.");
+        }
+        catch (Exception ex)
+        {
+            RutasApp.RegistrarError("Historial.Compartir", ex);
+            _dialogos.Error("No se pudo exportar", ex.Message);
+        }
+    }
 
     /// <summary>
     /// RN-26: texto que explica por que un examen no tiene detalle. Vacio cuando si lo tiene.

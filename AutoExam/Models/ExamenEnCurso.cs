@@ -34,6 +34,34 @@ public class ExamenEnCurso : ObservableBase
     /// <summary>Titulos de los examenes que alimentaron este repaso, en el orden elegido.</summary>
     public List<string> ExamenesDeOrigen { get; set; } = new();
 
+    /// <summary>
+    /// Tiempo total para todo el examen, en segundos. 0 = sin limite, que es el modo de
+    /// siempre (US-034).
+    ///
+    /// Es un limite TOTAL y no por pregunta a proposito: lo que el alumno esta practicando es
+    /// administrar el tiempo de un parcial, y eso incluye decidir cuanto gastar en cada
+    /// pregunta. Un limite por pregunta le sacaria justamente esa decision.
+    ///
+    /// Vive en el examen y no en la configuracion porque se elige por examen: se puede rendir
+    /// uno a tiempo y el siguiente sin reloj.
+    /// </summary>
+    public int LimiteSegundos { get; set; }
+
+    [JsonIgnore]
+    public bool ConCronometro => LimiteSegundos > 0;
+
+    /// <summary>
+    /// Cuanto queda. Nunca baja de cero: mostrar un negativo despues de que el examen ya se
+    /// entrego solo, aunque sea por un instante, se lee como un error.
+    /// </summary>
+    [JsonIgnore]
+    public TimeSpan Restante => ConCronometro
+        ? TimeSpan.FromSeconds(Math.Max(0, LimiteSegundos - Transcurrido.TotalSeconds))
+        : TimeSpan.Zero;
+
+    [JsonIgnore]
+    public bool SeAcaboElTiempo => ConCronometro && Restante <= TimeSpan.Zero;
+
     /// <summary>Registro persistido del intento original; las revanchas lo van actualizando.</summary>
     public ExamenRendido? Registro { get; set; }
 

@@ -16,7 +16,7 @@
     <AssemblyName>AutoExam</AssemblyName>
     <RootNamespace>AutoExam</RootNamespace>
     <Product>AutoExam - Estudio UBA</Product>
-    <Version>1.1.0</Version>
+    <Version>1.3.0</Version>
     <ApplicationIcon>imagexxcf_103507.ico</ApplicationIcon>
 
     <!-- Publicacion self-contained single-file -->
@@ -53,6 +53,15 @@
   <ItemGroup>
     <Using Remove="System.Windows.Forms" />
     <Using Remove="System.Drawing" />
+  </ItemGroup>
+
+  <!-- US-040 / RN-51: las notas de version viajan adentro del ejecutable, no se bajan de
+       internet. El archivo vive en la raiz del repo (asi se edita a mano y GitHub lo muestra
+       renderizado) y se embebe desde aca, en vez de copiarse al lado del .exe: la app se
+       publica como single-file self-contained, y un archivo suelto al lado del binario se
+       pierde en cuanto alguien mueve el .exe solo. -->
+  <ItemGroup>
+    <EmbeddedResource Include="..\CHANGELOG.md" LogicalName="AutoExam.CHANGELOG.md" />
   </ItemGroup>
 
 </Project>

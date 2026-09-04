@@ -85,10 +85,57 @@ public partial class BibliotecaViewModel : PaginaViewModel
         vista.SortDescriptions.Add(new SortDescription(nameof(Libro.Materia), ListSortDirection.Ascending));
         vista.SortDescriptions.Add(new SortDescription(nameof(Libro.FechaAgregado), ListSortDirection.Descending));
 
+        // US-035: el buscador filtra sobre esta misma vista y no sobre una coleccion aparte,
+        // asi la agrupacion por materia y el orden siguen valiendo mientras se busca — con
+        // una lista paralela, buscar habria devuelto una tira plana sin materias.
+        vista.View.Filter = Coincide;
+
         LibrosPorMateria = vista.View;
     }
 
     public ObservableCollection<Libro> Libros => _biblioteca.Libros;
+
+    // ------------------------------------------------------------------
+    // US-035 — buscador
+    // ------------------------------------------------------------------
+
+    [ObservableProperty]
+    private string _filtro = string.Empty;
+
+    partial void OnFiltroChanged(string value)
+    {
+        LibrosPorMateria.Refresh();
+        SinResultados = value.Trim().Length > 0 && LibrosPorMateria.IsEmpty;
+        OnPropertyChanged(nameof(AvisoSinResultados));
+    }
+
+    [ObservableProperty]
+    private bool _sinResultados;
+
+    public string AvisoSinResultados => $"No se encontró nada para \"{Filtro.Trim()}\".";
+
+    /// <summary>
+    /// Filtra por titulo, materia y nombre del archivo original, que es lo que pide el
+    /// criterio. El nombre original importa mas de lo que parece: mucha gente busca por
+    /// "resumen final.pdf" aunque en la app el material se llame de otra forma.
+    /// </summary>
+    private bool Coincide(object item)
+    {
+        string texto = Filtro.Trim();
+
+        if (texto.Length == 0)
+        {
+            return true;
+        }
+
+        return item is Libro libro &&
+               (libro.Titulo.Contains(texto, StringComparison.OrdinalIgnoreCase) ||
+                libro.Materia.Contains(texto, StringComparison.OrdinalIgnoreCase) ||
+                libro.NombreArchivoOriginal.Contains(texto, StringComparison.OrdinalIgnoreCase));
+    }
+
+    [RelayCommand]
+    private void LimpiarFiltro() => Filtro = string.Empty;
 
     /// <summary>Los mismos libros, agrupados por materia para la lista de la izquierda (US-023).</summary>
     public ICollectionView LibrosPorMateria { get; }

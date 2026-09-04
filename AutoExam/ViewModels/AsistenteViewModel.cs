@@ -110,17 +110,39 @@ public partial class AsistenteViewModel : PaginaViewModel
     // ------------------------------------------------------------------
 
     /// <summary>
-    /// false = generar preguntas nuevas con IA a partir de material. true = combinar
-    /// examenes ya rendidos (US-026), que no gasta cuota porque las preguntas ya existen.
+    /// De donde salen las preguntas. Es lo primero que se elige en el paso Material.
     /// </summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ModoMaterial))]
+    [NotifyPropertyChangedFor(nameof(ModoRepaso))]
+    [NotifyPropertyChangedFor(nameof(ModoCombinado))]
+    [NotifyPropertyChangedFor(nameof(ModoFalladas))]
+    [NotifyPropertyChangedFor(nameof(ModoImportado))]
+    [NotifyPropertyChangedFor(nameof(AvisoDeGeneracion))]
     [NotifyPropertyChangedFor(nameof(ResumenSeleccion))]
     [NotifyCanExecuteChangedFor(nameof(SiguienteCommand))]
     [NotifyCanExecuteChangedFor(nameof(GenerarCommand))]
-    private bool _modoRepaso;
+    private OrigenPreguntas _origen = OrigenPreguntas.Material;
 
-    public bool ModoMaterial => !ModoRepaso;
+    /// <summary>true cuando se generan preguntas nuevas con IA a partir de material propio.</summary>
+    public bool ModoMaterial => Origen == OrigenPreguntas.Material;
+
+    /// <summary>
+    /// true en los tres modos que NO generan con IA: combinado (US-026), preguntas falladas
+    /// (US-032) y examen importado (US-037).
+    ///
+    /// El nombre viene de US-026, cuando era el unico. Se conserva porque lo que significa no
+    /// cambio y es lo que gobierna todo lo que esos tres modos comparten: las preguntas ya
+    /// existen, asi que el paso Alcance no tiene nada que preguntar, no hace falta clave de
+    /// Gemini y el armado es instantaneo.
+    /// </summary>
+    public bool ModoRepaso => Origen != OrigenPreguntas.Material;
+
+    public bool ModoCombinado => Origen == OrigenPreguntas.ExamenesAnteriores;
+
+    public bool ModoFalladas => Origen == OrigenPreguntas.PreguntasFalladas;
+
+    public bool ModoImportado => Origen == OrigenPreguntas.Importado;
 
     /// <summary>Examenes rendidos que pueden aportar preguntas a un repaso.</summary>
     public ObservableCollection<ExamenRendido> ExamenesParaRepaso { get; } = new();
@@ -134,11 +156,21 @@ public partial class AsistenteViewModel : PaginaViewModel
 
     partial void OnFiltroExamenesChanged(string value) => PoblarExamenesParaRepaso();
 
-    partial void OnModoRepasoChanged(bool value)
+    partial void OnOrigenChanged(OrigenPreguntas value)
     {
-        if (value)
+        switch (value)
         {
-            PoblarExamenesParaRepaso();
+            case OrigenPreguntas.ExamenesAnteriores:
+                PoblarExamenesParaRepaso();
+                break;
+
+            case OrigenPreguntas.PreguntasFalladas:
+                PoblarFocosDeRepaso();
+                break;
+
+            case OrigenPreguntas.Importado:
+                PoblarExamenesImportados();
+                break;
         }
 
         // Cambiar de modo reinicia el paso: los pasos de un modo no aplican al otro.
@@ -209,10 +241,252 @@ public partial class AsistenteViewModel : PaginaViewModel
     }
 
     [RelayCommand]
-    private void UsarMaterial() => ModoRepaso = false;
+    private void UsarMaterial() => Origen = OrigenPreguntas.Material;
 
     [RelayCommand]
-    private void UsarExamenesAnteriores() => ModoRepaso = true;
+    private void UsarExamenesAnteriores() => Origen = OrigenPreguntas.ExamenesAnteriores;
+
+    [RelayCommand]
+    private void UsarPreguntasFalladas() => Origen = OrigenPreguntas.PreguntasFalladas;
+
+    [RelayCommand]
+    private void UsarExamenImportado() => Origen = OrigenPreguntas.Importado;
+
+    // ------------------------------------------------------------------
+    // US-032 — repaso inteligente: solo lo que vengo fallando
+    // ------------------------------------------------------------------
+
+    /// <summary>Materias y documentos que hoy tienen preguntas falladas para repasar.</summary>
+    public ObservableCollection<FocoDeRepaso> FocosDeRepaso { get; } = new();
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ResumenFalladas))]
+    [NotifyPropertyChangedFor(nameof(PreguntasFalladasDisponibles))]
+    [NotifyCanExecuteChangedFor(nameof(SiguienteCommand))]
+    [NotifyCanExecuteChangedFor(nameof(GenerarCommand))]
+    private FocoDeRepaso? _focoElegido;
+
+    public bool HayPreguntasFalladas => FocosDeRepaso.Count > 0;
+
+    public int PreguntasFalladasDisponibles => FocoElegido?.Falladas ?? 0;
+
+    public string ResumenFalladas
+    {
+        get
+        {
+            if (!HayPreguntasFalladas)
+            {
+                return "No tenés preguntas falladas para repasar. Puede ser que todavía no hayas " +
+                       "rendido nada con detalle guardado, o que las hayas acertado todas.";
+            }
+
+            if (FocoElegido is null)
+            {
+                return "Elegí una materia o un documento para repasar lo que fallaste ahí.";
+            }
+
+            int disponibles = PreguntasFalladasDisponibles;
+
+            string aviso = Cantidad > disponibles
+                ? $" Solo hay {disponibles}, así que el examen va a salir con esas."
+                : string.Empty;
+
+            return $"{disponibles} preguntas falladas en {FocoElegido.Nombre}.{aviso}";
+        }
+    }
+
+    private void PoblarFocosDeRepaso()
+    {
+        string? claveAnterior = FocoElegido?.Clave;
+
+        FocosDeRepaso.Clear();
+
+        foreach (var foco in RepasoInteligente.Focos(_sesion.Historial))
+        {
+            FocosDeRepaso.Add(foco);
+        }
+
+        // Se repone lo que estaba elegido si sigue existiendo: volver del paso Formato no
+        // tiene por que perder la eleccion.
+        FocoElegido = FocosDeRepaso.FirstOrDefault(f => f.Clave == claveAnterior) ?? FocosDeRepaso.FirstOrDefault();
+
+        OnPropertyChanged(nameof(HayPreguntasFalladas));
+        OnPropertyChanged(nameof(ResumenFalladas));
+    }
+
+    [RelayCommand]
+    private void ElegirFoco(FocoDeRepaso? foco)
+    {
+        if (foco is not null)
+        {
+            FocoElegido = foco;
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // US-037 — examenes que me compartieron
+    // ------------------------------------------------------------------
+
+    /// <summary>Examenes compartidos ya importados, guardados en disco para rendirlos cuando sea.</summary>
+    public ObservableCollection<ExamenImportado> ExamenesImportados { get; } = new();
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ResumenImportado))]
+    [NotifyCanExecuteChangedFor(nameof(SiguienteCommand))]
+    [NotifyCanExecuteChangedFor(nameof(GenerarCommand))]
+    private ExamenImportado? _importadoElegido;
+
+    public bool HayExamenesImportados => ExamenesImportados.Count > 0;
+
+    public string ResumenImportado
+    {
+        get
+        {
+            if (!HayExamenesImportados)
+            {
+                return "Todavía no importaste ningún examen. Pedile a un compañero que exporte uno " +
+                       "desde su AutoExam y tocá \"Importar un examen\".";
+            }
+
+            if (ImportadoElegido is null)
+            {
+                return "Elegí cuál de los exámenes importados querés rendir.";
+            }
+
+            return $"{ImportadoElegido.Preguntas} preguntas · {ImportadoElegido.Materia}";
+        }
+    }
+
+    private void PoblarExamenesImportados()
+    {
+        string? rutaAnterior = ImportadoElegido?.Ruta;
+
+        ExamenesImportados.Clear();
+
+        foreach (var examen in BibliotecaDeCompartidos.Listar())
+        {
+            ExamenesImportados.Add(examen);
+        }
+
+        ImportadoElegido = ExamenesImportados.FirstOrDefault(e => e.Ruta == rutaAnterior)
+                           ?? ExamenesImportados.FirstOrDefault();
+
+        OnPropertyChanged(nameof(HayExamenesImportados));
+        OnPropertyChanged(nameof(ResumenImportado));
+    }
+
+    [RelayCommand]
+    private void ElegirImportado(ExamenImportado? examen)
+    {
+        if (examen is not null)
+        {
+            ImportadoElegido = examen;
+        }
+    }
+
+    /// <summary>
+    /// Importa un archivo compartido y lo guarda para poder rendirlo cuando el alumno quiera
+    /// (US-037). Un archivo invalido se rechaza con el motivo y no deja nada a medias.
+    /// </summary>
+    [RelayCommand]
+    private void ImportarExamen()
+    {
+        string? ruta = _dialogos.ElegirExamenCompartido();
+
+        if (string.IsNullOrWhiteSpace(ruta))
+        {
+            return;
+        }
+
+        var resultado = CompartirExamenService.Leer(ruta);
+
+        if (!resultado.Ok)
+        {
+            _dialogos.Error("No se pudo importar el examen", resultado.Error ?? "El archivo no es válido.");
+            return;
+        }
+
+        try
+        {
+            var guardado = BibliotecaDeCompartidos.Guardar(resultado.Examen!, ruta);
+
+            PoblarExamenesImportados();
+            ImportadoElegido = ExamenesImportados.FirstOrDefault(e => e.Ruta == guardado.Ruta) ?? ImportadoElegido;
+
+            Avisar($"Listo: \"{guardado.Titulo}\", {guardado.Preguntas} preguntas. Ya podés rendirlo.");
+        }
+        catch (Exception ex)
+        {
+            RutasApp.RegistrarError("Asistente.ImportarExamen", ex);
+            _dialogos.Error("No se pudo importar el examen", ex.Message);
+        }
+    }
+
+    [RelayCommand]
+    private void QuitarImportado(ExamenImportado? examen)
+    {
+        if (examen is null ||
+            !_dialogos.Confirmar($"¿Sacar \"{examen.Titulo}\" de tus exámenes importados?"))
+        {
+            return;
+        }
+
+        BibliotecaDeCompartidos.Borrar(examen);
+        PoblarExamenesImportados();
+    }
+
+    // ------------------------------------------------------------------
+    // US-034 — cronometro
+    //
+    // RN-43: vive en el paso Formato y no en un modo puntual, asi que aplica igual a un
+    // examen generado con IA, a uno combinado, a un repaso de lo fallado y a uno importado.
+    // ------------------------------------------------------------------
+
+    /// <summary>Minutos de tiempo total. 0 = sin limite, que es el modo de siempre.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ConCronometro))]
+    [NotifyPropertyChangedFor(nameof(ResumenTiempo))]
+    private int _minutosLimite;
+
+    partial void OnMinutosLimiteChanged(int value) => Recalcular();
+
+    public bool ConCronometro => MinutosLimite > 0;
+
+    /// <summary>Opciones de tiempo. El 0 es "sin limite" y es el que viene elegido.</summary>
+    public IReadOnlyList<int> PresetsTiempo { get; } = new[] { 0, 20, 40, 60, 90 };
+
+    public string ResumenTiempo => ConCronometro
+        ? $"{MinutosLimite} minutos para todo el examen"
+        : "Sin límite de tiempo";
+
+    /// <summary>
+    /// Que va a pasar al tocar "Generar examen", en una linea.
+    ///
+    /// Depende del origen y no es un texto fijo porque solo uno de los cuatro modos habla con
+    /// Gemini. El tooltip decia "le pide las preguntas a Gemini... consume cuota" tambien en
+    /// los tres modos locales, que es exactamente lo contrario de lo que hacen y de lo que la
+    /// historia promete.
+    /// </summary>
+    public string AvisoDeGeneracion => Origen switch
+    {
+        OrigenPreguntas.Material =>
+            "Le pide las preguntas a Gemini con el material y el alcance elegidos. Puede tardar y consume cuota.",
+        OrigenPreguntas.ExamenesAnteriores =>
+            "Mezcla preguntas de los examenes tildados. Es instantaneo y no gasta cuota de Gemini.",
+        OrigenPreguntas.PreguntasFalladas =>
+            "Arma el examen con lo que venis fallando. Es instantaneo y no gasta cuota de Gemini.",
+        _ =>
+            "Abre el examen que te compartieron. Es instantaneo y no gasta cuota de Gemini."
+    };
+
+    [RelayCommand]
+    private void ElegirTiempo(string? minutos)
+    {
+        if (int.TryParse(minutos, out int valor))
+        {
+            MinutosLimite = Math.Max(0, valor);
+        }
+    }
 
     /// <summary>
     /// Entra en modo repaso desde afuera. Lo usa el atajo del Historial (RN-29): tildar alla
@@ -222,7 +496,7 @@ public partial class AsistenteViewModel : PaginaViewModel
     /// </summary>
     public void EntrarEnModoRepaso()
     {
-        ModoRepaso = true;
+        Origen = OrigenPreguntas.ExamenesAnteriores;
         PoblarExamenesParaRepaso();
     }
 
@@ -238,7 +512,7 @@ public partial class AsistenteViewModel : PaginaViewModel
     /// </summary>
     public void EmpezarDesdeCero()
     {
-        ModoRepaso = false;
+        Origen = OrigenPreguntas.Material;
         Paso = PrimerPaso;
     }
 
@@ -650,11 +924,16 @@ public partial class AsistenteViewModel : PaginaViewModel
     {
         if (ModoRepaso)
         {
-            // En repaso el riel muestra dos pasos utiles: el Alcance no aplica, porque no
-            // hay material del que recortar capitulos ni paginas.
-            Pasos[0].Resumen = ExamenesElegidos.Count == 0
-                ? "Sin elegir"
-                : $"{ExamenesElegidos.Count} examenes";
+            // En los modos locales el riel muestra dos pasos utiles: el Alcance no aplica,
+            // porque no hay material del que recortar capitulos ni paginas.
+            Pasos[0].Resumen = Origen switch
+            {
+                OrigenPreguntas.PreguntasFalladas => FocoElegido is null
+                    ? "Sin elegir"
+                    : $"{FocoElegido.Nombre} · {FocoElegido.Falladas} falladas",
+                OrigenPreguntas.Importado => ImportadoElegido?.Titulo ?? "Sin elegir",
+                _ => ExamenesElegidos.Count == 0 ? "Sin elegir" : $"{ExamenesElegidos.Count} examenes"
+            };
             Pasos[1].Resumen = "No aplica";
         }
         else
@@ -669,9 +948,13 @@ public partial class AsistenteViewModel : PaginaViewModel
                 : EsFuentePdf && !EsExamenCombinado ? $"{ResumenAlcance} · ~{PaginasDelAlcance} pag." : ResumenAlcance;
         }
 
+        // US-034: el tiempo entra en el resumen del paso Formato porque es una decision del
+        // formato, no del origen — y porque es lo que uno quiere ver antes de generar.
+        string reloj = ConCronometro ? $" · {MinutosLimite} min" : string.Empty;
+
         Pasos[2].Resumen = ModoRepaso
-            ? $"{Cantidad} preguntas mezcladas"
-            : $"{Cantidad} preguntas{(IncluirImagenes ? " · con graficos" : string.Empty)}";
+            ? (ModoImportado ? $"{ImportadoElegido?.Preguntas ?? 0} preguntas" : $"{Cantidad} preguntas mezcladas") + reloj
+            : $"{Cantidad} preguntas{(IncluirImagenes ? " · con graficos" : string.Empty)}{reloj}";
 
         foreach (var p in Pasos)
         {
@@ -687,8 +970,22 @@ public partial class AsistenteViewModel : PaginaViewModel
     // ------------------------------------------------------------------
     private bool PuedeAvanzar() => Paso switch
     {
-        1 => ModoRepaso ? ExamenesElegidos.Count >= 2 : Seleccionados.Count > 0,
+        1 => HayConQueArmar,
         2 => true,
+        _ => false
+    };
+
+    /// <summary>
+    /// Si el paso Material quedo resuelto. Cada origen tiene su propia condicion, y esta es la
+    /// unica definicion: la usan igual el boton de Siguiente y el de Generar, asi que no puede
+    /// pasar que uno se habilite y el otro no.
+    /// </summary>
+    private bool HayConQueArmar => Origen switch
+    {
+        OrigenPreguntas.Material => Seleccionados.Count > 0,
+        OrigenPreguntas.ExamenesAnteriores => ExamenesElegidos.Count >= 2,
+        OrigenPreguntas.PreguntasFalladas => FocoElegido is not null && FocoElegido.Falladas > 0,
+        OrigenPreguntas.Importado => ImportadoElegido is not null,
         _ => false
     };
 
@@ -902,8 +1199,7 @@ public partial class AsistenteViewModel : PaginaViewModel
     // ------------------------------------------------------------------
     // Generar
     // ------------------------------------------------------------------
-    private bool PuedeGenerar() => !Generando &&
-        (ModoRepaso ? ExamenesElegidos.Count >= 2 : Seleccionados.Count > 0);
+    private bool PuedeGenerar() => !Generando && HayConQueArmar;
 
     [RelayCommand(CanExecute = nameof(PuedeGenerar))]
     private async Task GenerarAsync()
@@ -1210,7 +1506,11 @@ public partial class AsistenteViewModel : PaginaViewModel
                 Materia = libro.Materia,
                 AlcanceDescripcion = alcance,
                 Inicio = DateTime.Now,
-                Ronda = 0
+                Ronda = 0,
+
+                // US-034 / RN-43: el cronometro es del formato, asi que aplica igual a este
+                // examen que a un repaso o a uno importado.
+                LimiteSegundos = LimiteEnSegundos
             };
 
             foreach (var p in preguntas.OrderBy(_ => _random.Next()))
@@ -1270,6 +1570,20 @@ public partial class AsistenteViewModel : PaginaViewModel
     /// </summary>
     private void GenerarRepaso()
     {
+        // Los tres modos locales entran por aca, pero solo el combinado necesita este cuerpo.
+        // Los otros dos arman su propio ExamenEnCurso y salen.
+        if (ModoFalladas)
+        {
+            GenerarRepasoInteligente();
+            return;
+        }
+
+        if (ModoImportado)
+        {
+            GenerarDesdeImportado();
+            return;
+        }
+
         var elegidos = ExamenesElegidos;
 
         if (elegidos.Count < 2)
@@ -1278,8 +1592,7 @@ public partial class AsistenteViewModel : PaginaViewModel
             return;
         }
 
-        if (HayExamenSinTerminar?.Invoke() == true &&
-            !_dialogos.Confirmar("Hay un examen sin finalizar. Si armas el repaso se descarta el actual.\n\n¿Continuar?"))
+        if (!ConfirmarDescarteDelIntentoAbierto())
         {
             return;
         }
@@ -1312,7 +1625,8 @@ public partial class AsistenteViewModel : PaginaViewModel
             Inicio = DateTime.Now,
             Ronda = 0,
             EsRepaso = true,
-            ExamenesDeOrigen = titulos
+            ExamenesDeOrigen = titulos,
+            LimiteSegundos = LimiteEnSegundos
         };
 
         foreach (var pregunta in armado.Preguntas)
@@ -1321,14 +1635,138 @@ public partial class AsistenteViewModel : PaginaViewModel
         }
 
         ExamenGenerado?.Invoke(repaso);
+        AvisarSiSeAjusto(armado, "entre los examenes elegidos");
+    }
 
-        if (armado.SeAjustoLaCantidad)
+    /// <summary>Segundos de limite para el examen que se esta por generar. 0 = sin limite.</summary>
+    private int LimiteEnSegundos => MinutosLimite * 60;
+
+    private bool ConfirmarDescarteDelIntentoAbierto() =>
+        HayExamenSinTerminar?.Invoke() != true ||
+        _dialogos.Confirmar("Hay un examen sin finalizar. Si armas otro se descarta el actual.\n\n¿Continuar?");
+
+    /// <summary>
+    /// El aviso de "se ajusto la cantidad" es uno solo para los dos repasos locales: US-032
+    /// pide explicitamente que avise "igual que en US-026". Con dos copias del texto, la
+    /// segunda se desactualiza.
+    /// </summary>
+    private void AvisarSiSeAjusto(RepasoArmado armado, string deDonde)
+    {
+        if (!armado.SeAjustoLaCantidad)
         {
-            // US-026: pediste 60 y recibiste 22. Sin este aviso parece que la app fallo.
-            _dialogos.Aviso("Se ajusto la cantidad",
-                $"Pediste {armado.Pedidas} preguntas, pero entre los examenes elegidos hay {armado.Disponibles} " +
-                "y ninguna se repite. El repaso salio con todas las que habia.");
+            return;
         }
+
+        // Pediste 60 y recibiste 22. Sin este aviso parece que la app fallo.
+        _dialogos.Aviso("Se ajusto la cantidad",
+            $"Pediste {armado.Pedidas} preguntas, pero {deDonde} hay {armado.Disponibles} " +
+            "y ninguna se repite. El examen salio con todas las que habia.");
+    }
+
+    /// <summary>
+    /// US-032 — arma el examen con lo que el alumno viene fallando en la materia o el
+    /// documento elegido. Igual que el combinado: local, instantaneo y sin cuota (RN-40).
+    /// </summary>
+    private void GenerarRepasoInteligente()
+    {
+        if (FocoElegido is not FocoDeRepaso foco)
+        {
+            Avisar("Elegi una materia o un documento para repasar lo que fallaste ahi.", error: true);
+            return;
+        }
+
+        if (!ConfirmarDescarteDelIntentoAbierto())
+        {
+            return;
+        }
+
+        var armado = RepasoInteligente.Armar(
+            _sesion.Historial, Cantidad, foco.Clave, foco.EsMateria, _random);
+
+        if (armado.Preguntas.Count == 0)
+        {
+            // Puede pasar entre que se dibujo la lista y se toco generar: si el alumno rindio
+            // un repaso en el medio y acerto todo, el pozo quedo vacio. Es una buena noticia,
+            // y decirlo asi evita que parezca una falla.
+            Avisar($"Ya no te quedan preguntas falladas en {foco.Nombre}. Las acertaste todas.", error: false);
+            PoblarFocosDeRepaso();
+            return;
+        }
+
+        var repaso = new ExamenEnCurso
+        {
+            LibroTitulo = RepasoInteligente.Titulo(foco.Nombre),
+            Materia = foco.EsMateria ? foco.Nombre : string.Empty,
+            AlcanceDescripcion = armado.SeAjustoLaCantidad
+                ? $"lo que falle · {armado.Preguntas.Count} preguntas (habia {armado.Disponibles})"
+                : $"lo que falle · {armado.Preguntas.Count} preguntas",
+            Inicio = DateTime.Now,
+            Ronda = 0,
+
+            // Cuenta como repaso para el historial: no es un intento nuevo del examen
+            // original, y no puede alimentar un repaso combinado (misma regla que US-026).
+            EsRepaso = true,
+            ExamenesDeOrigen = new List<string> { foco.Nombre },
+            LimiteSegundos = LimiteEnSegundos
+        };
+
+        foreach (var pregunta in armado.Preguntas)
+        {
+            repaso.Preguntas.Add(pregunta);
+        }
+
+        ExamenGenerado?.Invoke(repaso);
+        AvisarSiSeAjusto(armado, $"en {foco.Nombre} solo tenes {armado.Disponibles} falladas —");
+    }
+
+    /// <summary>
+    /// US-037 — rinde un examen que compartio un compañero. Las preguntas ya vienen armadas
+    /// en el archivo, asi que esto tampoco toca la IA.
+    /// </summary>
+    private void GenerarDesdeImportado()
+    {
+        if (ImportadoElegido is not ExamenImportado importado)
+        {
+            Avisar("Elegi cual de los examenes importados queres rendir.", error: true);
+            return;
+        }
+
+        if (!ConfirmarDescarteDelIntentoAbierto())
+        {
+            return;
+        }
+
+        string examenId = Guid.NewGuid().ToString("N");
+
+        var preguntas = CompartirExamenService.Desempaquetar(
+            importado.Paquete, RutasApp.CarpetaImagenesExamen(examenId));
+
+        if (preguntas.Count == 0)
+        {
+            Avisar("Ese archivo no tiene preguntas para rendir.", error: true);
+            return;
+        }
+
+        var examen = new ExamenEnCurso
+        {
+            Id = examenId,
+            LibroTitulo = importado.Titulo,
+            Materia = importado.Paquete.Materia,
+            AlcanceDescripcion = "examen compartido por un compañero",
+            Inicio = DateTime.Now,
+            Ronda = 0,
+            LimiteSegundos = LimiteEnSegundos
+        };
+
+        foreach (var pregunta in preguntas)
+        {
+            // Se remezclan las opciones igual que en un repaso: si dos compañeros comparan el
+            // examen, que la correcta no sea "la C" para los dos.
+            pregunta.MezclarOpciones(_random);
+            examen.Preguntas.Add(pregunta);
+        }
+
+        ExamenGenerado?.Invoke(examen);
     }
 
     /// <summary>

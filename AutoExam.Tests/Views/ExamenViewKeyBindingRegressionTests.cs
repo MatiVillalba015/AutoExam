@@ -5,6 +5,7 @@ using System.Windows.Input;
 using AutoExam.Tests.TestDoubles;
 using AutoExam.Tests.TestSupport;
 using AutoExam.Views;
+using AutoExam.Models;
 
 namespace AutoExam.Tests.Views;
 
@@ -68,45 +69,74 @@ public class ExamenViewKeyBindingRegressionTests
     // ------------------------------------------------------------------
 
     [Fact]
-    public void InputBindings_CoincideExactoConElContratoNFR09()
+    public void ElMapaDeAtajos_CoincideExactoConElContratoNFR09()
     {
+        // Este test miraba los KeyBinding declarados en ExamenView.xaml. US-036 los movio a
+        // un mapeo centralizado (RN-44: "no hardcodeado disperso por vista"), asi que ahora
+        // mira ese mapeo. La garantia no cambio —que tecla dispara que accion, sin
+        // modificadores— y de hecho quedo mas fuerte: antes se podia agregar una tecla en el
+        // XAML sin que nada verificara que 1 y A apuntaran a la misma opcion.
+        var declarados = AtajosExamen.Todos
+            .Select(a => new
+            {
+                a.Tecla,
+                Comando = a.Accion switch
+                {
+                    AccionAtajo.Responder => "ResponderCommand",
+                    AccionAtajo.Siguiente => "SiguienteCommand",
+                    AccionAtajo.Anterior => "AnteriorCommand",
+                    AccionAtajo.Saltear => "SaltearCommand",
+                    _ => "?"
+                },
+                Parametro = a.EsDeOpcion ? a.Opcion.ToString() : null,
+            })
+            .ToList();
+
+        var esperados = AtajosEsperados()
+            .Select(fila => new { Key = (Key)fila[0]!, Comando = (string)fila[1]!, Parametro = (string?)fila[2] })
+            .ToList();
+
+        // Cantidad exacta primero: si alguien agrega o saca un atajo sin querer, el mensaje de
+        // fallo tiene que decir "16 vs N", no perderse en el Contains de abajo.
+        Assert.Equal(esperados.Count, declarados.Count);
+
+        foreach (var esperado in esperados)
+        {
+            Assert.Contains(declarados, d =>
+                d.Tecla == esperado.Key &&
+                d.Comando == esperado.Comando &&
+                d.Parametro == esperado.Parametro);
+        }
+    }
+
+    [Fact]
+    public void LaVista_YaNoDeclaraAtajosPorSuCuenta_RN44()
+    {
+        // RN-44: el mapeo vive en un solo lugar. Si alguien vuelve a agregar un KeyBinding
+        // aca, habria dos fuentes de verdad y la referencia que se le muestra al alumno
+        // (armada desde AtajosExamen) dejaria de decir la verdad.
         WpfHost.Invocar(() =>
         {
             WpfHost.AsegurarRecursos();
             var vista = new ExamenView();
 
-            var declarados = vista.InputBindings
-                .OfType<KeyBinding>()
-                .Select(kb => new
-                {
-                    kb.Key,
-                    kb.Modifiers,
-                    Comando = (BindingOperations.GetBinding(kb, KeyBinding.CommandProperty) as Binding)?.Path?.Path,
-                    Parametro = kb.CommandParameter as string,
-                })
-                .ToList();
-
-            var esperados = AtajosEsperados()
-                .Select(fila => new { Key = (Key)fila[0]!, Comando = (string)fila[1]!, Parametro = (string?)fila[2] })
-                .ToList();
-
-            // Cantidad exacta primero: si alguien agrega o saca un KeyBinding sin querer, el
-            // mensaje de fallo tiene que decir "16 vs N", no perderse en el Contains de abajo.
-            Assert.Equal(esperados.Count, declarados.Count);
-
-            foreach (var esperado in esperados)
-            {
-                Assert.Contains(declarados, d =>
-                    d.Key == esperado.Key &&
-                    d.Modifiers == ModifierKeys.None &&
-                    d.Comando == esperado.Comando &&
-                    d.Parametro == esperado.Parametro);
-            }
-
-            // Ningún KeyBinding con modificador: si alguien agrega Ctrl/Alt/Shift a uno de
-            // estos por error, deja de coincidir 1:1 con la tecla suelta documentada en NFR-09.
-            Assert.All(declarados, d => Assert.Equal(ModifierKeys.None, d.Modifiers));
+            Assert.Empty(vista.InputBindings.OfType<KeyBinding>());
         });
+    }
+
+    [Fact]
+    public void LaReferenciaQueSeLeMuestraAlAlumno_SaleDelMismoMapa_US036()
+    {
+        // El criterio pide "una referencia visible pero discreta de que atajos existen". Que
+        // se arme del mismo lugar que las teclas es lo que evita el caso clasico: una ayuda
+        // que sigue nombrando una tecla que ya no hace nada.
+        Assert.NotEmpty(AtajosExamen.Referencia);
+
+        string todo = string.Join(" ", AtajosExamen.Referencia.Select(r => r.Teclas));
+
+        Assert.Contains("1", todo, StringComparison.Ordinal);
+        Assert.Contains("A", todo, StringComparison.Ordinal);
+        Assert.Contains("S", todo, StringComparison.Ordinal);
     }
 
     // ------------------------------------------------------------------

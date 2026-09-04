@@ -45,12 +45,23 @@ public sealed class RecordingCommand : ICommand
 /// <c>UserControl.InputBindings</c> (ver contrato en specs/03-architecture.md §4.4 —
 /// los <c>KeyBinding</c> de esta vista, no los nuevos de MainWindow).
 /// </summary>
-public sealed class ExamenViewFakeViewModel
+public sealed class ExamenViewFakeViewModel : AutoExam.Models.IPantallaDeExamen
 {
+    /// <summary>
+    /// Cuatro opciones, como una pregunta normal: es lo que hace que las teclas 1..4 y A..D
+    /// cuenten como "opcion visible" y lleguen a disparar el comando (US-036).
+    /// </summary>
+    public int OpcionesVisibles { get; set; } = AutoExam.Models.AtajosExamen.MaximoDeOpciones;
+
     public RecordingCommand ResponderCommand { get; } = new();
     public RecordingCommand SiguienteCommand { get; } = new();
     public RecordingCommand AnteriorCommand { get; } = new();
     public RecordingCommand SaltearCommand { get; } = new();
+
+    ICommand AutoExam.Models.IPantallaDeExamen.ResponderCommand => ResponderCommand;
+    ICommand AutoExam.Models.IPantallaDeExamen.SiguienteCommand => SiguienteCommand;
+    ICommand AutoExam.Models.IPantallaDeExamen.AnteriorCommand => AnteriorCommand;
+    ICommand AutoExam.Models.IPantallaDeExamen.SaltearCommand => SaltearCommand;
 
     /// <summary>Todos los comandos, para poder recorrerlos genéricamente y asegurar que
     /// ningún atajo dispara un comando distinto al esperado.</summary>

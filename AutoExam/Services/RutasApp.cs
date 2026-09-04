@@ -59,11 +59,20 @@ public static class RutasApp
 
     public static string ArchivoLog => Path.Combine(Raiz, "errores.log");
 
+    /// <summary>
+    /// Examenes que un compañero compartio y este alumno importo (US-037). Van a una carpeta
+    /// propia y no a Biblioteca porque no son material del que se generan preguntas: son
+    /// examenes ya armados, listos para rendir. Mezclarlos con los libros haria que aparecieran
+    /// en el paso Alcance ofreciendo capitulos que no tienen.
+    /// </summary>
+    public static string Compartidos => Path.Combine(Raiz, "Compartidos");
+
     public static void AsegurarCarpetas()
     {
         Directory.CreateDirectory(Raiz);
         Directory.CreateDirectory(Biblioteca);
         Directory.CreateDirectory(Imagenes);
+        Directory.CreateDirectory(Compartidos);
     }
 
     /// <summary>Carpeta de imagenes de un examen puntual.</summary>

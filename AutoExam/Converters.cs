@@ -258,3 +258,78 @@ public class NombreDeMateriaAPincelConverter : IValueConverter
     public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
         => throw new NotSupportedException();
 }
+
+/// <summary>
+/// La serie de una materia convertida en la polilinea del grafico de evolucion (US-033).
+///
+/// Toma la evolucion mas el ancho y el alto REALES del area de dibujo. Escalar con el tamanio
+/// verdadero y no con un Viewbox es lo que evita que el grafico se deforme: un Viewbox que
+/// estira un lienzo cuadrado a un rectangulo ancho tambien estira el grosor de la linea y
+/// convierte los circulos de cada intento en ovalos.
+///
+/// El eje Y va invertido a proposito: en pantalla el 0 esta arriba, y una nota mas alta tiene
+/// que dibujarse mas arriba.
+/// </summary>
+public class EvolucionAPolilineaConverter : IMultiValueConverter
+{
+    public object Convert(object?[] values, Type targetType, object? parameter, CultureInfo culture)
+    {
+        var puntos = new PointCollection();
+
+        if (values.Length < 3 ||
+            values[0] is not EvolucionMateria evolucion ||
+            values[1] is not double ancho || values[2] is not double alto ||
+            ancho <= 0 || alto <= 0)
+        {
+            return puntos;
+        }
+
+        foreach (var (x, y) in evolucion.Relativos())
+        {
+            puntos.Add(new Point(x * ancho, (1 - y) * alto));
+        }
+
+        return puntos;
+    }
+
+    public object[] ConvertBack(object? value, Type[] targetTypes, object? parameter, CultureInfo culture)
+        => throw new NotSupportedException();
+}
+
+/// <summary>
+/// Una fraccion 0..1 llevada a pixeles sobre un largo dado, para posicionar los marcadores de
+/// cada intento sobre el grafico (US-033).
+///
+/// Con ConverterParameter="invertir" ademas da vuelta el eje (para el vertical, donde 1 es
+/// arriba), y con un numero como parametro le resta ese tanto — es como se centra un circulo
+/// sobre su punto en vez de colgarlo de la esquina.
+/// </summary>
+public class FraccionAPixelConverter : IMultiValueConverter
+{
+    public object Convert(object?[] values, Type targetType, object? parameter, CultureInfo culture)
+    {
+        if (values.Length < 2 || values[0] is not double fraccion || values[1] is not double largo || largo <= 0)
+        {
+            return 0d;
+        }
+
+        string opciones = parameter as string ?? string.Empty;
+        bool invertir = opciones.Contains("invertir", StringComparison.OrdinalIgnoreCase);
+
+        double centrado = 0;
+        foreach (string parte in opciones.Split(',', StringSplitOptions.RemoveEmptyEntries))
+        {
+            if (double.TryParse(parte.Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out double n))
+            {
+                centrado = n;
+            }
+        }
+
+        double valor = invertir ? (1 - fraccion) * largo : fraccion * largo;
+
+        return valor - centrado;
+    }
+
+    public object[] ConvertBack(object? value, Type[] targetTypes, object? parameter, CultureInfo culture)
+        => throw new NotSupportedException();
+}

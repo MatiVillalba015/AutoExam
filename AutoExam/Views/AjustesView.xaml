@@ -4,6 +4,7 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+             xmlns:servicios="clr-namespace:AutoExam.Services"
              xmlns:vm="clr-namespace:AutoExam.ViewModels"
              mc:Ignorable="d"
              d:DataContext="{d:DesignInstance Type=vm:AjustesViewModel}">
@@ -153,6 +154,7 @@
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
 
                     <StackPanel Grid.Column="0" VerticalAlignment="Center">
@@ -162,10 +164,104 @@
                                    Style="{StaticResource TxtTenue}" TextWrapping="Wrap" />
                     </StackPanel>
 
-                    <Button Grid.Column="1" Content="Buscar actualizaciones" ToolTip="Consulta si hay una version mas nueva de AutoExam publicada y te ofrece instalarla"
+                    <!-- US-040: el boton va pegado al numero de version, que es donde alguien
+                         que acaba de ver "AutoExam 1.1.0" se pregunta que trae. -->
+                    <Button Grid.Column="1" Content="Notas de versión" Style="{StaticResource ChipAccion}"
+                            VerticalAlignment="Center" Margin="12,0,0,0"
+                            ToolTip="Qué se agregó, cambió y arregló en esta versión y en las anteriores"
+                            Command="{Binding AlternarNotasCommand}" />
+
+                    <Button Grid.Column="2" Content="Buscar actualizaciones" ToolTip="Consulta si hay una version mas nueva de AutoExam publicada y te ofrece instalarla"
                             Style="{StaticResource ChipAccion}" VerticalAlignment="Center"
-                            Margin="12,0,0,0" Command="{Binding BuscarActualizacionCommand}" />
+                            Margin="10,0,0,0" Command="{Binding BuscarActualizacionCommand}" />
                 </Grid>
+            </Border>
+
+            <!-- ============================================================ -->
+            <!-- US-040 — notas de version                                     -->
+            <!--                                                               -->
+            <!-- El contenido sale de CHANGELOG.md, embebido en el ejecutable  -->
+            <!-- al compilar (RN-51): se lee sin conexion, que es justo cuando  -->
+            <!-- se lo quiere leer, despues de que la app se actualizo sola.    -->
+            <!-- ============================================================ -->
+            <Border Style="{StaticResource TarjetaResumen}" Margin="0,0,0,24" Padding="20,18"
+                    Visibility="{Binding MostrarNotas, Converter={StaticResource BoolToVis}}">
+                <StackPanel>
+                    <Grid Margin="0,0,0,4">
+                        <TextBlock Text="Notas de versión" Style="{StaticResource TxtCuerpo}"
+                                   FontWeight="SemiBold" VerticalAlignment="Center" />
+
+                        <Button Content="Cerrar" Style="{StaticResource ChipAccion}"
+                                HorizontalAlignment="Right" VerticalAlignment="Center"
+                                Command="{Binding AlternarNotasCommand}" />
+                    </Grid>
+
+                    <!-- Un build de prueba entre dos releases todavia no tiene su entrada.
+                         Se dice; una seccion vacia se lee como una falla de la app. -->
+                    <ui:InfoBar IsOpen="{Binding FaltanNotasDeEstaVersion, Mode=OneWay}"
+                                IsClosable="False" Severity="Informational" Title=""
+                                Margin="0,8,0,4"
+                                Message="{Binding AvisoSinNotas}" />
+
+                    <TextBlock Style="{StaticResource TxtAyuda}"
+                               Visibility="{Binding HayNotas, Converter={StaticResource BoolToVis}}"
+                               Text="Lo más nuevo arriba. Las versiones anteriores a la primera de esta lista se publicaron sin notas." />
+
+                    <ScrollViewer MaxHeight="420" VerticalScrollBarVisibility="Auto"
+                                  HorizontalScrollBarVisibility="Disabled" Margin="0,4,0,0">
+                        <ItemsControl ItemsSource="{Binding Versiones}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate DataType="{x:Type servicios:NotasDeUnaVersion}">
+                                    <Border Style="{StaticResource TarjetaPlana}" Padding="16,14"
+                                            Margin="0,0,4,10">
+                                        <StackPanel>
+                                            <TextBlock Text="{Binding Encabezado}" Style="{StaticResource TxtCuerpo}"
+                                                       FontWeight="SemiBold" TextWrapping="Wrap" />
+                                            <TextBlock Text="{Binding Subtitulo}" Style="{StaticResource TxtTenue}"
+                                                       Margin="0,2,0,0"
+                                                       Visibility="{Binding Subtitulo, Converter={StaticResource TextoAVisibilidad}}" />
+
+                                            <ItemsControl ItemsSource="{Binding Grupos}" Margin="0,10,0,0">
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate DataType="{x:Type servicios:GrupoDeNotas}">
+                                                        <StackPanel Margin="0,0,0,8">
+                                                            <TextBlock Text="{Binding Titulo}"
+                                                                       Style="{StaticResource TxtRotulo}" />
+
+                                                            <ItemsControl ItemsSource="{Binding Puntos}">
+                                                                <ItemsControl.ItemTemplate>
+                                                                    <DataTemplate>
+                                                                        <Grid Margin="0,0,0,5">
+                                                                            <Grid.ColumnDefinitions>
+                                                                                <ColumnDefinition Width="Auto" />
+                                                                                <ColumnDefinition Width="*" />
+                                                                            </Grid.ColumnDefinitions>
+
+                                                                            <!-- Vinieta propia: los puntos son
+                                                                                 texto plano, sin el "- " del
+                                                                                 archivo. -->
+                                                                            <Ellipse Grid.Column="0" Width="4" Height="4"
+                                                                                     VerticalAlignment="Top" Margin="2,8,10,0"
+                                                                                     Fill="{DynamicResource PincelMarca}" />
+
+                                                                            <TextBlock Grid.Column="1" Text="{Binding}"
+                                                                                       Style="{StaticResource TxtSuave}"
+                                                                                       TextWrapping="Wrap" />
+                                                                        </Grid>
+                                                                    </DataTemplate>
+                                                                </ItemsControl.ItemTemplate>
+                                                            </ItemsControl>
+                                                        </StackPanel>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                        </StackPanel>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+                </StackPanel>
             </Border>
         </StackPanel>
     </ScrollViewer>

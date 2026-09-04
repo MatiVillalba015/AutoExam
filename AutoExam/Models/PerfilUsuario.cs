@@ -234,6 +234,16 @@ public class AppConfig
     /// </summary>
     public int TamanioTextoExamen { get; set; } = 2;
 
+    /// <summary>
+    /// Si ya se le mostro al alumno la referencia de atajos de teclado del examen (US-036).
+    ///
+    /// El criterio pide mostrarla "la primera vez que se entra a un examen", asi que hace
+    /// falta recordar entre reinicios que ya se mostro. Guardarlo aca y no en memoria es lo
+    /// que evita que la misma ayuda reaparezca en cada arranque, que es como una ayuda util
+    /// se convierte en un estorbo.
+    /// </summary>
+    public bool AtajosExamenVistos { get; set; }
+
     // ------------------------------------------------------------------
     // Fuentes-imagen (US-010)
     // ------------------------------------------------------------------

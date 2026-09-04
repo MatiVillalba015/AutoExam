@@ -23,6 +23,19 @@ public interface IDialogos
     /// </summary>
     string[]? ElegirFuentes();
 
+    /// <summary>
+    /// Selector de un archivo de examen compartido (US-037). Devuelve la ruta, o null si se
+    /// cancelo. Separado de <see cref="ElegirFuentes"/> porque un examen compartido no es
+    /// material: no pasa por ningun extractor ni genera preguntas, ya las trae.
+    /// </summary>
+    string? ElegirExamenCompartido();
+
+    /// <summary>
+    /// Donde guardar un examen exportado (US-037). Devuelve la ruta elegida, o null si se
+    /// cancelo. <paramref name="nombreSugerido"/> es el nombre con el que se abre el dialogo.
+    /// </summary>
+    string? ElegirDondeGuardarExamen(string nombreSugerido);
+
     void AbrirCarpeta(string ruta);
 }
 
@@ -58,6 +71,39 @@ public class DialogoService : IDialogos
 
         return dialogo.ShowDialog() == true ? dialogo.FileNames : null;
     }
+
+    public string? ElegirExamenCompartido()
+    {
+        var dialogo = new OpenFileDialog
+        {
+            Title = "Elegi el examen que te compartieron",
+            Filter = FiltroExamenes(),
+        };
+
+        return dialogo.ShowDialog() == true ? dialogo.FileName : null;
+    }
+
+    public string? ElegirDondeGuardarExamen(string nombreSugerido)
+    {
+        var dialogo = new SaveFileDialog
+        {
+            Title = "Guardar el examen para compartirlo",
+            Filter = FiltroExamenes(),
+            FileName = nombreSugerido,
+            DefaultExt = CompartirExamenService.Extension,
+            AddExtension = true,
+        };
+
+        return dialogo.ShowDialog() == true ? dialogo.FileName : null;
+    }
+
+    // .axexam es un JSON con otra extension: la extension propia es lo que hace que el
+    // archivo se reconozca de un vistazo en Descargas y que el selector no ofrezca abrir
+    // cualquier .json suelto. Se admite .json igual porque alguien lo va a renombrar.
+    private static string FiltroExamenes() => string.Join("|",
+        $"Examen de AutoExam (*{CompartirExamenService.Extension})|*{CompartirExamenService.Extension}",
+        "JSON (*.json)|*.json",
+        "Todos los archivos (*.*)|*.*");
 
     // Filtro combinado a partir de la lista unica de extensiones admitidas
     // (FactoriaExtractores.ExtensionesAdmitidas) para no repetirla aca.

@@ -13,6 +13,11 @@ Pedidos nuevos agregados post-congelamiento, pendientes de aprobación:
 - **US-027** (paleta de colores más moderna y color propio por Materia, elegido por el alumno, que se refleja en el examen generado de esa materia), **US-028** (tipografía más moderna, con tamaño un poco más chico específicamente en la pantalla de examen) y **US-029** (más microinteracciones y más prolijas en transiciones entre pantallas y en botones, incluyendo corregir el "salto"/zoom actual del hover de botones).
 - **US-030** (mejoras de layout en las 4 pantallas principales: menú, examen, historial y biblioteca, incluyendo jerarquía visual de tarjetas y de la pregunta/opciones en examen).
 - **US-031** (menú principal más completo, con accesos directos a las acciones más usadas: generar examen, ver exámenes anteriores, subir material nuevo y ajustes, no solo los 4 botones de navegación actuales).
+- **US-032** (repaso inteligente: armar un examen corto con las preguntas que más se fallaron entre varios exámenes de un mismo material), **US-033** (gráfico de evolución de notas por Materia, no solo el promedio general) y **US-034** (modo cronómetro real: examen a tiempo límite total, no por pregunta).
+- **US-035** (buscador por texto dentro de Biblioteca e Historial).
+- **US-036** (atajos de teclado durante el examen: números para elegir opción, flechas para avanzar/retroceder) y **US-037** (exportar/importar un examen generado para compartirlo con un compañero sin gastar cuota de Gemini).
+- **US-038** (botón "explicame mejor" en la corrección: pedirle a Gemini una explicación más detallada de una pregunta puntual) y **US-039** (tiempo total de estudio acumulado, visible en el Historial).
+- **US-040** (botón de "Notas de versión" en Ajustes: qué se agregó o cambió en cada actualización, en lenguaje simple).
 
 ## Contexto de negocio
 AutoExam arma exámenes multiple choice con el material de estudio del propio alumno y los corrige con la escala UBA. Hoy la única fuente admitida es PDF (biblioteca de "libros", alcance por capítulos/páginas, corrección local y modo revancha).
@@ -91,6 +96,33 @@ Como usuario, quiero que el menú principal, la pantalla de examen, el historial
 
 ### US-031 — Menú principal más completo
 Como alumno, quiero que el menú principal ofrezca de entrada las acciones que más uso —generar un examen nuevo, ver mis exámenes anteriores, subir material nuevo y entrar a ajustes— en vez de ser solo 4 botones de navegación genéricos (Libros, Nuevo examen, Historial, Ajustes), para llegar más rápido a lo que quiero hacer sin tener que entrar primero a una sección y recién ahí encontrar la acción puntual.
+
+### US-032 — Repaso inteligente de preguntas falladas
+Como alumno, quiero poder armar un examen corto usando las preguntas que más fallé entre varios exámenes que ya rendí de un mismo material o materia, para repasar puntualmente lo que más me cuesta en vez de repasar todo por igual.
+
+### US-033 — Gráfico de evolución de notas por Materia
+Como alumno, quiero ver un gráfico de cómo evolucionaron mis notas a lo largo del tiempo separado por Materia, para saber si estoy mejorando o estancado en cada una, no solo mi promedio general.
+
+### US-034 — Modo cronómetro real (examen a tiempo límite total)
+Como alumno, quiero poder rendir un examen con un tiempo total límite (por ejemplo 40 minutos para todo el examen, no por pregunta), para practicar el ritmo real de un parcial.
+
+### US-035 — Buscador por texto en Biblioteca e Historial
+Como alumno, quiero poder buscar por texto dentro de mi Biblioteca y de mi Historial (por nombre de material, materia o tema), para encontrar algo puntual rápido cuando ya tengo muchos documentos o exámenes rendidos.
+
+### US-036 — Atajos de teclado durante el examen
+Como alumno, quiero poder usar el teclado durante el examen (números para elegir una opción, flechas para avanzar o retroceder de pregunta), para rendir más rápido sin depender del mouse en cada click.
+
+### US-037 — Compartir un examen generado con un compañero
+Como alumno, quiero poder exportar un examen que ya generé y que un compañero lo importe en su propia AutoExam, para que pueda rendir el mismo examen sin gastar su propia cuota de Gemini generándolo de nuevo.
+
+### US-038 — Botón "Explicame mejor" en la corrección
+Como alumno, quiero poder pedirle a Gemini una explicación más larga y en otras palabras de una pregunta puntual que rendí, para entender mejor por qué la respuesta correcta es esa cuando el análisis breve que ya se muestra al corregir no me alcanza.
+
+### US-039 — Tiempo total de estudio acumulado
+Como alumno, quiero ver cuánto tiempo acumulado pasé rindiendo exámenes (por ejemplo esta semana o en total), además de la cantidad de exámenes y mi nota, para tener una noción de mi esfuerzo de estudio más allá de los resultados.
+
+### US-040 — Notas de versión
+Como usuario, quiero un botón de "Notas de versión" en Ajustes donde se publique, de forma breve y en lenguaje simple (entendible para cualquiera, no solo para quien programó la app), qué se agregó o cambió en cada actualización, para saber qué es nuevo cuando la app se actualiza sin tener que preguntarle a nadie.
 
 ## Criterios de aceptación (Given/When/Then)
 
@@ -282,6 +314,8 @@ Como alumno, quiero que el menú principal ofrezca de entrada las acciones que m
 - Given elijo una opción de respuesta, when queda marcada, then se ve un estado de "seleccionado" claramente distinto al resto de las opciones (no solo un cambio sutil), consistente con los colores de correcto/incorrecto que ya se usan al corregir.
 - Given veo tarjetas en cualquier pantalla (documentos, exámenes del historial, resumen de "vas a generar"), when las comparo entre sí, then hay una jerarquía visual clara entre una tarjeta informativa, una seleccionable y un resumen final (por ejemplo con distinto nivel de sombra/profundidad), no todas con el mismo tono.
 - Given hay texto de ayuda debajo de un título de sección (por ejemplo las aclaraciones de Capítulos o Materia), when lo leo, then tiene suficiente espaciado/interlineado respecto al texto de arriba para no sentirse pegado.
+- Given estoy en Biblioteca, when veo la tarjeta de "Materias" (para renombrar/eliminar), then también muestra el color de cada Materia (por ejemplo un punto o chip de color junto al nombre), igual que ya se ve en las franjas de color de los grupos de la lista de abajo.
+- Given cualquier texto de la interfaz muestra una cantidad (por ejemplo "1 módulo" o "2 módulos", "1 examen rendido" o "2 exámenes rendidos"), when la cantidad es 1, then el texto usa la forma singular correcta en español, no la forma plural aplicada de forma fija (por ejemplo, hoy "1 modulos" está mal escrito y debería decir "1 módulo").
 
 ### US-031
 - Given estoy en el menú principal, when lo veo, then sigo teniendo los 4 accesos de navegación existentes (Libros, Nuevo examen, Historial, Ajustes), pero además veo accesos directos a acciones concretas: generar un examen nuevo, ver mis exámenes anteriores/historial, subir material nuevo (sin pasar primero por Biblioteca) y entrar a ajustes.
@@ -292,6 +326,68 @@ Como alumno, quiero que el menú principal ofrezca de entrada las acciones que m
 - Given estos accesos directos nuevos conviven con los 4 botones de navegación, when reviso el menú, then no queda duplicado ni confuso: los accesos directos son atajos a la acción puntual, los botones de navegación siguen llevando a la sección completa.
 - Given estoy en el menú principal, when veo cualquiera de las tarjetas de acceso directo, then su ícono, título y descripción breve están siempre visibles (no solo al pasar el mouse por encima): ninguna tarjeta queda vacía o en blanco a la espera del hover.
 - Given estoy en el menú principal, when busco entender qué es la app, then hay un botón/acceso chico ("¿Qué es AutoExam?" o equivalente) que muestra una explicación breve, en lenguaje simple orientado a un estudiante nuevo, de para qué sirve la aplicación.
+
+### US-032
+- Given tengo dos o más exámenes rendidos con detalle guardado (US-025) de un mismo material o de una misma Materia, when entro a "Repaso inteligente", then puedo elegir ese material/materia y la app arma un examen nuevo usando las preguntas que marqué incorrectas (o salteadas) en esos intentos.
+- Given una misma pregunta aparece fallada en más de un examen, when se arma el repaso inteligente, then esa pregunta entra una sola vez (no se repite).
+- Given no tengo suficientes preguntas falladas para armar el repaso pedido, when lo genero, then sale con todas las disponibles y la app avisa que se ajustó la cantidad, igual que en US-026.
+- Given respondo bien una pregunta en el repaso inteligente, when reviso mi historial de aciertos por pregunta, then eso queda registrado: si esa misma pregunta vuelve a aparecer en un futuro repaso, ya no cuenta como "fallada" salvo que la vuelva a errar.
+- Given el repaso inteligente usa preguntas ya generadas antes, when lo genero, then es instantáneo y no consume cuota de IA, igual que un examen combinado de US-026.
+
+### US-033
+- Given tengo al menos dos exámenes rendidos de una misma Materia, when entro a ver su evolución, then veo un gráfico simple (por ejemplo de línea) con la nota o el porcentaje de aciertos de cada intento en el tiempo, para esa materia puntual.
+- Given tengo varias Materias con exámenes rendidos, when reviso evolución, then puedo elegir de cuál materia ver el gráfico (no solo un gráfico general mezclado).
+- Given todavía no tengo al menos dos exámenes rendidos de una materia, when quiero ver su evolución, then la app lo indica con claridad ("rendí al menos dos exámenes de esta materia para ver tu evolución") en vez de mostrar un gráfico vacío o roto.
+- Given el color de la Materia ya está definido (US-027), when veo su gráfico de evolución, then usa ese mismo color como acento, para mantener consistencia visual.
+- Given tengo dos o más Materias con al menos dos exámenes rendidos cada una, when reviso "Mi evolución por materia", then puedo superponer varias Materias en el mismo gráfico (no solo verlas una por vez), cada una dibujada con su propio color de Materia (US-027) para poder compararlas de un vistazo.
+- Given superpongo varias Materias en el gráfico, when las reviso, then hay una referencia (leyenda o los mismos chips de Materia ya usados para filtrar) que indica qué línea de color corresponde a cada Materia.
+
+### US-034
+- Given estoy en el paso Formato del asistente de Nuevo examen, when configuro el examen, then puedo elegir "modo cronómetro" con un tiempo límite total (por ejemplo 20, 40, 60 minutos, o un valor a mano), además del modo actual sin límite de tiempo global.
+- Given rindo un examen en modo cronómetro, when se acaba el tiempo, then el examen se entrega automáticamente con las respuestas marcadas hasta ese momento (las preguntas sin responder quedan como salteadas), sin perder lo ya contestado.
+- Given estoy rindiendo en modo cronómetro, when reviso la pantalla de examen, then veo la cuenta regresiva del tiempo total de forma clara, con un aviso visual cuando queda poco tiempo (por ejemplo los últimos 2 minutos).
+- Given genero un examen combinado (US-026) o de repaso inteligente (US-032), when configuro el formato, then también puedo elegir modo cronómetro para esos exámenes, no solo para los generados con IA.
+- Given elijo "Sin límite" en el modo cronómetro, when reviso esa sección, then no se muestra ningún campo numérico de minutos ni ningún valor tipo "0" al lado: ese campo personalizado solo aparece si el usuario elige explícitamente definir un tiempo a mano, distinto de los presets (20/40/60/90 min).
+
+### US-035
+- Given estoy en Biblioteca, when escribo en el buscador, then la lista se filtra en tiempo real por título del material, Materia o nombre de archivo original.
+- Given estoy en Historial, when escribo en el buscador, then la lista se filtra en tiempo real por título del examen, Materia o alcance/tema.
+- Given la búsqueda no encuentra resultados, when reviso la lista filtrada, then la app lo indica con claridad ("no se encontró nada para 'x'") en vez de mostrar una lista vacía sin explicación.
+- Given borro el texto del buscador, when queda vacío, then la lista vuelve a mostrar todos los elementos, sin filtro aplicado.
+
+### US-036
+- Given entro a la pantalla de examen, when todavía no toqué nada con el mouse ni con el teclado, then los atajos de teclado (números/letras para elegir opción, flechas para avanzar/retroceder) ya están activos por defecto: no hace falta apretar ningún botón, tocar "Entendido" ni darle foco a nada en particular de antemano para que funcionen.
+- Given estoy respondiendo una pregunta de opción múltiple, when presiono una tecla numérica (1, 2, 3, 4) o de letra (A, B, C, D) correspondiente a una opción visible, then esa opción queda seleccionada, igual que si la tocara con el mouse.
+- Given ya respondí o quiero pasar de pregunta, when presiono la flecha derecha (o similar), then avanzo a la siguiente pregunta; con la flecha izquierda retrocedo a la anterior.
+- Given estoy usando atajos de teclado, when un campo de texto tiene el foco (por ejemplo si hubiera texto libre en alguna pantalla), then los atajos no interfieren con lo que estoy escribiendo ahí.
+- Given no conozco los atajos, when entro por primera vez a un examen, then hay una referencia visible pero discreta de qué atajos existen (por ejemplo un texto chico o un ícono de ayuda), sin que estorbe la pantalla; esto es solo informativo, cerrarlo o no verlo nunca desactiva los atajos.
+- Given la referencia de atajos muestra un círculo o ícono por cada tecla disponible, when la veo, then cada círculo tiene visible adentro el número o letra real que representa (1, 2, 3, 4 o A, B, C, D), no un círculo vacío sin indicar qué tecla es.
+
+### US-037
+- Given ya generé un examen (con IA, combinado o de repaso), when quiero compartirlo, then puedo exportarlo a un archivo (por ejemplo un `.json` propio de AutoExam) que contiene las preguntas, opciones, respuestas correctas y justificaciones, sin datos personales míos (mi historial o mis notas no se incluyen).
+- Given un compañero me pasa un archivo exportado de AutoExam, when lo importo desde mi propia app, then puedo rendir ese examen igual que uno generado por mí, y al corregirlo se guarda en mi Historial como cualquier otro.
+- Given intento importar un archivo que no es un examen válido de AutoExam (corrupto o de otra versión incompatible), when lo intento abrir, then la app lo rechaza con un mensaje claro, sin romperse.
+- Given el examen exportado tenía preguntas con imagen de referencia (US-018), when se exporta e importa, then las imágenes viajan incluidas (por ejemplo embebidas o en un paquete junto al archivo), no se pierden ni quedan rotas del otro lado.
+
+### US-038
+- Given estoy revisando la corrección de un examen (recién rendido o desde el detalle del Historial, US-025), when abro una pregunta puntual, then veo un botón "Explicame mejor" además del análisis breve que ya se muestra por opción.
+- Given toco "Explicame mejor", when se genera la respuesta, then Gemini devuelve una explicación más extendida y en otras palabras de por qué la opción correcta lo es y por qué las demás no, usando el mismo contexto/material de esa pregunta.
+- Given pido una explicación extendida, when se está generando, then veo un indicador de carga y no se bloquea el resto de la pantalla; si falla (sin conexión, cuota agotada), se informa con claridad, igual que otros usos de Gemini en la app.
+- Given ya pedí la explicación extendida de una pregunta, when vuelvo a entrar a esa misma pregunta más tarde (por ejemplo desde el detalle del Historial), then la explicación ya generada queda guardada y se muestra directo, sin tener que volver a gastar cuota pidiéndola de nuevo.
+- Given pido explicaciones extendidas repetidas veces, when reviso el consumo, then esto también cuenta contra la cuota general del proveedor de IA (RN-3), igual que generar preguntas.
+
+### US-039
+- Given rindo un examen (de cualquier tipo: con IA, combinado, de repaso o compartido), when se guarda en el Historial, then también se registra cuánto duró ese intento (ya existe `DuracionSegundos` en `ExamenRendido`) como parte del cálculo de tiempo acumulado.
+- Given entro al Historial, when reviso el resumen general, then veo el tiempo total acumulado de estudio (por ejemplo "3h 20min en total"), sumando la duración de todos los exámenes rendidos.
+- Given quiero ver mi esfuerzo reciente, when reviso ese mismo resumen, then también puedo ver el tiempo acumulado de un período más corto (por ejemplo esta semana), no solo el total histórico.
+- Given todavía no rendí ningún examen, when reviso el Historial, then el tiempo acumulado se muestra en 0 o no se muestra, sin romperse ni mostrar un valor sin sentido.
+
+### US-040
+- Given estoy en Ajustes, when busco información de la versión instalada, then hay un botón "Notas de versión" (o equivalente) cerca de donde ya se muestra el número de versión actual.
+- Given toco ese botón, when se abre, then veo las notas de la versión actual: una lista breve de qué se agregó, cambió o arregló, redactada en lenguaje simple orientado al alumno que usa la app (no jerga técnica ni mensajes de commit de git copiados tal cual).
+- Given hay versiones anteriores con notas cargadas, when reviso esta pantalla, then también puedo ver el historial de versiones previas (orden cronológico, la más reciente arriba), no solo la actual.
+- Given se instala una actualización nueva, when abro "Notas de versión" después de actualizar, then ya están disponibles las notas de esa versión nueva sin necesitar conexión a internet (vienen incluidas en el propio instalador/build, no se buscan en el momento).
+- Given una versión todavía no tiene notas cargadas (por ejemplo un build de prueba), when la reviso, then la app lo indica con claridad ("todavía no hay notas para esta versión") en vez de mostrar la sección vacía sin explicación.
 
 ## Reglas de negocio
 - **RN-1** — La escala de calificación no cambia: UBA 1 a 10, se aprueba con 4 (60% de aciertos). "7 o más" (US-013) significa nota ≥ 7, equivalente a ≥ 74% de aciertos.
@@ -334,6 +430,18 @@ Como alumno, quiero que el menú principal ofrezca de entrada las acciones que m
 - **RN-37** — El resumen de actividad reciente del menú (US-031) es de solo lectura: no permite corregir ni interactuar con el examen/material mostrado desde ahí, solo lleva a la pantalla correspondiente si se lo toca.
 - **RN-38** — El contenido esencial de una tarjeta o botón (ícono, título, descripción breve ya definida como parte del diseño) nunca depende exclusivamente del estado de hover para mostrarse: el hover solo agrega el efecto de zoom/crecimiento de texto (US-029) y, cuando corresponde, una descripción adicional que no tenía lugar fijo en el layout (tooltip).
 - **RN-39** — El texto de "¿Qué es AutoExam?" (US-031) es fijo y se define una sola vez junto con el resto del contenido de la interfaz; no depende de conexión a Gemini ni se genera dinámicamente.
+- **RN-40** — El repaso inteligente (US-032) reutiliza el mismo mecanismo local de armado que un examen combinado (RN-27): no consume cuota de IA ni depende de conexión, y nunca repite la misma pregunta dos veces dentro de un mismo repaso.
+- **RN-41** — Para saber qué preguntas están "falladas" (US-032), la app se apoya en el detalle de preguntas por examen que ya persiste `ExamenRendido` desde US-025 (RN-25); un examen sin ese detalle guardado (de antes de US-025) no participa del repaso inteligente.
+- **RN-42** — El gráfico de evolución (US-033) se arma con los datos ya existentes de `ExamenRendido` por Materia; no requiere guardar información nueva más allá de lo que ya persiste el Historial.
+- **RN-43** — El modo cronómetro (US-034) es una opción del paso Formato, independiente del origen de las preguntas (material nuevo con IA, examen combinado o repaso inteligente): no es exclusivo de un solo tipo de generación.
+- **RN-44** — Los atajos de teclado (US-036) se definen con un mapeo centralizado y documentado (no hardcodeado disperso por vista), para poder ajustarlos a futuro sin buscar en múltiples archivos.
+- **RN-45** — El archivo exportado de un examen (US-037) nunca incluye datos personales del usuario que lo generó (historial, notas, progreso): solo el contenido del examen en sí (preguntas, opciones, correctas, justificaciones e imágenes).
+- **RN-46** — Los atajos de teclado (US-036) están activos apenas se entra a la pantalla de examen, sin ninguna acción previa del usuario (click, toque de "Entendido", etc.) que los habilite; el banner/referencia de atajos es solo informativo y no es un interruptor de la funcionalidad.
+- **RN-47** — Todo texto de la interfaz que arma una cantidad con una palabra pluralizable (módulos, exámenes, materiales, preguntas, etc.) usa una única función/helper centralizado de pluralización en español, para no repetir el bug de "1 modulos" en otros lugares ni tener que corregir cada texto por separado a futuro.
+- **RN-48** — La explicación extendida de US-038 se guarda como parte del detalle de esa pregunta (el mismo detalle persistido por US-025), para no volver a gastar cuota pidiéndola de nuevo sobre la misma pregunta.
+- **RN-49** — El tiempo total de estudio (US-039) se calcula a partir de `DuracionSegundos` de cada `ExamenRendido` ya existente; no requiere un cronómetro ni un tracking nuevo aparte del que ya se guarda por examen.
+- **RN-50** — Las notas de versión (US-040) se mantienen en un archivo propio del repositorio (por ejemplo un `CHANGELOG.md` o un recurso embebido en el proyecto), redactado a mano en lenguaje simple, separado de los mensajes de commit de git (que pueden ser técnicos). Cada nueva versión que se publica agrega ahí su propia entrada antes de subir el release.
+- **RN-51** — Las notas de versión viajan empaquetadas dentro del propio build de la app (no se descargan de internet en tiempo de ejecución), para que estén disponibles incluso sin conexión, igual que el resto de la información de Ajustes.
 
 ## Fuera de alcance
 - Formatos binarios antiguos de Office: `.doc`, `.xls`, `.ppt` (quedan fuera de v1; se podrán retomar en una etapa posterior).

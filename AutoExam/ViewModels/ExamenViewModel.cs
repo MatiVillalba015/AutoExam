@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using System.Text;
+using System.Windows.Input;
 using System.Windows.Threading;
 using AutoExam.Models;
 using AutoExam.Services;
@@ -36,7 +37,7 @@ public enum VistaExamen
 }
 
 /// <summary>Rendir el examen, corregirlo y encadenar las rondas de revancha.</summary>
-public partial class ExamenViewModel : PaginaViewModel
+public partial class ExamenViewModel : PaginaViewModel, IPantallaDeExamen
 {
     private readonly SesionUsuarioService _sesion;
     private readonly IDialogos _dialogos;
@@ -74,7 +75,7 @@ public partial class ExamenViewModel : PaginaViewModel
         _dialogos = dialogos;
         _nav = nav;
 
-        _cronometro.Tick += (_, _) => OnPropertyChanged(nameof(Cronometro));
+        _cronometro.Tick += (_, _) => Latido();
         _avance.Tick += (_, _) => AvanzarSolo();
 
         // US-027 / RN-30: el color no se copia al examen, se resuelve por el nombre de la
@@ -87,6 +88,20 @@ public partial class ExamenViewModel : PaginaViewModel
     public ObservableCollection<NavegadorItem> Navegador { get; } = new();
 
     public ObservableCollection<OpcionViewModel> Opciones { get; } = new();
+
+    /// <summary>
+    /// US-036 / <see cref="IPantallaDeExamen"/>: cuantas opciones tiene la pregunta en
+    /// pantalla. Con tres opciones, la tecla 4 no elige nada.
+    /// </summary>
+    public int OpcionesVisibles => Opciones.Count;
+
+    // Los comandos generados son IRelayCommand, no ICommand a secas, y C# exige que el tipo de
+    // retorno coincida exacto para implementar una interfaz de forma implicita. Se exponen
+    // explicitamente: nadie los usa por este camino salvo el manejador de atajos.
+    ICommand IPantallaDeExamen.ResponderCommand => ResponderCommand;
+    ICommand IPantallaDeExamen.SiguienteCommand => SiguienteCommand;
+    ICommand IPantallaDeExamen.AnteriorCommand => AnteriorCommand;
+    ICommand IPantallaDeExamen.SaltearCommand => SaltearCommand;
 
     public ObservableCollection<Pregunta> Correccion { get; } = new();
 
@@ -151,7 +166,64 @@ public partial class ExamenViewModel : PaginaViewModel
     [ObservableProperty]
     private string _textoFinalizar = "Finalizar examen";
 
-    public string Cronometro => Examen?.Transcurrido.ToString(@"hh\:mm\:ss") ?? "00:00:00";
+    public string Cronometro => Examen is not ExamenEnCurso examen
+        ? "00:00:00"
+        : examen.ConCronometro
+            ? examen.Restante.ToString(@"mm\:ss")
+            : examen.Transcurrido.ToString(@"hh\:mm\:ss");
+
+    // ------------------------------------------------------------------
+    // US-034 — cronometro con tiempo total
+    // ------------------------------------------------------------------
+
+    /// <summary>Cuando el reloj pasa a ser una cuenta regresiva y no un cronometro que sube.</summary>
+    public bool ConCronometro => Examen?.ConCronometro == true;
+
+    /// <summary>Bajo este umbral el reloj se pinta de alerta. Dos minutos es lo que pide el criterio.</summary>
+    public static readonly TimeSpan UmbralDeAviso = TimeSpan.FromMinutes(2);
+
+    /// <summary>
+    /// true en los ultimos minutos. La vista lo usa para pintar el reloj: el aviso tiene que
+    /// ser visual y no un dialogo, porque un dialogo a dos minutos del final roba justamente
+    /// el tiempo que queda.
+    /// </summary>
+    public bool TiempoCritico => Examen is ExamenEnCurso e && e.ConCronometro && e.Restante <= UmbralDeAviso;
+
+    public string RotuloTiempo => ConCronometro ? "TIEMPO RESTANTE" : "TIEMPO";
+
+    /// <summary>
+    /// Un tick del reloj. Refresca lo que se ve y, en modo cronometro, entrega el examen solo
+    /// cuando se acaba el tiempo: lo respondido se corrige y lo que quedo sin tocar cuenta
+    /// como salteado, que es exactamente lo que ya hace el evaluador con una pregunta sin
+    /// responder — no hace falta marcarlas de a una.
+    /// </summary>
+    private void Latido()
+    {
+        OnPropertyChanged(nameof(Cronometro));
+        OnPropertyChanged(nameof(TiempoCritico));
+
+        if (Examen is not ExamenEnCurso examen || !examen.SeAcaboElTiempo || Vista != VistaExamen.Rindiendo)
+        {
+            return;
+        }
+
+        _cronometro.Stop();
+        _avance.Stop();
+
+        int sinResponder = examen.SinResponder;
+
+        Corregir();
+
+        _nav.Estado(sinResponder > 0
+            ? $"Se acabo el tiempo. Se entrego con {sinResponder} preguntas sin responder."
+            : "Se acabo el tiempo. Se entrego el examen completo.");
+
+        _dialogos.Aviso("Se acabo el tiempo",
+            sinResponder > 0
+                ? $"El examen se entrego solo con lo que habias respondido. Las {sinResponder} preguntas " +
+                  "que quedaron sin tocar cuentan como salteadas."
+                : "El examen se entrego solo. Habias respondido todas.");
+    }
 
     // ------------------------------------------------------------------
     // Tamanio de texto (US-005)
@@ -244,6 +316,15 @@ public partial class ExamenViewModel : PaginaViewModel
         ReconstruirNavegador();
         MostrarActual();
 
+        // US-034: el reloj cambia de significado segun el examen, asi que hay que reavisar.
+        OnPropertyChanged(nameof(ConCronometro));
+        OnPropertyChanged(nameof(TiempoCritico));
+        OnPropertyChanged(nameof(RotuloTiempo));
+        OnPropertyChanged(nameof(Cronometro));
+
+        // US-036: la referencia de atajos, solo la primera vez.
+        MostrarAtajos = !_sesion.Config.AtajosExamenVistos;
+
         Vista = VistaExamen.Rindiendo;
         _cronometro.Start();
 
@@ -252,6 +333,74 @@ public partial class ExamenViewModel : PaginaViewModel
     }
 
     public bool HayIntentoAbierto => Examen is not null && Vista == VistaExamen.Rindiendo;
+
+    // ------------------------------------------------------------------
+    // US-036 — referencia de atajos
+    // ------------------------------------------------------------------
+
+    /// <summary>Si se esta mostrando la tarjeta con los atajos disponibles.</summary>
+    [ObservableProperty]
+    private bool _mostrarAtajos;
+
+    /// <summary>
+    /// Los atajos y que hace cada uno. Sale de <see cref="AtajosExamen"/>, el mismo lugar del
+    /// que la vista toma las teclas (RN-44): la ayuda no puede desincronizarse de lo que las
+    /// teclas hacen de verdad, que es el modo habitual en que una lista de atajos miente.
+    /// </summary>
+    public IReadOnlyList<(string Teclas, string Que)> Atajos => AtajosExamen.Referencia;
+
+    [RelayCommand]
+    private void OcultarAtajos()
+    {
+        MostrarAtajos = false;
+
+        // Se recuerda entre reinicios: el criterio pide mostrarla la PRIMERA vez, no siempre.
+        _sesion.Config.AtajosExamenVistos = true;
+        _sesion.GuardarConfig();
+    }
+
+    // ------------------------------------------------------------------
+    // US-037 — compartir este examen
+    // ------------------------------------------------------------------
+
+    private bool HayExamenParaCompartir => Examen is { Preguntas.Count: > 0 };
+
+    /// <summary>
+    /// Exporta el examen a un archivo que un compañero puede importar (US-037). El archivo
+    /// lleva el examen y nada mas: ni la nota, ni las respuestas que marco este alumno, ni su
+    /// historial (RN-45). Eso lo garantiza el empaquetado, no un filtro de aca.
+    /// </summary>
+    [RelayCommand(CanExecute = nameof(HayExamenParaCompartir))]
+    private void Exportar()
+    {
+        if (Examen is not ExamenEnCurso examen)
+        {
+            return;
+        }
+
+        string? destino = _dialogos.ElegirDondeGuardarExamen(
+            CompartirExamenService.NombreSugerido(examen.LibroTitulo));
+
+        if (string.IsNullOrWhiteSpace(destino))
+        {
+            return;
+        }
+
+        try
+        {
+            CompartirExamenService.Guardar(CompartirExamenService.Empaquetar(examen), destino);
+            _nav.Estado($"Examen exportado: {System.IO.Path.GetFileName(destino)}");
+
+            _dialogos.Aviso("Examen exportado",
+                "Pasale ese archivo a quien quieras y que lo importe desde Nuevo examen. " +
+                "No incluye tu nota ni tus respuestas.");
+        }
+        catch (Exception ex)
+        {
+            RutasApp.RegistrarError("Examen.Exportar", ex);
+            _dialogos.Error("No se pudo exportar", ex.Message);
+        }
+    }
 
     // ------------------------------------------------------------------
     // Borrado del examen desde Historial (US-012)
@@ -501,6 +650,22 @@ public partial class ExamenViewModel : PaginaViewModel
         {
             examen.IrAPrimeraSinResponder();
             MostrarActual();
+            return;
+        }
+
+        Corregir();
+    }
+
+    /// <summary>
+    /// Corrige y registra el intento. Separado de <see cref="Finalizar"/> porque la entrega
+    /// automatica del cronometro (US-034) tiene que pasar por aca SIN la confirmacion: al
+    /// acabarse el tiempo no hay nada que preguntar, y un dialogo esperando una respuesta
+    /// dejaria el examen sin entregar justo cuando se acabo el tiempo.
+    /// </summary>
+    private void Corregir()
+    {
+        if (Examen is not ExamenEnCurso examen || examen.Preguntas.Count == 0)
+        {
             return;
         }
 

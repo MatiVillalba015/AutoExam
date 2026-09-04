@@ -35,6 +35,8 @@
             <local:SonIgualesConverter x:Key="SonIguales" />
             <local:ColorMateriaAPincelConverter x:Key="ColorMateria" />
             <local:NombreDeMateriaAPincelConverter x:Key="ColorDeMateriaPorNombre" />
+            <local:EvolucionAPolilineaConverter x:Key="EvolucionAPolilinea" />
+            <local:FraccionAPixelConverter x:Key="FraccionAPixel" />
             <BooleanToVisibilityConverter x:Key="BoolToVis" />
 
             <!-- Cada pagina se dibuja sola: el shell muestra el ViewModel activo

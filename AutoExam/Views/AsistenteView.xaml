@@ -6,6 +6,7 @@
              xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
              xmlns:beh="clr-namespace:AutoExam.Behaviors"
              xmlns:modelos="clr-namespace:AutoExam.Models"
+             xmlns:servicios="clr-namespace:AutoExam.Services"
              xmlns:vm="clr-namespace:AutoExam.ViewModels"
              mc:Ignorable="d"
              d:DataContext="{d:DesignInstance Type=vm:AsistenteViewModel}">
@@ -237,7 +238,7 @@
                         <RadioButton Style="{StaticResource Chip}" GroupName="OrigenPreguntas"
                                      MinHeight="70" Margin="6,0,0,0"
                                      HorizontalContentAlignment="Stretch"
-                                     IsChecked="{Binding ModoRepaso, Mode=OneWay}"
+                                     IsChecked="{Binding ModoCombinado, Mode=OneWay}"
                                      Command="{Binding UsarExamenesAnterioresCommand}"
                                      AutomationProperties.Name="Combinar examenes que ya rendiste">
                             <StackPanel>
@@ -246,12 +247,138 @@
                                            Style="{StaticResource TxtTenue}" TextWrapping="Wrap" Margin="0,3,0,0" />
                             </StackPanel>
                         </RadioButton>
+
+                        <!-- US-032 — repaso inteligente. Comparte fila con los otros origenes
+                             porque responde la misma pregunta: de donde salen las preguntas. -->
+                        <RadioButton Style="{StaticResource Chip}" GroupName="OrigenPreguntas"
+                                     MinHeight="70" Margin="0,12,6,0"
+                                     HorizontalContentAlignment="Stretch"
+                                     IsChecked="{Binding ModoFalladas, Mode=OneWay}"
+                                     Command="{Binding UsarPreguntasFalladasCommand}"
+                                     AutomationProperties.Name="Repasar solo las preguntas que fallaste">
+                            <StackPanel>
+                                <TextBlock Text="Lo que falle" FontWeight="SemiBold" />
+                                <TextBlock Text="Solo las preguntas que erraste o salteaste y todavia no acertaste."
+                                           Style="{StaticResource TxtTenue}" TextWrapping="Wrap" Margin="0,3,0,0" />
+                            </StackPanel>
+                        </RadioButton>
+
+                        <!-- US-037 — un examen que compartio un compañero. -->
+                        <RadioButton Style="{StaticResource Chip}" GroupName="OrigenPreguntas"
+                                     MinHeight="70" Margin="6,12,0,0"
+                                     HorizontalContentAlignment="Stretch"
+                                     IsChecked="{Binding ModoImportado, Mode=OneWay}"
+                                     Command="{Binding UsarExamenImportadoCommand}"
+                                     AutomationProperties.Name="Rendir un examen que te compartieron">
+                            <StackPanel>
+                                <TextBlock Text="Examen compartido" FontWeight="SemiBold" />
+                                <TextBlock Text="Un examen que te paso un compañero. No gasta tu cuota de Gemini."
+                                           Style="{StaticResource TxtTenue}" TextWrapping="Wrap" Margin="0,3,0,0" />
+                            </StackPanel>
+                        </RadioButton>
                     </UniformGrid>
+
+                    <!-- ============================================================ -->
+                    <!-- US-032 — elegir de que materia o documento repasar lo fallado  -->
+                    <!-- ============================================================ -->
+                    <StackPanel Visibility="{Binding ModoFalladas, Converter={StaticResource BoolToVis}}">
+                        <TextBlock Text="{Binding ResumenFalladas}" Style="{StaticResource TxtSuave}"
+                                   TextWrapping="Wrap" Margin="0,0,0,12" />
+
+                        <ItemsControl ItemsSource="{Binding FocosDeRepaso}"
+                                      Visibility="{Binding HayPreguntasFalladas, Converter={StaticResource BoolToVis}}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <WrapPanel />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate DataType="{x:Type servicios:FocoDeRepaso}">
+                                    <RadioButton Style="{StaticResource Chip}" GroupName="FocoDeRepaso"
+                                                 Content="{Binding Etiqueta}"
+                                                 AutomationProperties.Name="{Binding Etiqueta}"
+                                                 Command="{Binding DataContext.ElegirFocoCommand,
+                                                           RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                 CommandParameter="{Binding}">
+                                        <RadioButton.IsChecked>
+                                            <MultiBinding Converter="{StaticResource SonIguales}" Mode="OneWay">
+                                                <Binding Path="Clave" />
+                                                <Binding Path="DataContext.FocoElegido.Clave"
+                                                         RelativeSource="{RelativeSource AncestorType=ItemsControl}" />
+                                            </MultiBinding>
+                                        </RadioButton.IsChecked>
+                                    </RadioButton>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+
+                    <!-- ============================================================ -->
+                    <!-- US-037 — examenes importados                                  -->
+                    <!-- ============================================================ -->
+                    <StackPanel Visibility="{Binding ModoImportado, Converter={StaticResource BoolToVis}}">
+                        <TextBlock Text="{Binding ResumenImportado}" Style="{StaticResource TxtSuave}"
+                                   TextWrapping="Wrap" Margin="0,0,0,12" />
+
+                        <Button Content="Importar un examen" Style="{StaticResource ChipAccion}"
+                                HorizontalAlignment="Left" Margin="0,0,0,12"
+                                Command="{Binding ImportarExamenCommand}"
+                                ToolTip="Abre un archivo de examen que te compartieron y lo guarda para rendirlo cuando quieras" />
+
+                        <ListBox ItemsSource="{Binding ExamenesImportados}" MaxHeight="280"
+                                 Background="Transparent" BorderThickness="0"
+                                 ItemContainerStyle="{StaticResource ItemLibro}"
+                                 ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                 AutomationProperties.Name="Examenes importados">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate DataType="{x:Type servicios:ExamenImportado}">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+
+                                        <RadioButton Grid.Column="0" GroupName="ExamenImportado"
+                                                     Margin="0,0,10,0" VerticalAlignment="Center"
+                                                     AutomationProperties.Name="{Binding Titulo}"
+                                                     Command="{Binding DataContext.ElegirImportadoCommand,
+                                                               RelativeSource={RelativeSource AncestorType=ListBox}}"
+                                                     CommandParameter="{Binding}">
+                                            <RadioButton.IsChecked>
+                                                <MultiBinding Converter="{StaticResource SonIguales}" Mode="OneWay">
+                                                    <Binding Path="Ruta" />
+                                                    <Binding Path="DataContext.ImportadoElegido.Ruta"
+                                                             RelativeSource="{RelativeSource AncestorType=ListBox}" />
+                                                </MultiBinding>
+                                            </RadioButton.IsChecked>
+                                        </RadioButton>
+
+                                        <Border Grid.Column="0" Width="4" CornerRadius="2" Margin="0,0,10,0"
+                                                HorizontalAlignment="Right" Visibility="Collapsed"
+                                                Background="{Binding ColorMateria, Converter={StaticResource ColorMateria}}" />
+
+                                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                            <TextBlock Text="{Binding Titulo}" Style="{StaticResource TxtCuerpo}" />
+                                            <TextBlock Text="{Binding Detalle}" Style="{StaticResource TxtTenue}" />
+                                        </StackPanel>
+
+                                        <Button Grid.Column="2" Content="Quitar" Style="{StaticResource ChipAccion}"
+                                                VerticalAlignment="Center"
+                                                ToolTip="Saca este examen de tus importados. No afecta al historial"
+                                                Command="{Binding DataContext.QuitarImportadoCommand,
+                                                          RelativeSource={RelativeSource AncestorType=ListBox}}"
+                                                CommandParameter="{Binding}" />
+                                    </Grid>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+                    </StackPanel>
 
                     <!-- ============================================================ -->
                     <!-- Modo repaso: elegir los examenes a combinar                   -->
                     <!-- ============================================================ -->
-                    <StackPanel Visibility="{Binding ModoRepaso, Converter={StaticResource BoolToVis}}">
+                    <StackPanel Visibility="{Binding ModoCombinado, Converter={StaticResource BoolToVis}}">
                         <TextBlock Text="{Binding ResumenRepaso}" Style="{StaticResource TxtSuave}"
                                    TextWrapping="Wrap" Margin="0,0,0,12" />
 
@@ -601,8 +728,8 @@
                               Content="Incluir preguntas sobre graficos e imagenes del material"
                               Visibility="{Binding ModoMaterial, Converter={StaticResource BoolToVis}}" />
 
-                    <Border Style="{StaticResource TarjetaPlana}" Padding="16" Margin="0,14,0,20"
-                            Visibility="{Binding ModoRepaso, Converter={StaticResource BoolToVis}}">
+                    <Border Style="{StaticResource TarjetaResumen}" Padding="16" Margin="0,14,0,20"
+                            Visibility="{Binding ModoCombinado, Converter={StaticResource BoolToVis}}">
                         <StackPanel>
                             <TextBlock Text="{Binding ResumenRepaso}" Style="{StaticResource TxtCuerpo}"
                                        TextWrapping="Wrap" />
@@ -611,12 +738,69 @@
                         </StackPanel>
                     </Border>
 
+                    <Border Style="{StaticResource TarjetaResumen}" Padding="16" Margin="0,14,0,20"
+                            Visibility="{Binding ModoFalladas, Converter={StaticResource BoolToVis}}">
+                        <StackPanel>
+                            <TextBlock Text="{Binding ResumenFalladas}" Style="{StaticResource TxtCuerpo}"
+                                       TextWrapping="Wrap" />
+                            <TextBlock Style="{StaticResource TxtTenue}" TextWrapping="Wrap" Margin="0,6,0,0"
+                                       Text="Entran solo las que erraste o salteaste y todavia no volviste a acertar. Si acertas una en este repaso, deja de aparecer." />
+                        </StackPanel>
+                    </Border>
+
+                    <!-- ============================================================ -->
+                    <!-- US-034 — cronometro                                           -->
+                    <!--                                                               -->
+                    <!-- RN-43: vive en el paso Formato y no en un modo puntual, asi    -->
+                    <!-- que la misma opcion vale para un examen generado con IA, uno   -->
+                    <!-- combinado, un repaso de lo fallado y uno importado.            -->
+                    <!-- ============================================================ -->
+                    <TextBlock Text="TIEMPO" Style="{StaticResource TxtRotulo}" />
+                    <TextBlock Style="{StaticResource TxtAyuda}"
+                               Text="Es un limite para TODO el examen, no por pregunta: cuanto gastar en cada una es parte de lo que se practica. Al acabarse, se entrega solo con lo que hayas respondido." />
+
+                    <WrapPanel Margin="0,0,0,4">
+                        <RadioButton Style="{StaticResource Chip}" Content="Sin limite"
+                                     GroupName="TiempoLimite"
+                                     AutomationProperties.Name="Sin limite de tiempo"
+                                     IsChecked="{Binding MinutosLimite, Converter={StaticResource IndiceOpcion},
+                                                 ConverterParameter=0, Mode=TwoWay}" />
+                        <RadioButton Style="{StaticResource Chip}" Content="20 min" GroupName="TiempoLimite"
+                                     IsChecked="{Binding MinutosLimite, Converter={StaticResource IndiceOpcion},
+                                                 ConverterParameter=20, Mode=TwoWay}" />
+                        <RadioButton Style="{StaticResource Chip}" Content="40 min" GroupName="TiempoLimite"
+                                     IsChecked="{Binding MinutosLimite, Converter={StaticResource IndiceOpcion},
+                                                 ConverterParameter=40, Mode=TwoWay}" />
+                        <RadioButton Style="{StaticResource Chip}" Content="60 min" GroupName="TiempoLimite"
+                                     IsChecked="{Binding MinutosLimite, Converter={StaticResource IndiceOpcion},
+                                                 ConverterParameter=60, Mode=TwoWay}" />
+                        <RadioButton Style="{StaticResource Chip}" Content="90 min" GroupName="TiempoLimite"
+                                     IsChecked="{Binding MinutosLimite, Converter={StaticResource IndiceOpcion},
+                                                 ConverterParameter=90, Mode=TwoWay}" />
+                    </WrapPanel>
+
+                    <!-- Un valor a mano, para el que practica con el tiempo real de su parcial. -->
+                    <StackPanel Orientation="Horizontal" Margin="0,4,0,20">
+                        <ui:NumberBox Value="{Binding MinutosLimite, Mode=TwoWay}"
+                                      Minimum="0" Maximum="300" ClearButtonEnabled="False"
+                                      Width="130"
+                                      AutomationProperties.Name="Minutos de tiempo limite"
+                                      ToolTip="Minutos totales para todo el examen. 0 = sin limite" />
+                        <TextBlock Text="{Binding ResumenTiempo}" Style="{StaticResource TxtSuave}"
+                                   VerticalAlignment="Center" Margin="12,0,0,0" />
+                    </StackPanel>
+
                     <!-- Resumen antes de gastar cuota: que entra, cuanto y con que.
                          US-030: es el "resumen final" que nombra el criterio, asi que va en el
                          nivel de profundidad mas alto. Es lo ultimo que hay que leer antes de
                          apretar generar, y hasta ahora se veia igual que los dos bloques
                          informativos de arriba. -->
-                    <Border Style="{StaticResource TarjetaResumen}" Margin="0,0,0,20">
+                    <!-- Solo en modo material: en los otros tres no hay libro ni alcance, y
+                         este bloque terminaba diciendo "10 preguntas de" seguido de nada, mas
+                         un "Elegi un material para empezar" en una pantalla donde no se elige
+                         material. Cada modo local ya trae su propio resumen arriba. -->
+                    <Border Style="{StaticResource TarjetaResumen}" Margin="0,0,0,20"
+                            Visibility="{Binding ModoMaterial, Converter={StaticResource BoolToVis}}">
                         <StackPanel>
                             <TextBlock Text="Vas a generar" Style="{StaticResource TxtRotulo}" />
 
@@ -670,7 +854,7 @@
                            Visibility="{Binding EsUltimoPaso, Converter={StaticResource BoolAVisibilidad},
                                         ConverterParameter=invertir}" />
 
-                <ui:Button Content="Generar examen" Appearance="Primary" ToolTip="Le pide las preguntas a Gemini con el material y el alcance elegidos. Puede tardar y consume cuota" Padding="22,11" FontSize="14"
+                <ui:Button Content="Generar examen" Appearance="Primary" ToolTip="{Binding AvisoDeGeneracion}" Padding="22,11" FontSize="14"
                            Icon="{ui:SymbolIcon Sparkle24}" Command="{Binding GenerarCommand}"
                            Visibility="{Binding EsUltimoPaso, Converter={StaticResource BoolToVis}}" />
             </StackPanel>

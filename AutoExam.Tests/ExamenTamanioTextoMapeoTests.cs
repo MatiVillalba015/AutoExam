@@ -158,6 +158,8 @@ public class ExamenTamanioTextoMapeoTests
         public void Aviso(string titulo, string mensaje) { }
         public void Error(string titulo, string mensaje) { }
         public string[]? ElegirFuentes() => null;
+        public string? ElegirExamenCompartido() => null;
+        public string? ElegirDondeGuardarExamen(string nombreSugerido) => null;
         public void AbrirCarpeta(string ruta) { }
     }
 
