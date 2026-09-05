@@ -16,7 +16,7 @@
     <AssemblyName>AutoExam</AssemblyName>
     <RootNamespace>AutoExam</RootNamespace>
     <Product>AutoExam - Estudio UBA</Product>
-    <Version>1.3.0</Version>
+    <Version>1.2.0</Version>
     <ApplicationIcon>imagexxcf_103507.ico</ApplicationIcon>
 
     <!-- Publicacion self-contained single-file -->
