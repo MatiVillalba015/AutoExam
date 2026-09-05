@@ -15,9 +15,9 @@
 -->
 
 <item>
-    <version>1.1.0</version>
-    <url>https://github.com/MatiVillalba015/AutoExam/releases/download/v1.1.0/AutoExam-v1.1.0.zip</url>
-    <changelog>https://github.com/MatiVillalba015/AutoExam/releases/tag/v1.1.0</changelog>
+    <version>1.2.0</version>
+    <url>https://github.com/MatiVillalba015/AutoExam/releases/download/v1.2.0/AutoExam-v1.2.0.zip</url>
+    <changelog>https://github.com/MatiVillalba015/AutoExam/releases/tag/v1.2.0</changelog>
 
     <!--
       En false a proposito. Con true se ocultan "Mas tarde" y "Omitir", y si el paquete
