@@ -27,6 +27,26 @@
     <SolidColorBrush x:Key="PincelMarcaSuave" Color="#EEEAFB" />
     <SolidColorBrush x:Key="PincelSobreMarca" Color="#FFFFFF" />
 
+    <!--
+        US-043 — la superficie de una tarjeta que se elige. Mismo recurso que en el tema
+        oscuro, en el rango claro: sobre papel el volumen viene de que el borde inferior se
+        apoya en un gris apenas mas frio, nunca de oscurecer la tarjeta entera.
+    -->
+    <LinearGradientBrush x:Key="PincelTarjetaProfunda" StartPoint="0,0" EndPoint="0,1">
+        <GradientStop Offset="0" Color="#FFFFFF" />
+        <GradientStop Offset="1" Color="#F1F0F6" />
+    </LinearGradientBrush>
+
+    <!--
+        US-041 — el cuadrado del icono de cada tarjeta del menu. Mismo degradado violeta que en
+        el tema oscuro, pero en el rango claro: sobre papel el cuadrado tiene que quedar mas
+        claro que la tarjeta, no mas oscuro, o el icono se vuelve una mancha.
+    -->
+    <LinearGradientBrush x:Key="PincelIconoAccion" StartPoint="0,0" EndPoint="1,1">
+        <GradientStop Offset="0" Color="#E7E1FA" />
+        <GradientStop Offset="1" Color="#D6CDF3" />
+    </LinearGradientBrush>
+
     <!-- Semantica de correccion: fija, nunca se reutiliza para decorar. Mismo matiz que antes
          (verde/rojo/ambar, nunca corrido hacia el violeta) — solo se ajusto luminancia/
          saturacion para que Acierto/Error/Pendiente se distingan entre si (NFR-33/AC-T39).

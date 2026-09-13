@@ -21,8 +21,6 @@ public partial class HistorialViewModel : PaginaViewModel
         _dialogos = dialogos;
         _nav = nav;
 
-        Escala = new ObservableCollection<string>(EvaluadorUBA.DescribirEscala());
-
         // RN-30: el color es de la materia, no del examen. Si el alumno le cambia el color a
         // "Fisiologia" desde Libros, los examenes de fisiologia que ya estan dibujados en el
         // historial tienen que repintarse — pero cada ExamenRendido resuelve su color solo al
@@ -39,8 +37,6 @@ public partial class HistorialViewModel : PaginaViewModel
     }
 
     public ObservableCollection<ExamenRendido> Examenes => _sesion.Historial;
-
-    public ObservableCollection<string> Escala { get; }
 
     // ------------------------------------------------------------------
     // US-035 — buscador
@@ -179,6 +175,18 @@ public partial class HistorialViewModel : PaginaViewModel
     [ObservableProperty]
     private string _mejorNota = "-";
 
+    /// <summary>
+    /// El porcentaje de aciertos como fraccion de 0 a 1, para el arco del anillo del resumen
+    /// (US-044).
+    ///
+    /// El arco y el numero del medio dicen dos cosas distintas a proposito: adentro va el
+    /// promedio en nota (sobre 10) y el arco dibuja el porcentaje de aciertos, que es el mismo
+    /// dato que el texto "ACIERTOS" de al lado. Son las dos formas en que se mide lo mismo, y
+    /// el anillo es la que se lee sin leer: cuanto del examen se contesta bien.
+    /// </summary>
+    [ObservableProperty]
+    private double _aciertosFraccion;
+
     public bool HayExamenes => Total > 0;
 
     public void Refrescar()
@@ -202,11 +210,16 @@ public partial class HistorialViewModel : PaginaViewModel
             Resumen = "Todavia no rendiste ningun examen.";
             Detalle = "Cuando rindas el primero vas a ver aca tu promedio y tu evolucion.";
             Promedio = Aciertos = MejorNota = "-";
+            AciertosFraccion = 0;
             return;
         }
 
         Promedio = perfil.PromedioNota.ToString("0.0");
         Aciertos = $"{perfil.PromedioAciertos:0}%";
+
+        // La misma cuenta que el texto de arriba, en fraccion: si el anillo saliera de otra
+        // metrica, el arco y el porcentaje escrito al lado podrian contradecirse.
+        AciertosFraccion = Math.Clamp(perfil.PromedioAciertos / 100d, 0, 1);
         MejorNota = perfil.MejorNota.ToString();
 
         Resumen = $"{Total} examenes rendidos · {perfil.Aprobados} aprobados · {perfil.Aplazos} aplazos";

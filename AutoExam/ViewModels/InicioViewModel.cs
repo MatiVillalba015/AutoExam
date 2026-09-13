@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Globalization;
 using System.Windows.Input;
 using AutoExam.Models;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -29,13 +30,15 @@ public partial class AccesoDeInicio : ObservableObject
         string titulo,
         string icono,
         string descripcion,
-        ICommand comando)
+        ICommand comando,
+        bool esPrincipal = false)
     {
         _seccion = seccion;
         Titulo = titulo;
         Icono = icono;
         Descripcion = descripcion;
         Comando = comando;
+        EsPrincipal = esPrincipal;
 
         seccion.PropertyChanged += (_, e) =>
         {
@@ -57,6 +60,12 @@ public partial class AccesoDeInicio : ObservableObject
 
     /// <summary>La accion. RN-36: siempre es un atajo a un flujo que ya existe.</summary>
     public ICommand Comando { get; }
+
+    /// <summary>
+    /// La accion mas usada, que el menu destaca visualmente (US-041). Es una sola: el momento
+    /// en que dos tarjetas se marcan como principales, ninguna lo es.
+    /// </summary>
+    public bool EsPrincipal { get; }
 
     /// <summary>Dato vivo de la seccion relacionada. Vacio cuando todavia no hay nada que contar.</summary>
     public string Insignia => _seccion.Insignia;
@@ -209,11 +218,18 @@ public partial class InicioViewModel : PaginaViewModel
 
         Saludo = libros == 0 && examenes == 0 ? "Empezá por acá" : "¿Qué estudiamos hoy?";
 
+        // Con examenes rendidos la bajada dice el promedio y nada mas, como en el mockup de
+        // US-041. Es el unico numero del menu que resume "como venis": la cuenta de materiales
+        // no dice nada sobre el estudio, y repetir la de examenes al lado de las tarjetas era
+        // justamente el dato de mas que el criterio pide no agregar.
+        double promedio = examenes == 0 ? 0 : historial.Average(e => e.NotaUBA);
+
         Bajada = (libros, examenes) switch
         {
             (0, _) => "Subí tu primer material y armá un examen con él.",
             (_, 0) => $"Tenés {Plural(libros, "material", "materiales")} listo para generar tu primer examen.",
-            _ => $"{Plural(libros, "material", "materiales")} · {Plural(examenes, "examen rendido", "examenes rendidos")}."
+            _ => $"{promedio.ToString("0.0", CultureInfo.CurrentCulture)} de promedio en " +
+                 $"{Plural(examenes, "examen", "exámenes")}"
         };
 
         Invitacion = libros == 0

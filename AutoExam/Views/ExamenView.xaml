@@ -35,6 +35,35 @@
     -->
     <Grid>
 
+        <!--
+            US-057 / RN-66 — el mismo fondo de luz violeta del resto de la app, pero atenuado.
+
+            RN-53 lo hizo estandar; RN-66 dice explicitamente que aca la prioridad es no
+            distraer por sobre calzar con la intensidad de Historial, Biblioteca y Ajustes. Las
+            manchas son las mismas y en las mismas esquinas, a poco mas de la mitad de opacidad
+            (0.18 y 0.14 contra 0.35 y 0.28): se nota que la pantalla pertenece a la app y no
+            compite con el enunciado, que es lo unico que hay que leer mientras se rinde.
+        -->
+        <Canvas ClipToBounds="True" IsHitTestVisible="False" Panel.ZIndex="-1">
+            <Ellipse Canvas.Left="-260" Canvas.Top="-360" Width="1240" Height="1240" Opacity="0.18">
+                <Ellipse.Fill>
+                    <RadialGradientBrush>
+                        <GradientStop Offset="0" Color="#3A2E6B" />
+                        <GradientStop Offset="1" Color="#003A2E6B" />
+                    </RadialGradientBrush>
+                </Ellipse.Fill>
+            </Ellipse>
+
+            <Ellipse Canvas.Right="-360" Canvas.Bottom="-420" Width="1320" Height="1320" Opacity="0.14">
+                <Ellipse.Fill>
+                    <RadialGradientBrush>
+                        <GradientStop Offset="0" Color="#2E2A5E" />
+                        <GradientStop Offset="1" Color="#002E2A5E" />
+                    </RadialGradientBrush>
+                </Ellipse.Fill>
+            </Ellipse>
+        </Canvas>
+
         <!-- ============================================================ -->
         <!-- Sin examen                                                    -->
         <!-- ============================================================ -->
@@ -60,6 +89,8 @@
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
+                <!-- US-057: la linea de atajos, al pie. -->
                 <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
 
@@ -96,54 +127,73 @@
                     <TextBlock Text="{Binding Subtitulo}" Style="{StaticResource TxtTenue}" />
                 </StackPanel>
 
-                <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="0,0,14,0">
-                    <!--
-                        US-034 — el mismo lugar muestra dos cosas distintas: cuanto llevas
-                        (modo de siempre) o cuanto te queda (modo cronometro). Se pinta de
-                        error en los ultimos dos minutos, que es el aviso que pide el criterio.
-                        Un dialogo a dos minutos del final robaria justamente el tiempo que
-                        queda.
-                    -->
-                    <TextBlock Text="{Binding Cronometro}"
-                               FontSize="19" HorizontalAlignment="Right">
-                        <TextBlock.Style>
-                            <Style TargetType="TextBlock" BasedOn="{StaticResource TxtDato}">
-                                <Setter Property="Foreground" Value="{DynamicResource PincelTexto}" />
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding TiempoCritico}" Value="True">
-                                        <Setter Property="Foreground" Value="{DynamicResource PincelError}" />
-                                        <Setter Property="FontWeight" Value="Bold" />
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </TextBlock.Style>
-                    </TextBlock>
+                <!--
+                    US-057 — los tres controles de la esquina, en una sola fila liviana.
 
-                    <TextBlock Text="{Binding RotuloTiempo}" Style="{StaticResource TxtTenue}"
-                               HorizontalAlignment="Right" FontSize="10"
-                               Visibility="{Binding ConCronometro, Converter={StaticResource BoolToVis}}" />
+                    Antes eran tres bloques de distinto alto: el reloj con dos renglones
+                    debajo, la pareja A-/A+ y la cruz, cada uno con su propio peso. Todo eso
+                    convivia con el titulo del examen en la misma franja y competia con el.
+                    Ahora es una linea: reloj, separador fino, tamanio de letra, separador,
+                    cerrar. Ninguno cambia lo que hace — es la misma fila de siempre, alineada
+                    y sin bulto.
+                -->
+                <StackPanel Grid.Column="1" Grid.ColumnSpan="3" Orientation="Horizontal"
+                            VerticalAlignment="Center" HorizontalAlignment="Right">
 
-                    <TextBlock Text="{Binding Contadores}" Style="{StaticResource TxtTenue}"
-                               HorizontalAlignment="Right" />
-                </StackPanel>
+                    <ui:SymbolIcon Symbol="Timer24" FontSize="14" VerticalAlignment="Center"
+                                   Margin="0,0,7,0" Foreground="{DynamicResource PincelTextoTenue}" />
 
-                <!-- Tamanio de texto de pregunta y opciones (US-005). Solo afecta esta vista. -->
-                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center"
-                            Margin="0,0,10,0">
-                    <ui:Button Content="A-" Appearance="Transparent" Padding="10,8"
+                    <StackPanel VerticalAlignment="Center">
+                        <!--
+                            US-034 — el mismo lugar muestra dos cosas distintas: cuanto llevas
+                            (modo de siempre) o cuanto te queda (modo cronometro). Se pinta de
+                            error en los ultimos dos minutos, que es el aviso que pide el criterio.
+                            Un dialogo a dos minutos del final robaria justamente el tiempo que
+                            queda.
+                        -->
+                        <TextBlock Text="{Binding Cronometro}" FontSize="15">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock" BasedOn="{StaticResource TxtDato}">
+                                    <Setter Property="Foreground" Value="{DynamicResource PincelTexto}" />
+                                    <Setter Property="FontWeight" Value="SemiBold" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding TiempoCritico}" Value="True">
+                                            <Setter Property="Foreground" Value="{DynamicResource PincelError}" />
+                                            <Setter Property="FontWeight" Value="Bold" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+
+                        <TextBlock Text="{Binding RotuloTiempo}" Style="{StaticResource TxtTenue}"
+                                   FontSize="10"
+                                   Visibility="{Binding ConCronometro, Converter={StaticResource BoolToVis}}" />
+                    </StackPanel>
+
+                    <Border Width="1" Height="16" Margin="16,0" VerticalAlignment="Center"
+                            Background="{DynamicResource PincelBorde}" />
+
+                    <!-- Tamanio de texto de pregunta y opciones (US-005). Solo afecta esta vista. -->
+                    <ui:Button Content="A-" Appearance="Transparent" Padding="8,5"
+                               VerticalAlignment="Center"
                                Command="{Binding DisminuirTextoExamenCommand}"
                                AutomationProperties.Name="Achicar el texto de la pregunta y las opciones"
                                ToolTip="Achicar texto" />
-                    <ui:Button Content="A+" Appearance="Transparent" Padding="10,8" Margin="4,0,0,0"
+                    <ui:Button Content="A+" Appearance="Transparent" Padding="8,5" Margin="2,0,0,0"
+                               VerticalAlignment="Center"
                                Command="{Binding AumentarTextoExamenCommand}"
                                AutomationProperties.Name="Agrandar el texto de la pregunta y las opciones"
                                ToolTip="Agrandar texto" />
-                </StackPanel>
 
-                <ui:Button Grid.Column="3" Appearance="Transparent" Icon="{ui:SymbolIcon Dismiss24}"
-                           Padding="8" VerticalAlignment="Center" Command="{Binding SalirCommand}"
-                           AutomationProperties.Name="Salir del examen"
-                           ToolTip="Salir del examen y descartar el intento" />
+                    <Border Width="1" Height="16" Margin="16,0" VerticalAlignment="Center"
+                            Background="{DynamicResource PincelBorde}" />
+
+                    <ui:Button Appearance="Transparent" Icon="{ui:SymbolIcon Dismiss24}"
+                               Padding="6" VerticalAlignment="Center" Command="{Binding SalirCommand}"
+                               AutomationProperties.Name="Salir del examen"
+                               ToolTip="Salir del examen y descartar el intento" />
+                </StackPanel>
             </Grid>
 
             <!--
@@ -180,69 +230,39 @@
                     vista toma las teclas (RN-44): no puede quedar diciendo una tecla que ya
                     no hace nada.
                 -->
-                <Border Style="{StaticResource TarjetaSeleccionable}" Padding="16,12" Margin="0,0,0,12"
-                        Visibility="{Binding MostrarAtajos, Converter={StaticResource BoolToVis}}">
-                    <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto" />
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="Auto" />
-                        </Grid.ColumnDefinitions>
+                <!--
+                    US-057 — el progreso, en una linea.
 
-                        <ui:SymbolIcon Grid.Column="0" Symbol="Keyboard24" FontSize="18"
-                                       VerticalAlignment="Center" Margin="0,0,14,0"
-                                       Foreground="{DynamicResource PincelMarca}" />
-
-                        <StackPanel Grid.Column="1">
-                            <TextBlock Text="Podés rendir con el teclado" Style="{StaticResource TxtCuerpo}"
-                                       FontWeight="SemiBold" Margin="0,0,0,6" />
-
-                            <ItemsControl ItemsSource="{Binding Atajos}">
-                                <ItemsControl.ItemsPanel>
-                                    <ItemsPanelTemplate>
-                                        <WrapPanel Orientation="Horizontal" />
-                                    </ItemsPanelTemplate>
-                                </ItemsControl.ItemsPanel>
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate>
-                                        <StackPanel Orientation="Horizontal" Margin="0,0,22,4">
-                                            <Border Padding="7,2" Margin="0,0,7,0"
-                                                    CornerRadius="{DynamicResource RadioChip}"
-                                                    Background="{DynamicResource PincelMarcaSuave}">
-                                                <TextBlock Text="{Binding Teclas}" Style="{StaticResource TxtDato}"
-                                                           FontSize="11"
-                                                           Foreground="{DynamicResource PincelMarcaFuerte}" />
-                                            </Border>
-                                            <TextBlock Text="{Binding Que}" Style="{StaticResource TxtTenue}"
-                                                       VerticalAlignment="Center" />
-                                        </StackPanel>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-                        </StackPanel>
-
-                        <Button Grid.Column="2" Content="Entendido" Style="{StaticResource ChipAccion}"
-                                VerticalAlignment="Center" Margin="14,0,0,0"
-                                ToolTip="No volver a mostrar los atajos al empezar un examen"
-                                Command="{Binding OcultarAtajosCommand}" />
-                    </Grid>
-                </Border>
-
+                    Antes eran tres cosas repartidas: "Pregunta 3 de 10 · sin responder" aca,
+                    "N respondidas · N salteadas · N sin ver" arriba junto al reloj, y un
+                    "45% encarado" a la derecha que decia lo mismo que la barra que va justo
+                    debajo. Ahora el renglon dice donde estas (izquierda) y como venis
+                    (derecha), y la barra fina lo dibuja. El porcentaje se fue porque era el
+                    unico de los tres que se podia leer mirando la barra.
+                -->
                 <Grid Margin="0,0,0,6">
                     <TextBlock Text="{Binding ProgresoTexto}" Style="{StaticResource TxtTenue}" />
-                    <TextBlock Style="{StaticResource TxtDato}" FontSize="11" HorizontalAlignment="Right"
-                               Text="{Binding Examen.PorcentajeAvance, StringFormat='{}{0:0}% encarado'}" />
+                    <TextBlock Text="{Binding Contadores}" Style="{StaticResource TxtTenue}"
+                               HorizontalAlignment="Right" />
                 </Grid>
 
                 <!-- US-027: la barra tambien lleva el color de la materia. Es la superficie de
                      color mas grande que el criterio nombra explicitamente, y no puede
-                     confundirse con nada: avanzar no es acertar. -->
-                <ProgressBar Height="4" Minimum="0" Maximum="100"
-                             Value="{Binding Examen.PorcentajeAvance, Mode=OneWay}"
-                             Background="{DynamicResource PincelBorde}"
-                             Foreground="{Binding ColorMateria, Converter={StaticResource ColorMateria}}"
-                             BorderThickness="0"
-                             AutomationProperties.Name="Avance del examen" />
+                     confundirse con nada: avanzar no es acertar.
+
+                     US-057 la baja de 4 a 3 px y le pone esquinas redondeadas: el mismo
+                     lenguaje del control de zoom de Ajustes, que es la referencia que pide el
+                     pedido. Va en un Grid con su riel propio porque un ProgressBar redondeado
+                     necesita que el fondo tambien lo este. -->
+                <Grid Height="3">
+                    <Border CornerRadius="2" Background="{DynamicResource PincelBorde}" />
+                    <ProgressBar Minimum="0" Maximum="100"
+                                 Value="{Binding Examen.PorcentajeAvance, Mode=OneWay}"
+                                 Background="Transparent"
+                                 Foreground="{Binding ColorMateria, Converter={StaticResource ColorMateria}}"
+                                 BorderThickness="0"
+                                 AutomationProperties.Name="Avance del examen" />
+                </Grid>
             </StackPanel>
 
             <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto"
@@ -261,21 +281,28 @@
                                     Command="{Binding DataContext.IrAPreguntaCommand,
                                               RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                                     CommandParameter="{Binding}">
+                                <!--
+                                    US-057 — pastillas discretas, y el acento solo en la actual.
+
+                                    Antes CADA baldosa llevaba borde del color de su estado, asi
+                                    que diez preguntas sin visitar eran diez rectangulos con
+                                    borde marcado y la actual apenas se distinguia entre ellos.
+                                    Ahora el borde por defecto es el borde neutro de la app y lo
+                                    que cambia por estado es el relleno —que es lo que hay que
+                                    poder barrer con la vista para encontrar una salteada—; el
+                                    color de acento queda reservado para donde estas parado.
+                                -->
                                 <Button.Style>
                                     <Style TargetType="Button" BasedOn="{StaticResource BaldosaPregunta}">
                                         <Setter Property="Background"
                                                 Value="{Binding Estado, Converter={StaticResource EstadoAPincel}}" />
-                                        <Setter Property="BorderBrush"
-                                                Value="{Binding Estado, Converter={StaticResource EstadoAPincel},
-                                                        ConverterParameter=borde}" />
+                                        <Setter Property="BorderBrush" Value="{DynamicResource PincelBorde}" />
                                         <Setter Property="BorderThickness" Value="1" />
                                         <Style.Triggers>
-                                            <!-- La pregunta en pantalla se marca con el color de
-                                                 marca, no solo con un borde mas grueso: el grosor
-                                                 solo no se distingue a este tamanio. -->
                                             <DataTrigger Binding="{Binding EsActual}" Value="True">
-                                                <Setter Property="BorderBrush" Value="{DynamicResource PincelMarcaFuerte}" />
-                                                <Setter Property="BorderThickness" Value="2" />
+                                                <Setter Property="BorderBrush" Value="{DynamicResource PincelMarca}" />
+                                                <Setter Property="Background" Value="{DynamicResource PincelMarcaSuave}" />
+                                                <Setter Property="Foreground" Value="{DynamicResource PincelMarcaFuerte}" />
                                             </DataTrigger>
                                         </Style.Triggers>
                                     </Style>
@@ -348,7 +375,7 @@
                                              CommandParameter="{Binding}">
                                     <Grid>
                                         <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="30" />
+                                            <ColumnDefinition Width="Auto" />
                                             <ColumnDefinition Width="*" />
                                         </Grid.ColumnDefinitions>
 
@@ -356,21 +383,44 @@
                                              opcion. Son dos senales de lo mismo (la barra de
                                              acento y la letra) porque la barra vive en el
                                              canto izquierdo y la letra donde ya esta mirando
-                                             el ojo al leer la respuesta. -->
-                                        <TextBlock Grid.Column="0" Text="{Binding Letra}"
-                                                   FontFamily="{DynamicResource FuenteDato}"
-                                                   FontWeight="Bold" VerticalAlignment="Top">
-                                            <TextBlock.Style>
-                                                <Style TargetType="TextBlock">
-                                                    <Setter Property="Foreground" Value="{DynamicResource PincelTextoSuave}" />
+                                             el ojo al leer la respuesta.
+
+                                             US-057 la mete en una pastilla cuadrada, como en el
+                                             mockup: suelta sobre el fondo era una letra mas del
+                                             renglon, y con el borde de la opcion aflojado hacia
+                                             falta que la letra sostenga sola el "esta es la que
+                                             elegiste". Al elegir se llena de acento, en vez de
+                                             cambiar solo de color. -->
+                                        <Border Grid.Column="0" Width="24" Height="24" Margin="0,0,14,0"
+                                                VerticalAlignment="Top"
+                                                CornerRadius="{DynamicResource RadioChip}">
+                                            <Border.Style>
+                                                <Style TargetType="Border">
+                                                    <Setter Property="Background" Value="{DynamicResource PincelSuperficie}" />
                                                     <Style.Triggers>
                                                         <DataTrigger Binding="{Binding Elegida}" Value="True">
-                                                            <Setter Property="Foreground" Value="{DynamicResource PincelMarcaFuerte}" />
+                                                            <Setter Property="Background" Value="{DynamicResource PincelMarca}" />
                                                         </DataTrigger>
                                                     </Style.Triggers>
                                                 </Style>
-                                            </TextBlock.Style>
-                                        </TextBlock>
+                                            </Border.Style>
+
+                                            <TextBlock Text="{Binding Letra}"
+                                                       FontFamily="{DynamicResource FuenteDato}"
+                                                       FontSize="12" FontWeight="Bold"
+                                                       HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                <TextBlock.Style>
+                                                    <Style TargetType="TextBlock">
+                                                        <Setter Property="Foreground" Value="{DynamicResource PincelTextoSuave}" />
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding Elegida}" Value="True">
+                                                                <Setter Property="Foreground" Value="{DynamicResource PincelSobreMarca}" />
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </TextBlock.Style>
+                                            </TextBlock>
+                                        </Border>
 
                                         <!--
                                             TextBlock y no TextBox: un TextBox marca el click
@@ -424,6 +474,69 @@
                 <ui:Button Grid.Column="4" Content="{Binding TextoFinalizar}" Padding="16,8" ToolTip="Termina el intento y lo corrige con la escala de la UBA"
                            Command="{Binding FinalizarCommand}" />
             </Grid>
+
+            <!-- ============================================================ -->
+            <!-- US-036 / US-057 — los atajos, al pie y en chico.              -->
+            <!--                                                               -->
+            <!-- Hasta ahora esto era una tarjeta arriba de la pregunta, con   -->
+            <!-- icono grande, titulo en negrita y la lista completa de teclas: -->
+            <!-- lo primero que se veia al entrar a rendir era una ayuda, no    -->
+            <!-- la pregunta. US-057 la baja al pie y la achica.                -->
+            <!--                                                               -->
+            <!-- Sigue cumpliendo US-036, que pide dos cosas distintas: la      -->
+            <!-- referencia con las teclas la primera vez y un "Entendido" que  -->
+            <!-- se recuerda entre reinicios. La linea de arriba es permanente  -->
+            <!-- y no molesta; la lista de teclas y el boton aparecen solo      -->
+            <!-- mientras MostrarAtajos siga en true, igual que antes.          -->
+            <!--                                                               -->
+            <!-- Las filas salen de AtajosExamen.Referencia, la misma lista de  -->
+            <!-- la que el comportamiento toma las teclas (RN-44): no puede     -->
+            <!-- quedar diciendo una tecla que ya no hace nada.                 -->
+            <!-- ============================================================ -->
+            <StackPanel Grid.Row="5" Margin="0,0,0,14">
+                <StackPanel Orientation="Horizontal">
+                    <ui:SymbolIcon Symbol="Keyboard24" FontSize="13" VerticalAlignment="Center"
+                                   Margin="0,0,8,0" Foreground="{DynamicResource PincelTextoTenue}" />
+                    <TextBlock Style="{StaticResource TxtTenue}" FontSize="11" VerticalAlignment="Center"
+                               Text="Podés usar el teclado: números para elegir, flechas para avanzar" />
+                </StackPanel>
+
+                <Grid Margin="21,10,0,0"
+                      Visibility="{Binding MostrarAtajos, Converter={StaticResource BoolToVis}}">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <ItemsControl Grid.Column="0" ItemsSource="{Binding Atajos}" VerticalAlignment="Center">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <WrapPanel Orientation="Horizontal" />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <StackPanel Orientation="Horizontal" Margin="0,0,18,4">
+                                    <Border Padding="6,1" Margin="0,0,6,0"
+                                            CornerRadius="{DynamicResource RadioChip}"
+                                            Background="{DynamicResource PincelMarcaSuave}">
+                                        <TextBlock Text="{Binding Teclas}" Style="{StaticResource TxtDato}"
+                                                   FontSize="10"
+                                                   Foreground="{DynamicResource PincelMarcaFuerte}" />
+                                    </Border>
+                                    <TextBlock Text="{Binding Que}" Style="{StaticResource TxtTenue}"
+                                               FontSize="11" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <Button Grid.Column="1" Content="Entendido" Style="{StaticResource ChipAccion}"
+                            VerticalAlignment="Center" Margin="14,0,0,0"
+                            ToolTip="No volver a mostrar los atajos al empezar un examen"
+                            Command="{Binding OcultarAtajosCommand}" />
+                </Grid>
+            </StackPanel>
         </Grid>
 
         <!-- ============================================================ -->
@@ -486,16 +599,27 @@
                          bloqueante: solo escala, no mueve el layout ni interrumpe la lectura.
                          Mismos parametros centralizados que US-011 y misma guarda de
                          "reducir movimiento" (RN-11). -->
-                    <Border Grid.Column="0" Width="86" Height="86" CornerRadius="43" BorderThickness="3"
-                            VerticalAlignment="Center" RenderTransformOrigin="0.5,0.5"
-                            BorderBrush="{Binding Aprobado, Converter={StaticResource AprobadoAPincel}}"
-                            Background="{Binding Aprobado, Converter={StaticResource AprobadoAPincel},
-                                         ConverterParameter=suave}">
-                        <Border.RenderTransform>
+                    <!--
+                        US-057 — la nota, como anillo de progreso.
+
+                        Era un disco de 86 px con borde de 3, fondo teñido y el numero pintado
+                        del mismo rojo saturado: al terminar un examen desaprobado, lo primero y
+                        casi lo unico que se veia era una mancha roja. Ahora es el mismo anillo
+                        que el "Promedio" del Historial (US-044) —riel apagado, arco fino con
+                        puntas redondeadas, numero al centro— dibujando la nota sobre 10.
+
+                        Los colores se templan sin inventar un rojo nuevo: el color de la nota
+                        queda en el arco, que es un trazo de 6 px en vez de un disco entero, y
+                        el numero pasa al gris de texto. Un segundo rojo "suave" solo diluiria
+                        el unico rojo que la app usa para decir que algo salio mal.
+                    -->
+                    <Grid Grid.Column="0" Width="88" Height="88" VerticalAlignment="Center"
+                          RenderTransformOrigin="0.5,0.5">
+                        <Grid.RenderTransform>
                             <ScaleTransform />
-                        </Border.RenderTransform>
-                        <Border.Style>
-                            <Style TargetType="Border">
+                        </Grid.RenderTransform>
+                        <Grid.Style>
+                            <Style TargetType="Grid">
                                 <Style.Triggers>
                                     <MultiDataTrigger>
                                         <MultiDataTrigger.Conditions>
@@ -519,12 +643,45 @@
                                     </MultiDataTrigger>
                                 </Style.Triggers>
                             </Style>
-                        </Border.Style>
-                        <TextBlock Text="{Binding Nota}" FontSize="34" FontWeight="Bold"
+                        </Grid.Style>
+
+                        <!-- El riel: el circulo entero, apagado. Es lo que le da al arco algo
+                             contra que compararse; sin el, un 2 se lee como un grafico roto y
+                             no como una nota baja. -->
+                        <Ellipse Width="74" Height="74" StrokeThickness="6"
+                                 Stroke="{DynamicResource PincelBorde}" />
+
+                        <!-- Mismo anillo que el "Promedio" del Historial, y por lo tanto el
+                             mismo arreglo: el arco es un guion del trazo de esta misma elipse,
+                             no una geometria centrada aparte, asi que no puede correrse del
+                             riel ni taparle la nota al medio. -->
+                        <Ellipse Width="74" Height="74" StrokeThickness="6"
+                                 Stroke="{Binding Aprobado, Converter={StaticResource AprobadoAPincel}}"
+                                 StrokeDashCap="Round" StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+                                 RenderTransformOrigin="0.5,0.5"
+                                 StrokeDashArray="{Binding NotaFraccion,
+                                                   Converter={StaticResource FraccionAAnillo},
+                                                   ConverterParameter='37,6'}">
+                            <Ellipse.RenderTransform>
+                                <RotateTransform Angle="-90" />
+                            </Ellipse.RenderTransform>
+                            <Ellipse.Style>
+                                <Style TargetType="Ellipse">
+                                    <Style.Triggers>
+                                        <!-- Un cero no dibuja ni el punto de las puntas redondeadas. -->
+                                        <DataTrigger Binding="{Binding NotaFraccion}" Value="0">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Ellipse.Style>
+                        </Ellipse>
+
+                        <TextBlock Text="{Binding Nota}" FontSize="30" FontWeight="Bold"
                                    FontFamily="{DynamicResource FuenteDato}"
-                                   Foreground="{Binding Aprobado, Converter={StaticResource AprobadoAPincel}}"
+                                   Foreground="{DynamicResource PincelTexto}"
                                    HorizontalAlignment="Center" VerticalAlignment="Center" />
-                    </Border>
+                    </Grid>
 
                     <StackPanel Grid.Column="1" Margin="22,0,16,0" VerticalAlignment="Center">
                         <!-- US-013 / RN-5: literal fijo, tomado de la constante del ViewModel.

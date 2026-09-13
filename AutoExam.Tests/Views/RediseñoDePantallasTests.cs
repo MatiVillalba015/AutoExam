@@ -275,6 +275,14 @@ public class RediseñoDePantallasTests
         Assert.Equal("Center", grilla!.Attribute("HorizontalAlignment")?.Value);
     }
 
+    /// <summary>
+    /// US-030 pide los cuatro accesos "en una grilla más centrada y espaciada, en vez de
+    /// pegados a un costado", y US-041 lo ratifica en su primer criterio: el rediseño cambia
+    /// el estilo de cada tarjeta, NO la disposición, que sigue siendo la grilla 2x2.
+    ///
+    /// El test existe justamente porque una primera pasada de US-041 las apiló en una sola
+    /// columna siguiendo el mockup al pie de la letra: la grilla es lo que no se toca.
+    /// </summary>
     [Fact]
     public void ElInicio_MuestraLosCuatroAccesosEnGrilla_US030()
     {

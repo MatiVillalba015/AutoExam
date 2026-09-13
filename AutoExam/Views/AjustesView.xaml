@@ -5,264 +5,744 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
              xmlns:servicios="clr-namespace:AutoExam.Services"
+             xmlns:vistas="clr-namespace:AutoExam.Views"
              xmlns:vm="clr-namespace:AutoExam.ViewModels"
              mc:Ignorable="d"
              d:DataContext="{d:DesignInstance Type=vm:AjustesViewModel}">
 
-    <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="0,0,14,0">
-        <StackPanel MaxWidth="620" HorizontalAlignment="Center">
+    <Grid>
+        <!--
+            US-046..US-056 / RN-53 — la misma luz violeta lejana del Historial y de Biblioteca.
+            Desde RN-53 es el fondo estandar de la app. La unica pantalla que no lo lleva es la
+            configuracion inicial de la clave (US-042), que tiene el suyo.
+        -->
+        <Canvas ClipToBounds="True" IsHitTestVisible="False" Panel.ZIndex="-1">
+            <!--
+                Mismas manchas, mismos colores y mismas esquinas que el Historial y Biblioteca,
+                pero mas grandes. Ajustes es la unica pantalla que deja el fondo a la vista en
+                una franja ancha —su contenido es una columna centrada de 1000 px— y a 820 px
+                el degradado se resolvia en anillos concentricos visibles. Estirado sobre mas
+                pixeles el mismo salto de color deja de tener borde y vuelve a leerse como luz.
+            -->
+            <Ellipse Canvas.Left="-260" Canvas.Top="-360" Width="1240" Height="1240" Opacity="0.30">
+                <Ellipse.Fill>
+                    <RadialGradientBrush>
+                        <GradientStop Offset="0" Color="#3A2E6B" />
+                        <GradientStop Offset="1" Color="#003A2E6B" />
+                    </RadialGradientBrush>
+                </Ellipse.Fill>
+            </Ellipse>
 
-            <TextBlock Text="Ajustes" Style="{StaticResource TxtSeccion}" Margin="0,0,0,18" />
+            <Ellipse Canvas.Right="-360" Canvas.Bottom="-420" Width="1320" Height="1320" Opacity="0.24">
+                <Ellipse.Fill>
+                    <RadialGradientBrush>
+                        <GradientStop Offset="0" Color="#2E2A5E" />
+                        <GradientStop Offset="1" Color="#002E2A5E" />
+                    </RadialGradientBrush>
+                </Ellipse.Fill>
+            </Ellipse>
+        </Canvas>
 
-            <Border Style="{StaticResource Tarjeta}" Margin="0,0,0,16">
-                <StackPanel>
-                    <TextBlock Text="API KEYS DE GOOGLE GEMINI" Style="{StaticResource TxtRotulo}" />
-                    <ui:PasswordBox PlaceholderText="AQ.Ab8...,  AQ.Ab8...  (separalas con comas)"
-                                    RevealButtonEnabled="True" Margin="0,0,0,6"
-                                    AutomationProperties.Name="API Keys de Google Gemini, separadas por comas"
-                                    Password="{Binding ApiKey, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+        <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="0,0,14,0">
+            <!--
+                Ajustes SI es una columna centrada, a diferencia del detalle de Biblioteca: son
+                tarjetas apiladas con texto explicativo, y estirarlas de punta a punta en un
+                monitor ancho dejaria cada descripcion en una sola linea larguisima (RN-13).
+                Mil pixeles alcanzan para la fila de dos columnas del medio.
+            -->
+            <StackPanel MaxWidth="1000" HorizontalAlignment="Center">
 
-                    <TextBlock Text="{Binding ResumenClaves}" Style="{StaticResource TxtDato}"
-                               TextWrapping="Wrap" Margin="0,0,0,18" />
+                <!-- ============================================================ -->
+                <!-- Encabezado: version, buscar actualizaciones y notas           -->
+                <!--                                                               -->
+                <!-- US-053: el boton va pegado al numero de version, que es donde  -->
+                <!-- alguien que acaba de ver "AutoExam 1.3.0" se pregunta si hay   -->
+                <!-- algo mas nuevo. Separado de "Notas de version" (US-040), que    -->
+                <!-- contesta otra pregunta: que trae la que ya tengo.               -->
+                <!-- ============================================================ -->
+                <Grid Margin="0,0,0,18">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
 
-                    <TextBlock Text="MODELO" Style="{StaticResource TxtRotulo}" />
-                    <Grid Margin="0,0,0,20">
+                    <TextBlock Grid.Column="0" Text="&#x2699; Ajustes" Style="{StaticResource TxtSeccion}"
+                               VerticalAlignment="Center" />
+
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                        <TextBlock Text="{Binding VersionActual, StringFormat='Versión {0}'}"
+                                   Style="{StaticResource TxtDato}" VerticalAlignment="Center"
+                                   Margin="0,0,14,0" />
+
+                        <ui:ProgressRing IsIndeterminate="True" Width="18" Height="18"
+                                         Margin="0,0,10,0" VerticalAlignment="Center"
+                                         Visibility="{Binding BuscandoActualizacion, Converter={StaticResource BoolToVis}}" />
+
+                        <Button Content="Buscar actualizaciones" Style="{StaticResource ChipAccion}"
+                                VerticalAlignment="Center"
+                                ToolTip="Consulta si hay una version mas nueva de AutoExam publicada y te ofrece instalarla"
+                                Command="{Binding BuscarActualizacionCommand}" />
+
+                        <Button Content="Notas de versión" Style="{StaticResource ChipAccion}"
+                                VerticalAlignment="Center" Margin="10,0,0,0"
+                                ToolTip="Qué se agregó, cambió y arregló en esta versión y en las anteriores"
+                                Command="{Binding AlternarNotasCommand}" />
+                    </StackPanel>
+                </Grid>
+
+                <!-- ============================================================ -->
+                <!-- Clave de Gemini y modelo (US-042 / US-052)                    -->
+                <!-- ============================================================ -->
+                <Border Style="{StaticResource Tarjeta}" Margin="0,0,0,16">
+                    <StackPanel>
+                        <TextBlock Text="Clave de Gemini" Style="{StaticResource TxtCuerpo}"
+                                   FontWeight="SemiBold" />
+                        <TextBlock Text="Cada pestaña es una clave. Si una se queda sin cuota diaria, AutoExam sigue con la siguiente en orden."
+                                   Style="{StaticResource TxtTenue}" TextWrapping="Wrap" Margin="0,2,0,18" />
+
+                        <!-- ============================================================ -->
+                        <!-- US-052 — modelo de Gemini.                                    -->
+                        <!--                                                               -->
+                        <!-- Lista cerrada y no texto libre (RN-60): un nombre de modelo    -->
+                        <!-- mal escrito no falla al escribirlo sino recien al generar, y   -->
+                        <!-- ahi el error de Google ("404") no dice que el problema fue un  -->
+                        <!-- typo. "Detectar" es lo que amplia la lista con los modelos     -->
+                        <!-- que la clave realmente habilita.                               -->
+                        <!-- ============================================================ -->
+                        <TextBlock Text="MODELO DE GEMINI" Style="{StaticResource TxtRotulo}" />
+                        <Grid Margin="0,0,0,18">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="320" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+
+                            <ComboBox Grid.Column="0" IsEditable="False" ItemsSource="{Binding Modelos}"
+                                      SelectedItem="{Binding Modelo, Mode=TwoWay}"
+                                      AutomationProperties.Name="Modelo de Gemini" />
+
+                            <Button Grid.Column="1" Content="Detectar" Style="{StaticResource ChipAccion}"
+                                    Margin="8,0,0,0" VerticalAlignment="Center"
+                                    Command="{Binding DetectarCommand}"
+                                    ToolTip="Consulta a Google que modelos habilita tu API Key y los suma a la lista" />
+                        </Grid>
+
+                        <!-- US-042: el mismo control que la configuracion inicial. Antes cada
+                             pantalla tenia su campo, y en esta ademas habia que acordarse de
+                             separarlas con comas. -->
+                        <vistas:CamposDeClaves DataContext="{Binding Claves}" />
+
+                        <TextBlock Text="{Binding ResumenClaves}" Style="{StaticResource TxtDato}"
+                                   TextWrapping="Wrap" Margin="0,14,0,18" />
+
+                        <StackPanel Orientation="Horizontal">
+                            <ui:Button Content="Guardar" Appearance="Primary" Padding="18,10"
+                                       ToolTip="Guarda las claves y el modelo que elegiste arriba"
+                                       Command="{Binding GuardarCommand}" />
+                            <Button Content="Probar conexión" Style="{StaticResource ChipAccion}"
+                                    ToolTip="Le hace una consulta minima a Gemini para ver si la clave sirve, sin generar ningun examen"
+                                    Margin="10,0,0,0" VerticalAlignment="Center"
+                                    Command="{Binding ProbarCommand}" />
+                            <ui:ProgressRing IsIndeterminate="True" Width="18" Height="18" Margin="12,0,0,0"
+                                             VerticalAlignment="Center"
+                                             Visibility="{Binding Ocupado, Converter={StaticResource BoolToVis}}" />
+                        </StackPanel>
+
+                        <!-- Una sola InfoBar para toda la pantalla: probar la conexion, buscar
+                             actualizaciones, vaciar la cache, exportar e importar contestan
+                             todos aca. Con una por tarjeta habria cinco cajas vacias esperando
+                             su turno. -->
+                        <ui:InfoBar Margin="0,18,0,0" IsClosable="True"
+                                    Title="{Binding MensajeTitulo}" Message="{Binding Mensaje}"
+                                    Severity="{Binding Severidad, Converter={StaticResource Severidad}}"
+                                    IsOpen="{Binding MensajeTitulo, Converter={StaticResource TextoAVisibilidad},
+                                             Mode=OneWay}" />
+                    </StackPanel>
+                </Border>
+
+                <!-- ============================================================ -->
+                <!-- Apariencia: tema a la izquierda; tamanio y avisos a la derecha -->
+                <!-- ============================================================ -->
+                <Grid Margin="0,0,0,16">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="16" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+
+                    <!-- ============================================================ -->
+                    <!-- US-049 — tema de color de la app.                             -->
+                    <!--                                                               -->
+                    <!-- Cuatro paletas fijas y no un selector RGB (RN-57): el acento   -->
+                    <!-- se dibuja sobre el fondo, adentro de chips tenues y debajo de  -->
+                    <!-- texto, y un color libre deja elegir uno que en alguno de esos  -->
+                    <!-- tres usos no llega al contraste minimo.                        -->
+                    <!--                                                               -->
+                    <!-- Cada muestra es un RadioButton con el estilo TarjetaDeOpcion   -->
+                    <!-- de US-043: trae el zoom leve, el anillo de acento al pasar el  -->
+                    <!-- mouse y el hundimiento al hacer click que RN-53 fijo como      -->
+                    <!-- estandar, sin duplicar una linea de animacion.                 -->
+                    <!-- ============================================================ -->
+                    <Border Grid.Column="0" Style="{StaticResource Tarjeta}">
+                        <StackPanel>
+                            <TextBlock Text="Tema" Style="{StaticResource TxtCuerpo}" FontWeight="SemiBold" />
+                            <TextBlock Text="El color de acento general de la app. El color de cada Materia no cambia."
+                                       Style="{StaticResource TxtTenue}" TextWrapping="Wrap" Margin="0,2,0,16" />
+
+                            <ItemsControl ItemsSource="{Binding Temas}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <UniformGrid Columns="2" />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate DataType="{x:Type vm:OpcionDeTema}">
+                                        <RadioButton Style="{StaticResource TarjetaDeOpcion}"
+                                                     GroupName="TemaDeLaApp" Margin="0,0,10,10"
+                                                     IsChecked="{Binding EsElActual, Mode=OneWay}"
+                                                     AutomationProperties.Name="{Binding Nombre}"
+                                                     Command="{Binding DataContext.ElegirTemaCommand,
+                                                               RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                     CommandParameter="{Binding Clave}">
+                                            <StackPanel>
+                                                <!-- La muestra es un degradado entre el acento
+                                                     y su tono tenue: son los dos colores que
+                                                     el tema realmente cambia, asi que la
+                                                     vista previa muestra lo que va a pasar. -->
+                                                <Border Height="34" CornerRadius="{DynamicResource RadioCampo}"
+                                                        Margin="0,0,0,10">
+                                                    <Border.Background>
+                                                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                                            <GradientStop Offset="0"
+                                                                          Color="{Binding ColorDesde}" />
+                                                            <GradientStop Offset="1"
+                                                                          Color="{Binding ColorHasta}" />
+                                                        </LinearGradientBrush>
+                                                    </Border.Background>
+                                                </Border>
+
+                                                <Grid>
+                                                    <TextBlock Text="{Binding Nombre}"
+                                                               Style="{StaticResource TxtCuerpo}"
+                                                               VerticalAlignment="Center" />
+
+                                                    <ui:SymbolIcon Symbol="CheckmarkCircle24" FontSize="16"
+                                                                   HorizontalAlignment="Right"
+                                                                   VerticalAlignment="Center"
+                                                                   Foreground="{DynamicResource PincelMarcaFuerte}"
+                                                                   Visibility="{Binding EsElActual,
+                                                                                Converter={StaticResource BoolToVis}}" />
+                                                </Grid>
+                                            </StackPanel>
+                                        </RadioButton>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </Border>
+
+                    <StackPanel Grid.Column="2">
+
+                        <!-- ============================================================ -->
+                        <!-- US-048 — tamanio de la interfaz.                              -->
+                        <!--                                                               -->
+                        <!-- El porcentaje siempre a la vista, y los botones apagados en    -->
+                        <!-- los extremos: es la forma de decir "llegaste al limite" que    -->
+                        <!-- no obliga a cerrar un cartel.                                  -->
+                        <!-- ============================================================ -->
+                        <Border Style="{StaticResource Tarjeta}" Margin="0,0,0,16">
+                            <StackPanel>
+                                <TextBlock Text="Tamaño de la interfaz" Style="{StaticResource TxtCuerpo}"
+                                           FontWeight="SemiBold" />
+                                <TextBlock Text="Se aplica a toda la app y se recuerda la próxima vez que la abras."
+                                           Style="{StaticResource TxtTenue}" TextWrapping="Wrap" Margin="0,2,0,16" />
+
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+
+                                    <Button Grid.Column="0" Content="−" Style="{StaticResource IconoDeAccion}"
+                                            Margin="0" Padding="12,4" VerticalAlignment="Center"
+                                            AutomationProperties.Name="Achicar la interfaz"
+                                            ToolTip="Achica todo el contenido de la app"
+                                            Command="{Binding ReducirZoomCommand}" />
+
+                                    <Slider Grid.Column="1" VerticalAlignment="Center" Margin="12,0"
+                                            Minimum="{Binding ZoomMinimo}" Maximum="{Binding ZoomMaximo}"
+                                            SmallChange="{Binding ZoomPaso}" LargeChange="{Binding ZoomPaso}"
+                                            TickFrequency="{Binding ZoomPaso}" IsSnapToTickEnabled="True"
+                                            AutomationProperties.Name="Tamaño de la interfaz"
+                                            Value="{Binding Zoom, Mode=TwoWay}" />
+
+                                    <Button Grid.Column="2" Content="+" Style="{StaticResource IconoDeAccion}"
+                                            Margin="0" Padding="12,4" VerticalAlignment="Center"
+                                            AutomationProperties.Name="Agrandar la interfaz"
+                                            ToolTip="Agranda todo el contenido de la app"
+                                            Command="{Binding AumentarZoomCommand}" />
+
+                                    <TextBlock Grid.Column="3" Text="{Binding ZoomTexto}"
+                                               Style="{StaticResource TxtCuerpo}" FontWeight="SemiBold"
+                                               VerticalAlignment="Center" Margin="14,0,0,0" MinWidth="48"
+                                               TextAlignment="Right" />
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- ============================================================ -->
+                        <!-- US-050 + US-054 — avisos y movimiento, en una sola tarjeta.   -->
+                        <!--                                                               -->
+                        <!-- Van juntos y separados por una linea porque los dos contestan  -->
+                        <!-- la misma pregunta: cuanto quiero que la app se haga notar.     -->
+                        <!-- ============================================================ -->
+                        <Border Style="{StaticResource Tarjeta}">
+                            <StackPanel>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+
+                                    <StackPanel Grid.Column="0">
+                                        <TextBlock Text="Notificaciones" Style="{StaticResource TxtCuerpo}"
+                                                   FontWeight="SemiBold" />
+                                        <TextBlock Text="Avisos dentro de la app, por ejemplo cuando termina de generar un examen. Los errores y las confirmaciones se muestran igual."
+                                                   Style="{StaticResource TxtTenue}" TextWrapping="Wrap" />
+                                    </StackPanel>
+
+                                    <ui:ToggleSwitch Grid.Column="1" VerticalAlignment="Center" Margin="14,0,0,0"
+                                                     AutomationProperties.Name="Notificaciones"
+                                                     IsChecked="{Binding Notificaciones, Mode=TwoWay}" />
+                                </Grid>
+
+                                <Border Height="1" Margin="0,16" Background="{DynamicResource PincelBorde}" />
+
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+
+                                    <StackPanel Grid.Column="0">
+                                        <TextBlock Text="Reducir movimiento" Style="{StaticResource TxtCuerpo}"
+                                                   FontWeight="SemiBold" />
+                                        <TextBlock Text="Apaga las animaciones de la app, además de respetar la del sistema operativo."
+                                                   Style="{StaticResource TxtTenue}" TextWrapping="Wrap" />
+
+                                        <!-- US-054: con Windows ya pidiendo movimiento reducido,
+                                             un toggle en "no" y las animaciones apagadas son dos
+                                             configuraciones que se contradicen. Se dice. -->
+                                        <TextBlock Text="{Binding AvisoDeMovimiento}" Style="{StaticResource TxtAyuda}"
+                                                   TextWrapping="Wrap" Margin="0,8,0,0"
+                                                   Visibility="{Binding MovimientoReducidoPorElSistema,
+                                                                Converter={StaticResource BoolToVis}}" />
+                                    </StackPanel>
+
+                                    <ui:ToggleSwitch Grid.Column="1" VerticalAlignment="Center" Margin="14,0,0,0"
+                                                     AutomationProperties.Name="Reducir movimiento"
+                                                     IsChecked="{Binding ReducirMovimiento, Mode=TwoWay}" />
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </Grid>
+
+                <!-- ============================================================ -->
+                <!-- US-046 — datos y almacenamiento.                              -->
+                <!--                                                               -->
+                <!-- La barra reparte el total entre los tres grupos que el usuario -->
+                <!-- reconoce, no entre las carpetas internas. El numero de         -->
+                <!-- "Temporales" es exactamente lo que libera "Vaciar cache"       -->
+                <!-- (RN-54): la barra no informa por informar, promete.            -->
+                <!-- ============================================================ -->
+                <Border Style="{StaticResource Tarjeta}" Margin="0,0,0,16">
+                    <StackPanel>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+
+                            <StackPanel Grid.Column="0">
+                                <TextBlock Text="Datos y almacenamiento" Style="{StaticResource TxtCuerpo}"
+                                           FontWeight="SemiBold" />
+                                <TextBlock Text="Dónde guarda AutoExam tus libros, tu historial y sus archivos temporales."
+                                           Style="{StaticResource TxtTenue}" TextWrapping="Wrap" />
+                            </StackPanel>
+
+                            <TextBlock Grid.Column="1" Text="{Binding TotalEnUso}" Style="{StaticResource TxtDato}"
+                                       VerticalAlignment="Center" Margin="14,0,0,0" />
+                        </Grid>
+
+                        <Grid Margin="0,18,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="{Binding FraccionLibros, Converter={StaticResource FraccionAEstrella}}" />
+                                <ColumnDefinition Width="{Binding FraccionHistorial, Converter={StaticResource FraccionAEstrella}}" />
+                                <ColumnDefinition Width="{Binding FraccionTemporales, Converter={StaticResource FraccionAEstrella}}" />
+                            </Grid.ColumnDefinitions>
+
+                            <!-- El riel de fondo: sin el, una biblioteca vacia deja la fila en
+                                 blanco y no se entiende que ahi va una barra. -->
+                            <Border Grid.ColumnSpan="3" Style="{StaticResource TramoDeUso}" Margin="0"
+                                    Background="{DynamicResource PincelSuperficie}" />
+
+                            <Border Grid.Column="0" Style="{StaticResource TramoDeUso}"
+                                    Background="{DynamicResource PincelMarca}" />
+                            <Border Grid.Column="1" Style="{StaticResource TramoDeUso}"
+                                    Background="{DynamicResource PincelMarcaFuerte}" />
+                            <Border Grid.Column="2" Style="{StaticResource TramoDeUso}" Margin="0"
+                                    Background="{DynamicResource PincelTextoTenue}" />
+                        </Grid>
+
+                        <StackPanel Orientation="Horizontal" Margin="0,14,0,0">
+                            <Ellipse Style="{StaticResource PuntoDeReferencia}"
+                                     Fill="{DynamicResource PincelMarca}" />
+                            <TextBlock Style="{StaticResource TxtDato}" VerticalAlignment="Center"
+                                       Margin="0,0,20,0">
+                                <Run Text="Libros" /><Run Text=" — " /><Run Text="{Binding Usos[0].Texto, Mode=OneWay}" />
+                            </TextBlock>
+
+                            <Ellipse Style="{StaticResource PuntoDeReferencia}"
+                                     Fill="{DynamicResource PincelMarcaFuerte}" />
+                            <TextBlock Style="{StaticResource TxtDato}" VerticalAlignment="Center"
+                                       Margin="0,0,20,0">
+                                <Run Text="Historial" /><Run Text=" — " /><Run Text="{Binding Usos[1].Texto, Mode=OneWay}" />
+                            </TextBlock>
+
+                            <Ellipse Style="{StaticResource PuntoDeReferencia}"
+                                     Fill="{DynamicResource PincelTextoTenue}" />
+                            <TextBlock Style="{StaticResource TxtDato}" VerticalAlignment="Center">
+                                <Run Text="Temporales" /><Run Text=" — " /><Run Text="{Binding Usos[2].Texto, Mode=OneWay}" />
+                            </TextBlock>
+                        </StackPanel>
+
+                        <!-- Un permiso del sistema puede impedir medir una carpeta. Se dice, en
+                             vez de mostrar un cero que se lee como "no ocupa nada". -->
+                        <ui:InfoBar Margin="0,14,0,0" IsClosable="False" Severity="Warning" Title=""
+                                    IsOpen="{Binding HayMedicionIncompleta, Mode=OneWay}"
+                                    Message="No se pudo medir todo: Windows no dejó leer alguna de las carpetas. Los números de arriba pueden quedar cortos." />
+
+                        <StackPanel Orientation="Horizontal" Margin="0,18,0,10">
+                            <Button Content="Abrir carpeta de datos" Style="{StaticResource ChipAccion}"
+                                    Margin="0,0,10,0"
+                                    ToolTip="Abre en el Explorador la carpeta donde AutoExam guarda tus materiales, examenes y ajustes"
+                                    Command="{Binding AbrirCarpetaCommand}" />
+
+                            <Button Content="Vaciar caché" Style="{StaticResource ChipAccion}"
+                                    IsEnabled="{Binding HayAlgoQueVaciar}"
+                                    ToolTip="Borra solo archivos temporales regenerables. No toca tus libros, tu historial ni tu configuracion"
+                                    Command="{Binding VaciarCacheCommand}" />
+                        </StackPanel>
+
+                        <TextBlock Text="{Binding CarpetaDatos}" Style="{StaticResource TxtDato}"
+                                   FontSize="11" TextWrapping="Wrap" />
+                    </StackPanel>
+                </Border>
+
+                <!-- ============================================================ -->
+                <!-- US-051 — copia de seguridad.                                  -->
+                <!--                                                               -->
+                <!-- RN-59: manual y local. Este es todo el mecanismo — no hay      -->
+                <!-- cuenta, ni servidor, ni sincronizacion; el archivo va donde    -->
+                <!-- el usuario diga y de ahi no se mueve.                          -->
+                <!-- ============================================================ -->
+                <Border Style="{StaticResource Tarjeta}" Margin="0,0,0,16">
+                    <StackPanel>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+
+                            <StackPanel Grid.Column="0">
+                                <TextBlock Text="Copia de seguridad" Style="{StaticResource TxtCuerpo}"
+                                           FontWeight="SemiBold" />
+                                <TextBlock Text="Un respaldo manual y local: nunca se sube a ningún servidor."
+                                           Style="{StaticResource TxtTenue}" TextWrapping="Wrap" />
+                            </StackPanel>
+
+                            <ui:ProgressRing Grid.Column="1" IsIndeterminate="True" Width="18" Height="18"
+                                             VerticalAlignment="Center" Margin="14,0,0,0"
+                                             Visibility="{Binding Copiando, Converter={StaticResource BoolToVis}}" />
+                        </Grid>
+
+                        <Grid Margin="0,16,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="16" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+
+                            <Button Grid.Column="0" Style="{StaticResource TarjetaDeAccion}"
+                                    IsEnabled="{Binding Copiando, Converter={StaticResource BoolInvertido}}"
+                                    AutomationProperties.Name="Exportar todo a un archivo de copia de seguridad"
+                                    Command="{Binding ExportarCopiaCommand}">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+
+                                    <Border Grid.Column="0" Width="36" Height="36" Margin="0,0,14,0"
+                                            VerticalAlignment="Center"
+                                            CornerRadius="{DynamicResource RadioCampo}"
+                                            Background="{DynamicResource PincelMarcaSuave}">
+                                        <ui:SymbolIcon Symbol="ArrowDownload24" FontSize="17"
+                                                       HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                       Foreground="{DynamicResource PincelMarcaFuerte}" />
+                                    </Border>
+
+                                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                        <TextBlock Text="Exportar todo" Style="{StaticResource TxtCuerpo}"
+                                                   FontWeight="SemiBold" />
+                                        <TextBlock Text="Libros, historial y configuración en un solo archivo"
+                                                   Style="{StaticResource TxtTenue}" TextWrapping="Wrap" />
+                                    </StackPanel>
+                                </Grid>
+                            </Button>
+
+                            <Button Grid.Column="2" Style="{StaticResource TarjetaDeAccion}"
+                                    IsEnabled="{Binding Copiando, Converter={StaticResource BoolInvertido}}"
+                                    AutomationProperties.Name="Importar una copia de seguridad"
+                                    Command="{Binding ImportarCopiaCommand}">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+
+                                    <Border Grid.Column="0" Width="36" Height="36" Margin="0,0,14,0"
+                                            VerticalAlignment="Center"
+                                            CornerRadius="{DynamicResource RadioCampo}"
+                                            Background="{DynamicResource PincelMarcaSuave}">
+                                        <ui:SymbolIcon Symbol="ArrowUpload24" FontSize="17"
+                                                       HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                       Foreground="{DynamicResource PincelMarcaFuerte}" />
+                                    </Border>
+
+                                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                        <TextBlock Text="Importar copia de seguridad" Style="{StaticResource TxtCuerpo}"
+                                                   FontWeight="SemiBold" />
+                                        <TextBlock Text="Reemplaza los datos actuales, pide confirmación antes"
+                                                   Style="{StaticResource TxtTenue}" TextWrapping="Wrap" />
+                                    </StackPanel>
+                                </Grid>
+                            </Button>
+                        </Grid>
+                    </StackPanel>
+                </Border>
+
+                <!-- ============================================================ -->
+                <!-- US-056 — Avanzado.                                            -->
+                <!--                                                               -->
+                <!-- "Preguntas por lote" ya existia y no cambia: esta historia     -->
+                <!-- solo lo reubica (RN-64). Sigue siendo un MINIMO que la app     -->
+                <!-- puede superar sola para gastar menos cuota, y que solo baja    -->
+                <!-- si una respuesta viene cortada por limite de tokens.           -->
+                <!-- ============================================================ -->
+                <ui:CardExpander Icon="{ui:SymbolIcon Options24}" ContentPadding="18" Margin="0,0,0,16">
+                    <ui:CardExpander.Header>
+                        <StackPanel>
+                            <TextBlock Text="Avanzado" Style="{StaticResource TxtCuerpo}" FontWeight="SemiBold" />
+                            <TextBlock Text="Solo si algo falla o querés afinar el rendimiento."
+                                       Style="{StaticResource TxtTenue}" />
+                        </StackPanel>
+                    </ui:CardExpander.Header>
+
+                    <StackPanel>
+                        <Grid Margin="0,0,0,18">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+
+                            <StackPanel Grid.Column="0">
+                                <TextBlock Text="Preguntas por lote" Style="{StaticResource TxtCuerpo}"
+                                           FontWeight="SemiBold" />
+                                <TextBlock Style="{StaticResource TxtTenue}" TextWrapping="Wrap" Margin="0,2,0,0"
+                                           Text="Mínimo de preguntas que AutoExam le pide a Gemini en cada petición al generar un examen. La app puede pedir lotes más grandes automáticamente para gastar menos cuota; nunca baja de este número salvo que una respuesta venga cortada." />
+                            </StackPanel>
+
+                            <ui:NumberBox Grid.Column="1" Value="{Binding PreguntasPorLote, Mode=TwoWay}"
+                                          Minimum="5" Maximum="15" Width="120" Margin="18,0,0,0"
+                                          VerticalAlignment="Center" ClearButtonEnabled="False"
+                                          AutomationProperties.Name="Preguntas por lote" />
+                        </Grid>
+
+                        <Grid Margin="0,0,0,16">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="18" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+
+                            <StackPanel Grid.Column="0">
+                                <TextBlock Text="PAGINAS POR BLOQUE" Style="{StaticResource TxtRotulo}" />
+                                <ui:NumberBox Value="{Binding PaginasPorBloque, Mode=TwoWay}" Minimum="5" Maximum="40"
+                                              ClearButtonEnabled="False"
+                                              AutomationProperties.Name="Paginas por bloque" />
+                            </StackPanel>
+
+                            <StackPanel Grid.Column="2">
+                                <TextBlock Text="MAXIMO DE CARACTERES" Style="{StaticResource TxtRotulo}" />
+                                <ui:NumberBox Value="{Binding MaxCaracteres, Mode=TwoWay}" Minimum="10000" Maximum="300000"
+                                              LargeChange="10000" SmallChange="5000" ClearButtonEnabled="False"
+                                              AutomationProperties.Name="Maximo de caracteres de contexto" />
+                            </StackPanel>
+                        </Grid>
+
+                        <Grid Margin="0,0,0,16">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="18" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+
+                            <StackPanel Grid.Column="0">
+                                <TextBlock Text="MAXIMO DE IMAGENES" Style="{StaticResource TxtRotulo}" />
+                                <ui:NumberBox Value="{Binding MaxImagenes, Mode=TwoWay}" Minimum="0" Maximum="30"
+                                              ClearButtonEnabled="False"
+                                              AutomationProperties.Name="Maximo de imagenes por examen" />
+                            </StackPanel>
+
+                            <CheckBox Grid.Column="2" IsChecked="{Binding IncluirImagenes, Mode=TwoWay}"
+                                      VerticalAlignment="Bottom" Margin="0,0,0,6"
+                                      Content="Extraer imagenes de los PDF por defecto" />
+                        </Grid>
+
+                        <TextBlock Style="{StaticResource TxtAyuda}" TextWrapping="Wrap"
+                                   Text="Estos cuatro se guardan con el botón Guardar de arriba, junto con la clave y el modelo." />
+                    </StackPanel>
+                </ui:CardExpander>
+
+                <!-- ============================================================ -->
+                <!-- US-047 — restaurar valores de fabrica.                        -->
+                <!--                                                               -->
+                <!-- Aparte de todo lo demas y con tratamiento de zona de riesgo:   -->
+                <!-- es la unica accion de esta pantalla que no se puede deshacer,  -->
+                <!-- y el criterio pide que no se confunda con una opcion mas. Lo   -->
+                <!-- que NO borra esta escrito en la propia tarjeta y no solo en la -->
+                <!-- confirmacion: quien duda si perder sus libros no deberia tener -->
+                <!-- que apretar el boton para averiguarlo.                          -->
+                <!-- ============================================================ -->
+                <Border Style="{StaticResource ZonaDeRiesgo}" Margin="0,8,0,24">
+                    <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
 
-                        <ComboBox Grid.Column="0" IsEditable="True" ItemsSource="{Binding Modelos}"
-                                  Text="{Binding Modelo, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                  AutomationProperties.Name="Modelo de Gemini" />
+                        <StackPanel Grid.Column="0">
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                                <ui:SymbolIcon Symbol="Warning24" FontSize="16" VerticalAlignment="Center"
+                                               Margin="0,0,10,0"
+                                               Foreground="{DynamicResource PincelError}" />
+                                <TextBlock Text="Restaurar valores de fábrica" Style="{StaticResource TxtCuerpo}"
+                                           FontWeight="SemiBold" VerticalAlignment="Center" />
+                            </StackPanel>
 
-                        <Button Grid.Column="1" Content="Detectar" Style="{StaticResource ChipAccion}"
-                                Margin="8,0,0,0" Command="{Binding DetectarCommand}"
-                                ToolTip="Consulta a Google que modelos habilita tu API Key" />
+                            <TextBlock Style="{StaticResource TxtTenue}" TextWrapping="Wrap"
+                                       Text="Vuelve al tema, el tamaño, las notificaciones y los colores de Materia originales. Tus libros, tu historial y tus claves de Gemini no se tocan." />
+                        </StackPanel>
+
+                        <Button Grid.Column="1" Content="Restaurar valores de fábrica"
+                                Style="{StaticResource BotonDestructivo}" VerticalAlignment="Center"
+                                Margin="20,0,0,0"
+                                ToolTip="Restablece solo las preferencias de interfaz. Pide confirmacion"
+                                Command="{Binding RestaurarFabricaCommand}" />
                     </Grid>
+                </Border>
 
-                    <StackPanel Orientation="Horizontal">
-                        <ui:Button Content="Guardar" Appearance="Primary" Padding="18,10" ToolTip="Guarda la clave de Gemini que escribiste arriba y la deja como la clave activa"
-                                   Command="{Binding GuardarCommand}" />
-                        <Button Content="Probar conexion" Style="{StaticResource ChipAccion}" ToolTip="Le hace una consulta minima a Gemini para ver si la clave sirve, sin generar ningun examen"
-                                Margin="10,0,0,0" VerticalAlignment="Center"
-                                Command="{Binding ProbarCommand}" />
-                        <ui:ProgressRing IsIndeterminate="True" Width="18" Height="18" Margin="12,0,0,0"
-                                         VerticalAlignment="Center"
-                                         Visibility="{Binding Ocupado, Converter={StaticResource BoolToVis}}" />
-                    </StackPanel>
-
-                    <ui:InfoBar Margin="0,18,0,0" IsClosable="True"
-                                Title="{Binding MensajeTitulo}" Message="{Binding Mensaje}"
-                                Severity="{Binding Severidad, Converter={StaticResource Severidad}}"
-                                IsOpen="{Binding MensajeTitulo, Converter={StaticResource TextoAVisibilidad},
-                                         Mode=OneWay}" />
-                </StackPanel>
-            </Border>
-
-            <!-- Aspecto: es lo unico ademas de la clave que se toca seguido -->
-            <Border Style="{StaticResource TarjetaPlana}" Margin="0,0,0,16" Padding="18">
-                <Grid>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="Auto" />
-                    </Grid.ColumnDefinitions>
-
-                    <StackPanel Grid.Column="0">
-                        <TextBlock Text="Tema oscuro" Style="{StaticResource TxtCuerpo}" />
-                        <TextBlock Text="Fondo tinta y texto atenuado, para sesiones largas de lectura."
-                                   Style="{StaticResource TxtTenue}" />
-                    </StackPanel>
-
-                    <ui:ToggleSwitch Grid.Column="1" VerticalAlignment="Center"
-                                     AutomationProperties.Name="Tema oscuro"
-                                     IsChecked="{Binding TemaOscuro, Mode=TwoWay}" />
-                </Grid>
-            </Border>
-
-            <ui:CardExpander Icon="{ui:SymbolIcon Options24}" ContentPadding="18" Margin="0,0,0,20">
-                <ui:CardExpander.Header>
+                <!-- ============================================================ -->
+                <!-- US-040 — notas de version                                     -->
+                <!--                                                               -->
+                <!-- El contenido sale de CHANGELOG.md, embebido en el ejecutable  -->
+                <!-- al compilar (RN-51): se lee sin conexion, que es justo cuando  -->
+                <!-- se lo quiere leer, despues de que la app se actualizo sola.    -->
+                <!-- ============================================================ -->
+                <Border Style="{StaticResource TarjetaResumen}" Margin="0,0,0,24" Padding="20,18"
+                        Visibility="{Binding MostrarNotas, Converter={StaticResource BoolToVis}}">
                     <StackPanel>
-                        <TextBlock Text="Opciones avanzadas" Style="{StaticResource TxtCuerpo}"
-                                   FontWeight="SemiBold" />
-                        <TextBlock Text="Solo si algo falla o queres afinar el rendimiento."
-                                   Style="{StaticResource TxtTenue}" />
+                        <Grid Margin="0,0,0,4">
+                            <TextBlock Text="Notas de versión" Style="{StaticResource TxtCuerpo}"
+                                       FontWeight="SemiBold" VerticalAlignment="Center" />
+
+                            <Button Content="Cerrar" Style="{StaticResource ChipAccion}"
+                                    HorizontalAlignment="Right" VerticalAlignment="Center"
+                                    Command="{Binding AlternarNotasCommand}" />
+                        </Grid>
+
+                        <!-- Un build de prueba entre dos releases todavia no tiene su entrada.
+                             Se dice; una seccion vacia se lee como una falla de la app. -->
+                        <ui:InfoBar IsOpen="{Binding FaltanNotasDeEstaVersion, Mode=OneWay}"
+                                    IsClosable="False" Severity="Informational" Title=""
+                                    Margin="0,8,0,4"
+                                    Message="{Binding AvisoSinNotas}" />
+
+                        <TextBlock Style="{StaticResource TxtAyuda}"
+                                   Visibility="{Binding HayNotas, Converter={StaticResource BoolToVis}}"
+                                   Text="Lo más nuevo arriba. Las versiones anteriores a la primera de esta lista se publicaron sin notas." />
+
+                        <ScrollViewer MaxHeight="420" VerticalScrollBarVisibility="Auto"
+                                      HorizontalScrollBarVisibility="Disabled" Margin="0,4,0,0">
+                            <ItemsControl ItemsSource="{Binding Versiones}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate DataType="{x:Type servicios:NotasDeUnaVersion}">
+                                        <Border Style="{StaticResource TarjetaPlana}" Padding="16,14"
+                                                Margin="0,0,4,10">
+                                            <StackPanel>
+                                                <TextBlock Text="{Binding Encabezado}" Style="{StaticResource TxtCuerpo}"
+                                                           FontWeight="SemiBold" TextWrapping="Wrap" />
+                                                <TextBlock Text="{Binding Subtitulo}" Style="{StaticResource TxtTenue}"
+                                                           Margin="0,2,0,0"
+                                                           Visibility="{Binding Subtitulo, Converter={StaticResource TextoAVisibilidad}}" />
+
+                                                <ItemsControl ItemsSource="{Binding Grupos}" Margin="0,10,0,0">
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate DataType="{x:Type servicios:GrupoDeNotas}">
+                                                            <StackPanel Margin="0,0,0,8">
+                                                                <TextBlock Text="{Binding Titulo}"
+                                                                           Style="{StaticResource TxtRotulo}" />
+
+                                                                <ItemsControl ItemsSource="{Binding Puntos}">
+                                                                    <ItemsControl.ItemTemplate>
+                                                                        <DataTemplate>
+                                                                            <Grid Margin="0,0,0,5">
+                                                                                <Grid.ColumnDefinitions>
+                                                                                    <ColumnDefinition Width="Auto" />
+                                                                                    <ColumnDefinition Width="*" />
+                                                                                </Grid.ColumnDefinitions>
+
+                                                                                <!-- Vinieta propia: los puntos son
+                                                                                     texto plano, sin el "- " del
+                                                                                     archivo. -->
+                                                                                <Ellipse Grid.Column="0" Width="4" Height="4"
+                                                                                         VerticalAlignment="Top" Margin="2,8,10,0"
+                                                                                         Fill="{DynamicResource PincelMarca}" />
+
+                                                                                <TextBlock Grid.Column="1" Text="{Binding}"
+                                                                                           Style="{StaticResource TxtSuave}"
+                                                                                           TextWrapping="Wrap" />
+                                                                            </Grid>
+                                                                        </DataTemplate>
+                                                                    </ItemsControl.ItemTemplate>
+                                                                </ItemsControl>
+                                                            </StackPanel>
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+                                            </StackPanel>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
                     </StackPanel>
-                </ui:CardExpander.Header>
-
-                <StackPanel>
-                    <Grid Margin="0,0,0,16">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="18" />
-                            <ColumnDefinition Width="*" />
-                        </Grid.ColumnDefinitions>
-
-                        <StackPanel Grid.Column="0">
-                            <TextBlock Text="PREGUNTAS POR PETICION" Style="{StaticResource TxtRotulo}" />
-                            <ui:NumberBox Value="{Binding PreguntasPorLote, Mode=TwoWay}" Minimum="5" Maximum="15"
-                                          ClearButtonEnabled="False"
-                                          AutomationProperties.Name="Preguntas por peticion" />
-                            <TextBlock Style="{StaticResource TxtTenue}" Margin="0,6,0,0" TextWrapping="Wrap"
-                                       Text="Minimo de preguntas por peticion, con tope de 15. El reparto busca la menor cantidad de llamadas: 30 preguntas salen en 2 lotes de 15, y 60 en 4. Si a Gemini se le corta la respuesta, la app baja el tamaño sola y hace mas viajes hasta completar el examen. Cada peticion descuenta de las 20 diarias por clave." />
-                        </StackPanel>
-
-                        <StackPanel Grid.Column="2">
-                            <TextBlock Text="PAGINAS POR BLOQUE" Style="{StaticResource TxtRotulo}" />
-                            <ui:NumberBox Value="{Binding PaginasPorBloque, Mode=TwoWay}" Minimum="5" Maximum="40"
-                                          ClearButtonEnabled="False"
-                                          AutomationProperties.Name="Paginas por bloque" />
-                        </StackPanel>
-                    </Grid>
-
-                    <Grid Margin="0,0,0,16">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="18" />
-                            <ColumnDefinition Width="*" />
-                        </Grid.ColumnDefinitions>
-
-                        <StackPanel Grid.Column="0">
-                            <TextBlock Text="MAXIMO DE CARACTERES" Style="{StaticResource TxtRotulo}" />
-                            <ui:NumberBox Value="{Binding MaxCaracteres, Mode=TwoWay}" Minimum="10000" Maximum="300000"
-                                          LargeChange="10000" SmallChange="5000" ClearButtonEnabled="False"
-                                          AutomationProperties.Name="Maximo de caracteres de contexto" />
-                        </StackPanel>
-
-                        <StackPanel Grid.Column="2">
-                            <TextBlock Text="MAXIMO DE IMAGENES" Style="{StaticResource TxtRotulo}" />
-                            <ui:NumberBox Value="{Binding MaxImagenes, Mode=TwoWay}" Minimum="0" Maximum="30"
-                                          ClearButtonEnabled="False"
-                                          AutomationProperties.Name="Maximo de imagenes por examen" />
-                        </StackPanel>
-                    </Grid>
-
-                    <CheckBox IsChecked="{Binding IncluirImagenes, Mode=TwoWay}" Margin="0,0,0,16"
-                              Content="Extraer imagenes de los PDF por defecto" />
-
-                    <Button Content="Abrir carpeta de datos" Style="{StaticResource ChipAccion}" ToolTip="Abre en el Explorador la carpeta donde AutoExam guarda tus materiales, examenes y ajustes"
-                            HorizontalAlignment="Left" Command="{Binding AbrirCarpetaCommand}" />
-
-                    <TextBlock Text="{Binding CarpetaDatos}" Style="{StaticResource TxtDato}"
-                               FontSize="11" Margin="0,10,0,0" TextWrapping="Wrap" />
-                </StackPanel>
-            </ui:CardExpander>
-
-            <!-- Actualizaciones: se comprueba sola al arrancar, esto es para no tener que reiniciar -->
-            <Border Style="{StaticResource TarjetaPlana}" Margin="0,0,0,24" Padding="18">
-                <Grid>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="Auto" />
-                        <ColumnDefinition Width="Auto" />
-                    </Grid.ColumnDefinitions>
-
-                    <StackPanel Grid.Column="0" VerticalAlignment="Center">
-                        <TextBlock Style="{StaticResource TxtCuerpo}"
-                                   Text="{Binding VersionActual, StringFormat='AutoExam {0}'}" />
-                        <TextBlock Text="Busca versiones nuevas sola cada vez que abris la app."
-                                   Style="{StaticResource TxtTenue}" TextWrapping="Wrap" />
-                    </StackPanel>
-
-                    <!-- US-040: el boton va pegado al numero de version, que es donde alguien
-                         que acaba de ver "AutoExam 1.1.0" se pregunta que trae. -->
-                    <Button Grid.Column="1" Content="Notas de versión" Style="{StaticResource ChipAccion}"
-                            VerticalAlignment="Center" Margin="12,0,0,0"
-                            ToolTip="Qué se agregó, cambió y arregló en esta versión y en las anteriores"
-                            Command="{Binding AlternarNotasCommand}" />
-
-                    <Button Grid.Column="2" Content="Buscar actualizaciones" ToolTip="Consulta si hay una version mas nueva de AutoExam publicada y te ofrece instalarla"
-                            Style="{StaticResource ChipAccion}" VerticalAlignment="Center"
-                            Margin="10,0,0,0" Command="{Binding BuscarActualizacionCommand}" />
-                </Grid>
-            </Border>
-
-            <!-- ============================================================ -->
-            <!-- US-040 — notas de version                                     -->
-            <!--                                                               -->
-            <!-- El contenido sale de CHANGELOG.md, embebido en el ejecutable  -->
-            <!-- al compilar (RN-51): se lee sin conexion, que es justo cuando  -->
-            <!-- se lo quiere leer, despues de que la app se actualizo sola.    -->
-            <!-- ============================================================ -->
-            <Border Style="{StaticResource TarjetaResumen}" Margin="0,0,0,24" Padding="20,18"
-                    Visibility="{Binding MostrarNotas, Converter={StaticResource BoolToVis}}">
-                <StackPanel>
-                    <Grid Margin="0,0,0,4">
-                        <TextBlock Text="Notas de versión" Style="{StaticResource TxtCuerpo}"
-                                   FontWeight="SemiBold" VerticalAlignment="Center" />
-
-                        <Button Content="Cerrar" Style="{StaticResource ChipAccion}"
-                                HorizontalAlignment="Right" VerticalAlignment="Center"
-                                Command="{Binding AlternarNotasCommand}" />
-                    </Grid>
-
-                    <!-- Un build de prueba entre dos releases todavia no tiene su entrada.
-                         Se dice; una seccion vacia se lee como una falla de la app. -->
-                    <ui:InfoBar IsOpen="{Binding FaltanNotasDeEstaVersion, Mode=OneWay}"
-                                IsClosable="False" Severity="Informational" Title=""
-                                Margin="0,8,0,4"
-                                Message="{Binding AvisoSinNotas}" />
-
-                    <TextBlock Style="{StaticResource TxtAyuda}"
-                               Visibility="{Binding HayNotas, Converter={StaticResource BoolToVis}}"
-                               Text="Lo más nuevo arriba. Las versiones anteriores a la primera de esta lista se publicaron sin notas." />
-
-                    <ScrollViewer MaxHeight="420" VerticalScrollBarVisibility="Auto"
-                                  HorizontalScrollBarVisibility="Disabled" Margin="0,4,0,0">
-                        <ItemsControl ItemsSource="{Binding Versiones}">
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate DataType="{x:Type servicios:NotasDeUnaVersion}">
-                                    <Border Style="{StaticResource TarjetaPlana}" Padding="16,14"
-                                            Margin="0,0,4,10">
-                                        <StackPanel>
-                                            <TextBlock Text="{Binding Encabezado}" Style="{StaticResource TxtCuerpo}"
-                                                       FontWeight="SemiBold" TextWrapping="Wrap" />
-                                            <TextBlock Text="{Binding Subtitulo}" Style="{StaticResource TxtTenue}"
-                                                       Margin="0,2,0,0"
-                                                       Visibility="{Binding Subtitulo, Converter={StaticResource TextoAVisibilidad}}" />
-
-                                            <ItemsControl ItemsSource="{Binding Grupos}" Margin="0,10,0,0">
-                                                <ItemsControl.ItemTemplate>
-                                                    <DataTemplate DataType="{x:Type servicios:GrupoDeNotas}">
-                                                        <StackPanel Margin="0,0,0,8">
-                                                            <TextBlock Text="{Binding Titulo}"
-                                                                       Style="{StaticResource TxtRotulo}" />
-
-                                                            <ItemsControl ItemsSource="{Binding Puntos}">
-                                                                <ItemsControl.ItemTemplate>
-                                                                    <DataTemplate>
-                                                                        <Grid Margin="0,0,0,5">
-                                                                            <Grid.ColumnDefinitions>
-                                                                                <ColumnDefinition Width="Auto" />
-                                                                                <ColumnDefinition Width="*" />
-                                                                            </Grid.ColumnDefinitions>
-
-                                                                            <!-- Vinieta propia: los puntos son
-                                                                                 texto plano, sin el "- " del
-                                                                                 archivo. -->
-                                                                            <Ellipse Grid.Column="0" Width="4" Height="4"
-                                                                                     VerticalAlignment="Top" Margin="2,8,10,0"
-                                                                                     Fill="{DynamicResource PincelMarca}" />
-
-                                                                            <TextBlock Grid.Column="1" Text="{Binding}"
-                                                                                       Style="{StaticResource TxtSuave}"
-                                                                                       TextWrapping="Wrap" />
-                                                                        </Grid>
-                                                                    </DataTemplate>
-                                                                </ItemsControl.ItemTemplate>
-                                                            </ItemsControl>
-                                                        </StackPanel>
-                                                    </DataTemplate>
-                                                </ItemsControl.ItemTemplate>
-                                            </ItemsControl>
-                                        </StackPanel>
-                                    </Border>
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
-                    </ScrollViewer>
-                </StackPanel>
-            </Border>
-        </StackPanel>
-    </ScrollViewer>
+                </Border>
+            </StackPanel>
+        </ScrollViewer>
+    </Grid>
 </UserControl>

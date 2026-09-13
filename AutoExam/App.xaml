@@ -37,6 +37,10 @@
             <local:NombreDeMateriaAPincelConverter x:Key="ColorDeMateriaPorNombre" />
             <local:EvolucionAPolilineaConverter x:Key="EvolucionAPolilinea" />
             <local:FraccionAPixelConverter x:Key="FraccionAPixel" />
+            <local:FraccionAAnilloConverter x:Key="FraccionAAnillo" />
+            <local:MasUnoConverter x:Key="MasUno" />
+            <local:FraccionAEstrellaConverter x:Key="FraccionAEstrella" />
+            <local:ColorDeTemaAPincelConverter x:Key="ColorDeTema" />
             <BooleanToVisibilityConverter x:Key="BoolToVis" />
 
             <!-- Cada pagina se dibuja sola: el shell muestra el ViewModel activo

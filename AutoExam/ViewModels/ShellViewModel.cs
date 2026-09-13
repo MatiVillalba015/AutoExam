@@ -32,7 +32,7 @@ public partial class ShellViewModel : ObservableObject, INavegacion
         Asistente = new AsistenteViewModel(biblioteca, pdf, gemini, sesion, dialogos, this);
         Examen = new ExamenViewModel(sesion, dialogos, this);
         Historial = new HistorialViewModel(sesion, dialogos, this);
-        Ajustes = new AjustesViewModel(sesion, gemini, dialogos, this);
+        Ajustes = new AjustesViewModel(biblioteca, sesion, gemini, dialogos, this);
 
         Paginas = new ObservableCollection<PaginaViewModel> { Libros, Asistente, Examen, Historial, Ajustes };
 
@@ -53,20 +53,24 @@ public partial class ShellViewModel : ObservableObject, INavegacion
         // cuando hay un examen para rendir.
         Inicio = new InicioViewModel(new[]
         {
+            // US-041: el orden es el del mockup, y "Generar examen" queda marcada como la
+            // principal. Las descripciones se acortaron a dos lineas: en la tarjeta horizontal
+            // el texto convive con el icono y la insignia en la misma fila, y una descripcion
+            // de tres lineas empujaba el alto de las cuatro tarjetas.
             new AccesoDeInicio(Asistente, "Generar examen", "Wand24",
-                "Preguntas nuevas con IA sobre tu material, o un repaso combinando exámenes que ya rendiste.",
-                AtajoGenerarExamenCommand),
+                "Preguntas nuevas con IA, o un repaso mezclando lo que ya rendiste.",
+                AtajoGenerarExamenCommand, esPrincipal: true),
 
             new AccesoDeInicio(Libros, "Subir material", "DocumentAdd24",
-                "PDF, Word, PowerPoint, Excel o fotos de tus apuntes. Se abre el selector de archivos directo.",
+                "PDF, Word, PowerPoint, Excel o fotos de tus apuntes.",
                 AtajoSubirMaterialCommand),
 
-            new AccesoDeInicio(Historial, "Exámenes anteriores", "History24",
-                "Repasá pregunta por pregunta lo que ya rendiste y mirá tu evolución.",
+            new AccesoDeInicio(Historial, "Ver historial", "History24",
+                "Repasá pregunta por pregunta y mirá tu evolución.",
                 AtajoVerHistorialCommand),
 
             new AccesoDeInicio(Ajustes, "Ajustes", "Settings24",
-                "Clave de Gemini, modelo, tema y tamaño de letra del examen.",
+                "Clave de Gemini, modelo, tema y tamaño de letra.",
                 AtajoAjustesCommand)
         });
 
@@ -90,6 +94,10 @@ public partial class ShellViewModel : ObservableObject, INavegacion
             Asistente.EntrarEnModoRepaso();
             IrA(Asistente.Clave);
         };
+
+        // US-050: el aviso se retira solo. Un DispatcherTimer y no un Task.Delay porque el
+        // Tick ya llega en el hilo de UI, que es donde hay que tocar la propiedad enlazada.
+        _relojDelAviso.Tick += (_, _) => CerrarAviso();
     }
 
     public InicioViewModel Inicio { get; }
@@ -229,7 +237,7 @@ public partial class ShellViewModel : ObservableObject, INavegacion
 
         Ajustes.CargarDesdeConfig();
         Examen.CargarDesdeConfig();
-        TemaService.Aplicar(_sesion.Config.TemaOscuro);
+        AplicarApariencia();
         Historial.Refrescar();
         RefrescarEstadoApi();
 
@@ -341,6 +349,107 @@ public partial class ShellViewModel : ObservableObject, INavegacion
     }
 
     public void Estado(string texto) => EstadoTexto = texto;
+
+    // ------------------------------------------------------------------
+    // US-048 — zoom de toda la interfaz
+    // ------------------------------------------------------------------
+
+    /// <summary>
+    /// Escala de la interfaz. La ventana la enlaza a un unico <c>ScaleTransform</c> que
+    /// envuelve todo el contenido (RN-56): un solo punto de escalado para toda la app, en vez
+    /// de un tamanio de fuente por pantalla.
+    /// </summary>
+    [ObservableProperty]
+    private double _zoom = ZoomDeLaApp.Normal;
+
+    public void AplicarZoom(double escala) => Zoom = ZoomDeLaApp.Acotar(escala);
+
+    // ------------------------------------------------------------------
+    // US-050 — avisos informativos
+    // ------------------------------------------------------------------
+
+    /// <summary>Texto del aviso que se ve ahora, o vacio si no hay ninguno.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HayAviso))]
+    private string _aviso = string.Empty;
+
+    public bool HayAviso => Aviso.Length > 0;
+
+    /// <summary>
+    /// Cierra el aviso solo. Un aviso informativo que se queda hasta que alguien lo cierra
+    /// deja de ser un aviso y pasa a ser un cartel: se va a los seis segundos, que es tiempo
+    /// de sobra para leer una linea y poco para molestar.
+    /// </summary>
+    private readonly System.Windows.Threading.DispatcherTimer _relojDelAviso = new()
+    {
+        Interval = TimeSpan.FromSeconds(6),
+    };
+
+    public void Notificar(string mensaje)
+    {
+        // La preferencia se consulta aca y en ningun otro lado: quien avisa —el asistente al
+        // terminar de generar, la biblioteca al terminar de procesar— no tiene que saber que
+        // existe un ajuste. Y como los errores y las confirmaciones no pasan por este metodo,
+        // apagar las notificaciones no puede llegar a silenciarlos (RN-58).
+        if (!_sesion.Config.Notificaciones || string.IsNullOrWhiteSpace(mensaje))
+        {
+            return;
+        }
+
+        Aviso = mensaje.Trim();
+
+        _relojDelAviso.Stop();
+        _relojDelAviso.Start();
+    }
+
+    [RelayCommand]
+    private void CerrarAviso()
+    {
+        _relojDelAviso.Stop();
+        Aviso = string.Empty;
+    }
+
+    // ------------------------------------------------------------------
+    // US-051 — despues de importar una copia
+    // ------------------------------------------------------------------
+
+    /// <summary>
+    /// Vuelve a leer la carpeta de datos entera y repuebla las pantallas. Es el mismo trabajo
+    /// que hace <see cref="IniciarAsync"/> salvo la bienvenida y la recuperacion de
+    /// huerfanos: lo que se acaba de restaurar viene de una copia consistente, no de una
+    /// carpeta a medio escribir.
+    /// </summary>
+    public void RecargarDatos()
+    {
+        _biblioteca.Cargar();
+        _sesion.Cargar();
+
+        Ajustes.CargarDesdeConfig();
+        Examen.CargarDesdeConfig();
+        Historial.Refrescar();
+        RefrescarEstadoApi();
+
+        AplicarApariencia();
+
+        Libros.LibroSeleccionado = _biblioteca.Libros.FirstOrDefault();
+        Inicio.Actualizar(_biblioteca.Libros.Count, _sesion.Perfil.Historial);
+    }
+
+    /// <summary>
+    /// Aplica de una sola vez las tres preferencias de apariencia que valen para toda la app:
+    /// tema (US-049), zoom (US-048) y reducir movimiento (US-054). Existe como un metodo y no
+    /// como tres llamadas sueltas porque hay tres momentos en que hay que aplicarlas todas
+    /// —al arrancar, al importar una copia y al restaurar valores de fabrica— y olvidarse de
+    /// una en alguno de esos tres es exactamente el bug que no se ve hasta que alguien lo usa.
+    /// </summary>
+    public void AplicarApariencia()
+    {
+        var config = _sesion.Config;
+
+        TemaService.Aplicar(config.TemaDeColor);
+        AplicarZoom(config.Zoom);
+        Behaviors.Animaciones.Aplicar(config.ReducirMovimiento);
+    }
 
     public void RefrescarEstadoApi()
         => EstadoApi = _sesion.HayApiKey ? $"Gemini · {_sesion.Config.Modelo}" : "Gemini · sin API Key";

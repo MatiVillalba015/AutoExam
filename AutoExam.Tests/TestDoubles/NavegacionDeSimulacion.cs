@@ -27,4 +27,20 @@ public sealed class NavegacionDeSimulacion : INavegacion
     public void Estado(string texto) => Estados.Add(texto);
 
     public void RefrescarEstadoApi() => LlamadasRefrescarEstadoApi++;
+
+    // ------------------------------------------------------------------
+    // US-048 / US-050 / US-051
+    // ------------------------------------------------------------------
+
+    public List<double> ZoomsAplicados { get; } = new();
+    public List<string> Notificaciones { get; } = new();
+    public int LlamadasRecargarDatos { get; private set; }
+
+    public double? UltimoZoom => ZoomsAplicados.Count == 0 ? null : ZoomsAplicados[^1];
+
+    public void AplicarZoom(double escala) => ZoomsAplicados.Add(escala);
+
+    public void Notificar(string mensaje) => Notificaciones.Add(mensaje);
+
+    public void RecargarDatos() => LlamadasRecargarDatos++;
 }

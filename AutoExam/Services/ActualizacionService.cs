@@ -95,14 +95,63 @@ public static class ActualizacionService
     /// Comprobacion pedida desde Ajustes. Aca si se contesta siempre, incluso "ya estas al
     /// dia" o el error de red: el usuario apreto un boton y merece una respuesta.
     /// </summary>
-    public static void ComprobarAhora()
+    /// <param name="enPantalla">
+    /// US-053: si se pasa, el resultado va por aca en vez de por un MessageBox. El criterio
+    /// pide el mismo tratamiento que "Probar conexion" (RN-16) —un estado de "buscando" y
+    /// despues un resultado binario claro, ahi mismo en Ajustes—, y un cuadro de dialogo
+    /// modal encima de la pantalla no es eso. La ventana del actualizador, cuando hay version
+    /// nueva, sigue siendo la de siempre: es la que trae la descarga y el reinicio.
+    /// </param>
+    public static void ComprobarAhora(Action<ResultadoDeBusqueda, string>? enPantalla = null)
     {
         Configurar();
 
         _aPedido = true;
-        AutoUpdater.ReportErrors = true;
+        _enPantalla = enPantalla;
+        AutoUpdater.ReportErrors = enPantalla is null;
 
         Iniciar();
+    }
+
+    /// <summary>Como termino una comprobacion pedida a mano (US-053).</summary>
+    public enum ResultadoDeBusqueda
+    {
+        /// <summary>Ya se tiene la ultima version publicada.</summary>
+        AlDia,
+
+        /// <summary>Hay una version nueva y se abrio la ventana del actualizador.</summary>
+        HayVersionNueva,
+
+        /// <summary>No se pudo consultar, o el paquete anunciado no se puede instalar.</summary>
+        NoSePudo,
+    }
+
+    /// <summary>
+    /// Observador de la comprobacion en curso, si la pidio Ajustes. Se limpia al informar:
+    /// una comprobacion automatica posterior no tiene que escribir en una pantalla que el
+    /// usuario ya dejo atras.
+    /// </summary>
+    private static Action<ResultadoDeBusqueda, string>? _enPantalla;
+
+    /// <summary>
+    /// Manda el desenlace al observador de Ajustes, si lo hay. Devuelve true cuando el
+    /// resultado ya quedo informado por esa via, para que el llamador no muestre ademas un
+    /// MessageBox y el usuario termine leyendo lo mismo dos veces.
+    /// </summary>
+    private static bool Informar(ResultadoDeBusqueda resultado, string mensaje)
+    {
+        var observador = _enPantalla;
+
+        if (observador is null)
+        {
+            return false;
+        }
+
+        _enPantalla = null;
+
+        Application.Current?.Dispatcher.Invoke(() => observador(resultado, mensaje));
+
+        return true;
     }
 
     private static void Iniciar()
@@ -200,10 +249,13 @@ public static class ActualizacionService
 
             if (_aPedido)
             {
-                Avisar(
-                    "No se pudo comprobar",
-                    "No se pudo consultar si hay una version nueva. Revisá tu conexion a internet.",
-                    MessageBoxImage.Warning);
+                const string motivo =
+                    "No se pudo consultar si hay una version nueva. Revisá tu conexion a internet.";
+
+                if (!Informar(ResultadoDeBusqueda.NoSePudo, motivo))
+                {
+                    Avisar("No se pudo comprobar", motivo, MessageBoxImage.Warning);
+                }
             }
 
             return;
@@ -226,12 +278,21 @@ public static class ActualizacionService
                     RutasApp.RegistrarError("AutoUpdater / actualizacion descartada",
                         new InvalidOperationException(motivo));
 
-                    if (aPedido)
+                    if (aPedido && !Informar(ResultadoDeBusqueda.NoSePudo, motivo))
                     {
                         Avisar("No se pudo actualizar", motivo, MessageBoxImage.Warning);
                     }
 
                     return;
+                }
+
+                if (aPedido)
+                {
+                    // Se informa antes de abrir la ventana del actualizador: es modal, y si el
+                    // usuario elige "Mas tarde" tiene que quedar en Ajustes el rastro de que la
+                    // busqueda termino y encontro algo.
+                    Informar(ResultadoDeBusqueda.HayVersionNueva,
+                        $"Hay una version nueva disponible: {args.CurrentVersion}.");
                 }
 
                 // El intento NO se anota aca. Mostrar la ventana no es intentar actualizar: el
@@ -265,10 +326,12 @@ public static class ActualizacionService
 
         if (_aPedido)
         {
-            Avisar(
-                "AutoExam esta al dia",
-                $"Ya tenes la ultima version ({args.InstalledVersion}).",
-                MessageBoxImage.Information);
+            string mensaje = $"Ya tenés la última versión ({args.InstalledVersion}).";
+
+            if (!Informar(ResultadoDeBusqueda.AlDia, mensaje))
+            {
+                Avisar("AutoExam esta al dia", mensaje, MessageBoxImage.Information);
+            }
         }
     }
 

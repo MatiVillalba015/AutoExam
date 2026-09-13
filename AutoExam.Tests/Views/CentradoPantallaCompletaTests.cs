@@ -10,9 +10,15 @@ namespace AutoExam.Tests.Views;
 ///
 /// Las vistas ya tenían un ancho máximo de diseño, así que el texto nunca se estiraba; el
 /// problema era el otro: con <c>HorizontalAlignment="Left"</c>, todo ese espacio sobrante en un
-/// monitor ancho quedaba junto, a la derecha, y la app se veía escorada. Con <c>Stretch</c> +
-/// <c>MaxWidth</c> pasaba algo parecido y encima ambiguo, porque el resultado depende de cómo
-/// WPF resuelva la combinación.
+/// monitor ancho quedaba junto, a la derecha, y la app se veía escorada.
+///
+/// Las dos formas válidas de centrar son <c>Center</c> y <c>Stretch</c> acotado por
+/// <c>MaxWidth</c>: cuando el tope es menor que el espacio disponible, WPF reparte el sobrante
+/// a los dos lados y el resultado en pantalla es el mismo. Cuál usar depende del elemento, y no
+/// es una cuestión de gusto: un <c>Grid</c> con columnas <c>*</c> centrado se mide por su
+/// contenido —las columnas <c>*</c> no se estiran— y entonces la pantalla cambia de ancho según
+/// qué se esté mostrando adentro. Esos casos van con <c>Stretch</c> (US-058 en el asistente).
+/// Lo que sigue prohibido es <c>Left</c> y <c>Right</c>, que es lo que US-017 vino a arreglar.
 ///
 /// La verificación es estructural sobre el XAML del checkout: comprueba la propiedad de layout
 /// que produce el centrado, no un render. Un test de píxeles necesitaría levantar ventanas
@@ -60,7 +66,7 @@ public class CentradoPantallaCompletaTests
     public void NingunaColumnaDeContenido_QuedaPegadaAUnBorde()
     {
         var escoradas = Columnas()
-            .Where(c => c.Alineacion is "Left" or "Right" or "Stretch")
+            .Where(c => c.Alineacion is "Left" or "Right")
             .Select(c => $"{c.Vista}: <{c.Elemento.Name.LocalName} MaxWidth=\"{c.Ancho}\" HorizontalAlignment=\"{c.Alineacion}\">")
             .ToList();
 
@@ -72,15 +78,16 @@ public class CentradoPantallaCompletaTests
     [Fact]
     public void LasColumnasDeContenido_DeclaranElCentradoExplicitamente()
     {
-        // Explícito y no por omisión: el default de HorizontalAlignment es Stretch, así que
-        // borrar el atributo devuelve el problema sin que se note en la revisión del diff.
+        // Explícito y no por omisión: aunque Stretch sea el default, dejarlo implícito hace que
+        // un cambio de alineación no se vea en el diff y que no quede dicho que el centrado de
+        // esa columna es una decisión y no una casualidad.
         var sinDeclarar = Columnas()
             .Where(c => c.Alineacion.Length == 0)
             .Select(c => $"{c.Vista}: <{c.Elemento.Name.LocalName} MaxWidth=\"{c.Ancho}\">")
             .ToList();
 
         Assert.True(sinDeclarar.Count == 0,
-            "Estas columnas no declaran HorizontalAlignment=\"Center\" y quedan en el default Stretch:\n  " +
+            "Estas columnas no declaran su HorizontalAlignment (Center, o Stretch acotado por MaxWidth):\n  " +
             string.Join("\n  ", sinDeclarar));
     }
 
@@ -96,14 +103,14 @@ public class CentradoPantallaCompletaTests
         };
 
         var centradasPorVista = Columnas()
-            .Where(c => c.Alineacion == "Center")
+            .Where(c => c.Alineacion is "Center" or "Stretch")
             .GroupBy(c => c.Vista, StringComparer.OrdinalIgnoreCase)
             .ToDictionary(g => g.Key, g => g.Count(), StringComparer.OrdinalIgnoreCase);
 
         foreach (string pantalla in pantallas)
         {
             Assert.True(centradasPorVista.TryGetValue(pantalla, out int n) && n > 0,
-                $"{pantalla} no tiene ninguna columna de contenido centrada (US-017).");
+                $"{pantalla} no tiene ninguna columna de contenido centrada ni acotada (US-017).");
         }
     }
 

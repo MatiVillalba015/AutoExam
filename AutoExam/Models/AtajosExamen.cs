@@ -95,11 +95,22 @@ public static class AtajosExamen
     /// misma lista, asi que no puede quedar desactualizada respecto de lo que las teclas
     /// hacen de verdad — que es el modo habitual en que una ayuda de atajos miente.
     /// </summary>
-    public static IReadOnlyList<(string Teclas, string Que)> Referencia { get; } = new[]
+    public static IReadOnlyList<AtajoDelExamen> Referencia { get; } = new[]
     {
-        ("1 - 4  ·  A - D", "Elegir una opción"),
-        ("→  o  Enter", "Pregunta siguiente"),
-        ("←", "Pregunta anterior"),
-        ("S", "Saltear la pregunta"),
+        new AtajoDelExamen("1 - 4  ·  A - D", "Elegir una opción"),
+        new AtajoDelExamen("→  o  Enter", "Pregunta siguiente"),
+        new AtajoDelExamen("←", "Pregunta anterior"),
+        new AtajoDelExamen("S", "Saltear la pregunta"),
     };
 }
+
+/// <summary>
+/// Una fila de la referencia de atajos: que teclas y que hacen.
+///
+/// Es un tipo propio y no una tupla con nombres. Los nombres de los elementos de una tupla
+/// existen solo en tiempo de compilacion: en runtime los campos se llaman Item1 e Item2, y el
+/// binding de WPF resuelve por reflexion. Con la tupla, <c>{Binding Teclas}</c> no encontraba
+/// nada y la referencia se dibujaba como cuatro pastillas vacias — sin error en ningun lado,
+/// porque un binding que no resuelve falla en silencio.
+/// </summary>
+public sealed record AtajoDelExamen(string Teclas, string Que);

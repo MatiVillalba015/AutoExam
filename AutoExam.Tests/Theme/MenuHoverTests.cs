@@ -82,26 +82,46 @@ public class MenuHoverTests
         Assert.DoesNotContain("ItemNavegacion", ventana, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// US-030 pedía la tarjeta con el ícono grande arriba y el texto abajo, porque era un
+    /// bloque cuadrado dentro de una grilla 2x2. US-041 la volvió una fila horizontal contra
+    /// el mockup: el ícono pasa a la izquierda, dentro de un cuadrado con degradado violeta,
+    /// y el título y la descripción quedan a su derecha, en la misma línea.
+    ///
+    /// La garantía de fondo no cambió —ícono y texto se leen juntos como una sola cosa, no
+    /// como dos elementos sueltos—, solo el eje en el que se ordenan, así que el test sigue
+    /// existiendo verificando el orden nuevo.
+    /// </summary>
     [Fact]
-    public void LaGrillaDelInicio_TieneIconoArribaYTextoAbajo_US030()
+    public void LaTarjetaDelInicio_TieneElIconoALaIzquierdaYElTextoALaDerecha_US041()
     {
         var inicio = XDocument.Load(ArchivoFuenteHelper.RutaFuente("AutoExam/Views/InicioView.xaml"));
 
-        // Un StackPanel vertical (el default) con el ícono primero y el título después es lo
-        // que produce "ícono grande arriba, texto abajo".
-        var panel = inicio.Descendants()
+        var tarjeta = inicio.Descendants()
+            .FirstOrDefault(e => e.Name.LocalName == "Button" &&
+                                 (e.Attribute("Style")?.Value ?? string.Empty).Contains("TarjetaAcceso"));
+
+        Assert.True(tarjeta is not null, "No se encontró la tarjeta de acceso del menú.");
+
+        // El cuadrado del ícono es un estilo propio (CuadroDeIcono): un solo lugar define su
+        // tamaño, su radio y su degradado para las cuatro tarjetas.
+        var cuadro = tarjeta!.Descendants()
+            .FirstOrDefault(e => e.Name.LocalName == "Border" &&
+                                 (e.Attribute("Style")?.Value ?? string.Empty).Contains("CuadroDeIcono"));
+
+        Assert.True(cuadro is not null, "El ícono de la tarjeta no va dentro del cuadrado con degradado (US-041).");
+        Assert.Contains(cuadro!.Elements(), h => h.Name.LocalName.Contains("SymbolIcon", StringComparison.Ordinal));
+
+        // Columna 0 el cuadrado, columna 1 los textos: eso es "ícono a la izquierda, título y
+        // descripción a la derecha, en la misma fila".
+        Assert.Equal("0", cuadro.Attribute("Grid.Column")?.Value);
+
+        var textos = tarjeta.Descendants()
             .FirstOrDefault(e => e.Name.LocalName == "StackPanel" &&
-                                 (e.Attribute("Orientation")?.Value ?? "Vertical") == "Vertical" &&
-                                 e.Elements().Any(h => h.Name.LocalName.Contains("SymbolIcon", StringComparison.Ordinal)));
+                                 e.Elements().Any(h => h.Name.LocalName == "TextBlock"));
 
-        Assert.True(panel is not null, "La tarjeta no apila ícono y texto en vertical (US-030).");
-
-        var hijos = panel!.Elements().ToList();
-        int icono = hijos.FindIndex(h => h.Name.LocalName.Contains("SymbolIcon", StringComparison.Ordinal));
-        int texto = hijos.FindIndex(h => h.Name.LocalName == "TextBlock");
-
-        Assert.True(icono >= 0 && texto > icono,
-            "El texto no va debajo del ícono: US-030 pide ícono grande arriba y texto abajo.");
+        Assert.True(textos is not null, "La tarjeta no agrupa título y descripción (US-041).");
+        Assert.Equal("1", textos!.Attribute("Grid.Column")?.Value);
     }
 
     // ------------------------------------------------------------------

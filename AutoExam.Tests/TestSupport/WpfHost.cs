@@ -122,6 +122,11 @@ public static class WpfHost
         // del encabezado y la barra de progreso), ExamenView tambien resuelve este.
         Application.Current.Resources["ColorMateria"] = new ColorMateriaAPincelConverter();
 
+        // US-057: el circulo de la nota paso a ser un anillo de progreso, el mismo del
+        // "Promedio" del Historial, asi que ExamenView ahora resuelve tambien el conversor
+        // que dibuja el arco.
+        Application.Current.Resources["FraccionAAnillo"] = new FraccionAAnilloConverter();
+
         _recursosListos = true;
     }
 

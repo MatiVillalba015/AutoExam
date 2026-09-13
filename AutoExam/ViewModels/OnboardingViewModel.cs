@@ -27,8 +27,12 @@ public partial class OnboardingViewModel : ObservableObject
         _gemini = gemini;
     }
 
-    [ObservableProperty]
-    private string _apiKey = string.Empty;
+    /// <summary>
+    /// Las claves cargadas, una por pestania (US-042). Reemplaza al campo unico donde se
+    /// pegaban separadas por coma. Es el mismo tipo que usa Ajustes: el criterio pide que la
+    /// clave se cargue igual en las dos pantallas y no de dos formas distintas.
+    /// </summary>
+    public ClavesDeGemini Claves { get; } = new();
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(VerificarCommand))]
@@ -48,7 +52,7 @@ public partial class OnboardingViewModel : ObservableObject
 
     public void Preparar()
     {
-        ApiKey = _sesion.Config.ClavesComoTexto;
+        Claves.Cargar(_sesion.Config.ClavesDisponibles);
 
         if (_sesion.ModeloMigradoDesde is string viejo)
         {
@@ -95,7 +99,7 @@ public partial class OnboardingViewModel : ObservableObject
 
             // Si Google devolvio la lista, la clave ya quedo probada: se guarda aca y
             // no despues, para no perderla si la prueba del modelo llega a fallar.
-            _sesion.Config.EstablecerClaves(ApiKey);
+            _sesion.Config.EstablecerClaves(Claves.ComoTexto());
             _sesion.GuardarConfig();
 
             string modelo = modelos.Contains(_sesion.Config.Modelo, StringComparer.OrdinalIgnoreCase)
@@ -136,7 +140,7 @@ public partial class OnboardingViewModel : ObservableObject
 
         if (!string.IsNullOrWhiteSpace(clave))
         {
-            _sesion.Config.EstablecerClaves(ApiKey);
+            _sesion.Config.EstablecerClaves(Claves.ComoTexto());
             _sesion.GuardarConfig();
         }
 
@@ -144,11 +148,10 @@ public partial class OnboardingViewModel : ObservableObject
     }
 
     /// <summary>
-    /// La primera clave del campo, ya limpia. Se admite pegar varias de una: se verifica
-    /// esta y se guardan todas, que es lo que despues permite rotar ante un 429.
+    /// La clave de la primera pestania, ya limpia. Se verifica esa y se guardan todas: las
+    /// demas estan para rotar cuando una agota su cuota, no para probarlas una por una aca.
     /// </summary>
-    private string PrimeraClave() => GeminiApiService.NormalizarApiKey(
-        AppConfig.SepararClaves(ApiKey).FirstOrDefault() ?? string.Empty);
+    private string PrimeraClave() => GeminiApiService.NormalizarApiKey(Claves.Primera());
 
     private void Avisar(string titulo, string mensaje)
     {

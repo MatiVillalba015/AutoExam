@@ -1,0 +1,47 @@
+<UserControl x:Class="AutoExam.Views.CamposDeClaves"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+             xmlns:vm="clr-namespace:AutoExam.ViewModels"
+             mc:Ignorable="d"
+             d:DataContext="{d:DesignInstance Type=vm:ClavesDeGemini}">
+
+    <!--
+        US-042 — las claves de Gemini, una pestania por clave.
+
+        Existe como control aparte y no como un bloque copiado en cada pantalla porque las dos
+        que cargan la clave —la configuracion inicial y Ajustes— tienen que hacerlo igual. El
+        criterio lo pide con todas las letras: "que sea consistente en toda la app y no haya
+        dos formas distintas de cargar la clave segun la pantalla". Copiado en dos lados, la
+        proxima correccion entra en uno solo.
+
+        El DataContext es un ClavesDeGemini: cada pantalla le pasa el suyo con
+        DataContext="{Binding Claves}" y no tiene que saber nada mas.
+
+        Cada pestania trae su propio campo, con su propio boton de mostrar/ocultar: el
+        TabControl reconstruye el contenido al cambiar de pestania, asi que la clave revelada
+        de una no queda revelada al pasar a la de al lado.
+    -->
+    <TabControl Style="{StaticResource PestanasDeClave}"
+                ItemContainerStyle="{StaticResource PestanaDeClave}"
+                ItemsSource="{Binding Claves}"
+                SelectedItem="{Binding Seleccionada, Mode=TwoWay}">
+
+        <TabControl.ItemTemplate>
+            <DataTemplate DataType="{x:Type vm:ClaveDeGemini}">
+                <TextBlock Text="{Binding Etiqueta}" Style="{StaticResource TxtDato}"
+                           VerticalAlignment="Center" />
+            </DataTemplate>
+        </TabControl.ItemTemplate>
+
+        <TabControl.ContentTemplate>
+            <DataTemplate DataType="{x:Type vm:ClaveDeGemini}">
+                <ui:PasswordBox PlaceholderText="AQ.Ab8..." RevealButtonEnabled="True"
+                                AutomationProperties.Name="Clave de Google Gemini"
+                                Password="{Binding Valor, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+            </DataTemplate>
+        </TabControl.ContentTemplate>
+    </TabControl>
+</UserControl>

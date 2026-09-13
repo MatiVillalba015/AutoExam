@@ -235,12 +235,20 @@ public class NotasDeVersionTests
     // La pantalla
     // ------------------------------------------------------------------
 
+    /// <summary>
+    /// El criterio de US-040 pide el botón "cerca de donde ya se muestra el número de versión".
+    ///
+    /// La verificación era "comparten la misma tarjeta". Dejó de servir con el rediseño de
+    /// Ajustes (US-046..US-056): la versión y sus dos botones —"Buscar actualizaciones" de
+    /// US-053 y este— subieron al encabezado de la pantalla, que es una fila y no una tarjeta.
+    /// Están más cerca que antes, no menos. Lo que se verifica ahora es la cercanía misma: que
+    /// el contenedor más chico que los tiene a los dos esté a pocos niveles del botón, que es
+    /// lo que en la práctica significa "los ve junto al número sin buscar" y no depende de con
+    /// qué elemento esté dibujada esa fila.
+    /// </summary>
     [Fact]
     public void ElBoton_EstaJuntoAlNumeroDeVersion_US040()
     {
-        // El criterio pide el botón "cerca de donde ya se muestra el número de versión". Se
-        // verifica que compartan la misma tarjeta: es lo que hace que quien acaba de leer
-        // "AutoExam 1.1.0" lo encuentre sin buscar.
         var vista = XDocument.Load(ArchivoFuenteHelper.RutaFuente("AutoExam/Views/AjustesView.xaml"));
 
         var boton = vista.Descendants()
@@ -249,13 +257,19 @@ public class NotasDeVersionTests
 
         Assert.True(boton is not null, "No hay botón de notas de versión en Ajustes (US-040).");
 
-        var tarjeta = boton!.Ancestors().First(a => a.Name.LocalName == "Border");
+        var ancestros = boton!.Ancestors().ToList();
 
-        bool conLaVersion = tarjeta.Descendants().Any(e =>
-            (e.Attribute("Text")?.Value ?? string.Empty).Contains("VersionActual", StringComparison.Ordinal));
+        int nivel = ancestros.FindIndex(a => a.Descendants().Any(e =>
+            (e.Attribute("Text")?.Value ?? string.Empty).Contains("VersionActual", StringComparison.Ordinal)));
 
-        Assert.True(conLaVersion,
-            "El botón de notas no está en la misma tarjeta que el número de versión (US-040).");
+        Assert.True(nivel >= 0,
+            "El botón de notas y el número de versión no comparten ningún contenedor (US-040).");
+
+        // Tres niveles: alcanza para un StackPanel adentro de una Grid adentro de una tarjeta,
+        // y no para "los dos están en algún lugar de la pantalla".
+        Assert.True(nivel <= 3,
+            $"El botón de notas quedó a {nivel} niveles del número de versión: ya no se lee como " +
+            "que estén juntos (US-040).");
     }
 
     [Fact]
@@ -290,6 +304,7 @@ public class NotasDeVersionTests
     {
         // Ajustes es una pantalla de configuración: las notas se abren cuando se las pide.
         var vm = new AjustesViewModel(
+            new BibliotecaService(),
             new SesionUsuarioService(),
             new GeminiApiService(),
             new TestDoubles.DialogosDeSimulacion(),

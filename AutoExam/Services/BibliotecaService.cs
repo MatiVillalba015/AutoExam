@@ -614,6 +614,51 @@ public class BibliotecaService
     }
 
     /// <summary>
+    /// Devuelve los colores por materia al reparto automatico (US-047 / RN-55): a cada
+    /// materia le toca el color que le habria tocado al crearse, en su orden actual.
+    ///
+    /// Es lo unico que "Restaurar valores de fabrica" toca de la biblioteca. Los nombres de
+    /// las materias, los libros que tienen adentro y todo el resto del contenido quedan
+    /// intactos: restaurar preferencias no es borrar material.
+    /// </summary>
+    /// <returns>Cuantas materias cambiaron de color.</returns>
+    public int RestaurarColoresDeMaterias()
+    {
+        int cambiadas = 0;
+
+        // Se recorre en el orden en que estan y se va repartiendo sobre lo ya asignado, que es
+        // exactamente lo que hace SiguienteLibre al crear una materia nueva: asi el resultado
+        // es el mismo reparto que habria salido de una biblioteca armada desde cero.
+        var repartidas = new List<Materia>();
+
+        foreach (var materia in Materias)
+        {
+            string color = EsPorDefecto(materia.Nombre)
+                ? PaletaMaterias.Neutro
+                : PaletaMaterias.SiguienteLibre(repartidas);
+
+            if (!string.Equals(materia.Color, color, StringComparison.OrdinalIgnoreCase))
+            {
+                materia.Color = color;
+                cambiadas++;
+            }
+
+            repartidas.Add(materia);
+        }
+
+        GuardarMaterias();
+
+        // Igual que al cambiar un color a mano: los libros ya cargados resuelven su color por
+        // nombre (RN-30) y hay que pedirles que lo vuelvan a leer.
+        foreach (var libro in Libros)
+        {
+            libro.NotificarCambioResumen();
+        }
+
+        return cambiadas;
+    }
+
+    /// <summary>
     /// Cambia el color de una materia (US-027). Devuelve false si la materia no existe o el
     /// color no es de la paleta. No impide repetir un color que ya usa otra materia: la
     /// interfaz ofrece primero los libres, pero elegir uno repetido es valido.

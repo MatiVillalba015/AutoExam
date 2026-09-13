@@ -35,7 +35,17 @@ public class IndiceOpcionConverter : IValueConverter
 public class TextoAVisibilidadConverter : IValueConverter
 {
     public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
-        => string.IsNullOrWhiteSpace(value as string) ? Visibility.Collapsed : Visibility.Visible;
+    {
+        bool hayTexto = !string.IsNullOrWhiteSpace(value as string);
+
+        // "invertir" muestra el elemento cuando el texto esta VACIO: es como se dibuja el
+        // hueco de un dato que todavia no se eligio (el panel "Tu examen" de US-058). Mismo
+        // parametro que ya usa BoolAVisibilidadConverter, para no tener dos convenciones. Sin
+        // parametro se comporta igual que siempre.
+        bool invertir = string.Equals(parameter as string, "invertir", StringComparison.OrdinalIgnoreCase);
+
+        return hayTexto != invertir ? Visibility.Visible : Visibility.Collapsed;
+    }
 
     public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
         => Binding.DoNothing;
@@ -77,16 +87,31 @@ public class EstadoAPincelConverter : IValueConverter
 {
     public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
     {
-        bool borde = string.Equals(parameter as string, "borde", StringComparison.OrdinalIgnoreCase);
+        string modo = parameter as string ?? string.Empty;
+
+        bool borde = string.Equals(modo, "borde", StringComparison.OrdinalIgnoreCase);
+
+        // "rotulo" (US-057): el color con el que se ESCRIBE el nombre del estado, y con el que
+        // se tiñe su tarjeta. Es igual a "borde" salvo en pendiente/salteada, donde los dos
+        // tonos estan invertidos respecto de acierto y error: en los dos temas, el legible
+        // sobre la superficie es "PincelPendienteSuave" y no "PincelPendiente" (ver el comentario
+        // de la seccion semantica en Tokens.Oscuro.xaml y Tokens.Claro.xaml).
+        //
+        // Sin esta distincion, "Salteada / Pendiente" se escribia en #3E2C02 sobre una tarjeta
+        // oscura y quedaba practicamente invisible — lo que ya pasaba antes de US-057, cuando el
+        // mismo color pintaba tambien la franja lateral.
+        bool rotulo = string.Equals(modo, "rotulo", StringComparison.OrdinalIgnoreCase);
+
+        bool fuerte = borde || rotulo;
 
         string clave = value switch
         {
-            EstadoPreguntaEnum.Respondida => borde ? "PincelMarca" : "PincelMarcaSuave",
-            EstadoPreguntaEnum.Salteada => borde ? "PincelPendiente" : "PincelPendienteSuave",
-            ResultadoPreguntaEnum.Correcta => borde ? "PincelAcierto" : "PincelAciertoSuave",
-            ResultadoPreguntaEnum.Incorrecta => borde ? "PincelError" : "PincelErrorSuave",
-            ResultadoPreguntaEnum.Salteada => borde ? "PincelPendiente" : "PincelPendienteSuave",
-            _ => borde ? "PincelBorde" : "PincelSuperficie"
+            EstadoPreguntaEnum.Respondida => fuerte ? "PincelMarca" : "PincelMarcaSuave",
+            EstadoPreguntaEnum.Salteada => rotulo || !fuerte ? "PincelPendienteSuave" : "PincelPendiente",
+            ResultadoPreguntaEnum.Correcta => fuerte ? "PincelAcierto" : "PincelAciertoSuave",
+            ResultadoPreguntaEnum.Incorrecta => fuerte ? "PincelError" : "PincelErrorSuave",
+            ResultadoPreguntaEnum.Salteada => rotulo || !fuerte ? "PincelPendienteSuave" : "PincelPendiente",
+            _ => fuerte ? "PincelBorde" : "PincelSuperficie"
         };
 
         return Buscar(clave);
@@ -331,5 +356,158 @@ public class FraccionAPixelConverter : IMultiValueConverter
     }
 
     public object[] ConvertBack(object? value, Type[] targetTypes, object? parameter, CultureInfo culture)
+        => throw new NotSupportedException();
+}
+
+/// <summary>
+/// Una fraccion 0..1 llevada al trazo visible de un anillo de progreso (US-044).
+///
+/// <b>Por que un guion sobre la MISMA elipse y no un Path con un ArcSegment:</b> la version
+/// anterior dibujaba el arco como una geometria aparte y lo metia en el mismo Grid que el
+/// circulo de riel, centrado. Un <c>Path</c> se mide por el rectangulo que ocupa su geometria,
+/// no por el circulo del que esa geometria es un pedazo: con un arco corto ese rectangulo es
+/// chico y queda en un cuadrante, asi que centrarlo lo corre del borde hacia adentro. El
+/// sintoma era un anillo que se montaba sobre el numero del medio y que solo caia en su lugar
+/// al 100%, cuando el rectangulo del arco vuelve a ser el circulo entero.
+///
+/// Dibujando el arco como un guion del trazo de la misma elipse que hace de riel, el radio y
+/// el centro son los del riel por construccion: no hay dos circulos que puedan desalinearse.
+///
+/// El trazo arranca a las 3 en punto —es donde WPF empieza a recorrer una elipse—, asi que la
+/// vista lo rota -90 grados para que el progreso salga desde arriba.
+/// </summary>
+public class FraccionAAnilloConverter : IValueConverter
+{
+    /// <summary>
+    /// Devuelve el <c>StrokeDashArray</c> que deja visible exactamente <paramref name="value"/>
+    /// de la vuelta: un trazo del largo del arco y un hueco de una circunferencia entera, que
+    /// garantiza que el patron no se repita.
+    /// </summary>
+    /// <param name="parameter">"radio,grosor" del anillo, por ejemplo "44,9".</param>
+    public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
+    {
+        double fraccion = value switch
+        {
+            double d => d,
+            int i => i,
+            _ => 0d
+        };
+
+        fraccion = double.IsNaN(fraccion) ? 0 : Math.Clamp(fraccion, 0, 1);
+
+        var (radio, grosor) = LeerMedidas(parameter);
+
+        // Las unidades de StrokeDashArray son multiplos del grosor del trazo, no pixeles: por
+        // eso la circunferencia se divide por el grosor. Sin esa division, el trazo mide
+        // "grosor veces" lo que deberia y el anillo se llena con cualquier fraccion.
+        double vuelta = 2 * Math.PI * radio / grosor;
+
+        var patron = new DoubleCollection { fraccion * vuelta, vuelta };
+        patron.Freeze();
+
+        return patron;
+    }
+
+    private static (double Radio, double Grosor) LeerMedidas(object? parameter)
+    {
+        // Defaults = los del anillo del Historial, que es el primero que existio.
+        double radio = 44;
+        double grosor = 9;
+
+        if (parameter is not string texto)
+        {
+            return (radio, grosor);
+        }
+
+        // Se parte antes de parsear: con "44,9" en una cultura que usa la coma como separador
+        // decimal, parsear el texto entero daria 449.
+        var partes = texto.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+
+        if (partes.Length > 0 &&
+            double.TryParse(partes[0], NumberStyles.Float, CultureInfo.InvariantCulture, out double r) && r > 0)
+        {
+            radio = r;
+        }
+
+        if (partes.Length > 1 &&
+            double.TryParse(partes[1], NumberStyles.Float, CultureInfo.InvariantCulture, out double g) && g > 0)
+        {
+            grosor = g;
+        }
+
+        return (radio, grosor);
+    }
+
+    public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
+        => throw new NotSupportedException();
+}
+
+/// <summary>
+/// Un indice 0..N llevado a su numero de orden 1..N+1, para etiquetar los modulos de un libro
+/// como "M1", "M2"... (US-045).
+///
+/// La etiqueta sale de la posicion en la lista y no de un campo del modulo: agregar o quitar
+/// uno tiene que renumerar el resto solo, y un campo guardado obligaria a mantenerlo
+/// sincronizado con el orden en cada edicion.
+/// </summary>
+public class MasUnoConverter : IValueConverter
+{
+    public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture) =>
+        value is int indice ? (indice + 1).ToString(CultureInfo.InvariantCulture) : string.Empty;
+
+    public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
+        => throw new NotSupportedException();
+}
+
+/// <summary>
+/// Una fraccion 0..1 llevada a un ancho proporcional de columna, para la barra segmentada de
+/// "Datos y almacenamiento" (US-046).
+///
+/// Devuelve estrellas y no pixeles a proposito: la barra ocupa el ancho de su tarjeta, que
+/// depende de la ventana y del zoom (US-048). Con anchos fijos habria que recalcularlos en
+/// cada cambio de tamanio; con estrellas, el Grid reparte solo y siempre suma el total.
+///
+/// Una fraccion de cero devuelve cero estrellas, que es una columna sin ancho: el segmento
+/// desaparece en vez de dejar una raya de un pixel que se lee como "algo hay".
+/// </summary>
+public class FraccionAEstrellaConverter : IValueConverter
+{
+    public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
+    {
+        double fraccion = value is double d && !double.IsNaN(d) ? Math.Clamp(d, 0, 1) : 0;
+
+        return new GridLength(fraccion, GridUnitType.Star);
+    }
+
+    public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
+        => throw new NotSupportedException();
+}
+
+/// <summary>
+/// Un color en <c>#RRGGBB</c> llevado a pincel, para la muestra de cada tema de la app
+/// (US-049). Es el mismo trabajo que hace <see cref="ColorMateriaAPincelConverter"/> con el
+/// color de una materia, pero sobre la paleta general: se mantienen separados porque son dos
+/// ajustes independientes (RN-57) y mezclarlos invitaria a resolver uno con el otro.
+/// </summary>
+public class ColorDeTemaAPincelConverter : IValueConverter
+{
+    public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
+    {
+        string hex = value as string ?? string.Empty;
+
+        try
+        {
+            var pincel = new SolidColorBrush((Color)ColorConverter.ConvertFromString(hex));
+            pincel.Freeze();
+            return pincel;
+        }
+        catch
+        {
+            // Un hex invalido no puede romper el dibujado de la pantalla de Ajustes.
+            return Brushes.Transparent;
+        }
+    }
+
+    public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
         => throw new NotSupportedException();
 }

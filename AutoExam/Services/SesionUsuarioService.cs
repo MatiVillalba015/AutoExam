@@ -33,6 +33,10 @@ public class SesionUsuarioService
             : Config.Modelo.Trim();
 
         MigrarModeloRetirado();
+        MigrarClavesDeGemini();
+        MigrarTemaDeColor();
+
+        Config.Zoom = Models.ZoomDeLaApp.Acotar(Config.Zoom);
 
         Config.PreguntasPorLote = Math.Clamp(Config.PreguntasPorLote, 5, 15);
         Config.PaginasPorBloque = Math.Clamp(Config.PaginasPorBloque, 5, 40);
@@ -61,6 +65,47 @@ public class SesionUsuarioService
         ModeloMigradoDesde = Config.Modelo;
         Config.Modelo = AppConfig.ModeloPorDefecto;
         GuardarConfig();
+    }
+
+    /// <summary>
+    /// RN-52: pasa las claves guardadas en el formato viejo (un texto con varias separadas por
+    /// coma) a una entrada por clave, que es lo que US-042 muestra como pestanias. Corre sola
+    /// al arrancar, no le pregunta nada al usuario y solo reescribe config.json si de verdad
+    /// habia algo que separar.
+    /// </summary>
+    private void MigrarClavesDeGemini()
+    {
+        if (Config.MigrarClavesASeparadas())
+        {
+            GuardarConfig();
+        }
+    }
+
+    /// <summary>
+    /// US-049: hasta esta version lo unico elegible era claro u oscuro, guardado en
+    /// <c>TemaOscuro</c>. Un config.json anterior no tiene <c>TemaDeColor</c>, asi que al
+    /// deserializar queda con el default —violeta, que es oscuro— y alguien que venia usando el
+    /// tema claro abriria en oscuro sin haber tocado nada.
+    ///
+    /// Se detecta por la contradiccion: el tema resuelto dice oscuro y el campo viejo dice
+    /// claro. En ese caso manda el campo viejo, que es el que el usuario efectivamente eligio.
+    /// Al reves no hace falta mirar: el default ya coincide con <c>TemaOscuro = true</c>.
+    /// </summary>
+    private void MigrarTemaDeColor()
+    {
+        var tema = Models.PaletaDeApp.Resolver(Config.TemaDeColor);
+
+        if (tema.Oscuro && !Config.TemaOscuro)
+        {
+            Config.TemaDeColor = Models.PaletaDeApp.DesdeTemaOscuro(false);
+            GuardarConfig();
+            return;
+        }
+
+        // Una clave desconocida (config.json a mano, o de una version futura) se normaliza a la
+        // que se resolvio, para que lo guardado y lo que se ve no digan cosas distintas.
+        Config.TemaDeColor = tema.Clave;
+        Config.TemaOscuro = tema.Oscuro;
     }
 
     public void GuardarConfig() => JsonStore.Guardar(RutasApp.ArchivoConfig, Config);

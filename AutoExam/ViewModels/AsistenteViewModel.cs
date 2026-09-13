@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Globalization;
 using System.IO;
 using AutoExam.Models;
 using AutoExam.Services;
@@ -24,10 +25,23 @@ public partial class PasoAsistente : ObservableObject
     private string _resumen = string.Empty;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(Pendiente))]
     private bool _esActual;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(Pendiente))]
     private bool _completado;
+
+    /// <summary>
+    /// true mientras todavia no se llego a este paso. El panel "Tu examen" (US-058) lo usa
+    /// para mostrar "se define en el paso X" en vez de un resumen que todavia no significa
+    /// nada — <see cref="Resumen"/> ya trae un valor por defecto ("Sin elegir", "-") desde
+    /// antes de que el usuario haya tenido oportunidad de elegir.
+    ///
+    /// Es derivado de las dos banderas que el riel ya usa, no un estado nuevo: no hay forma de
+    /// que quede diciendo algo distinto de lo que muestra el riel (RN-68).
+    /// </summary>
+    public bool Pendiente => !Completado && !EsActual;
 }
 
 /// <summary>
@@ -557,6 +571,8 @@ public partial class AsistenteViewModel : PaginaViewModel
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(EsPrimerPaso))]
     [NotifyPropertyChangedFor(nameof(EsUltimoPaso))]
+    [NotifyPropertyChangedFor(nameof(PasoNumerado))]
+    [NotifyPropertyChangedFor(nameof(PasoNombrado))]
     [NotifyCanExecuteChangedFor(nameof(SiguienteCommand))]
     [NotifyCanExecuteChangedFor(nameof(AnteriorCommand))]
     private int _paso = PrimerPaso;
@@ -564,6 +580,17 @@ public partial class AsistenteViewModel : PaginaViewModel
     public bool EsPrimerPaso => Paso == PrimerPaso;
 
     public bool EsUltimoPaso => Paso == UltimoPaso;
+
+    /// <summary>
+    /// Numero del paso con cero adelante ("01", "02", "03), para la etiqueta que va arriba de
+    /// la tarjeta del paso (US-043). Es formato, no dato nuevo: el numero es el mismo que ya
+    /// muestra el riel.
+    /// </summary>
+    public string PasoNumerado => Paso.ToString("00", CultureInfo.InvariantCulture);
+
+    /// <summary>Nombre del paso en mayusculas, para esa misma etiqueta (US-043).</summary>
+    public string PasoNombrado =>
+        (Pasos.FirstOrDefault(p => p.Numero == Paso)?.Titulo ?? string.Empty).ToUpperInvariant();
 
     // ------------------------------------------------------------------
     // Paso 1: material
@@ -1519,6 +1546,12 @@ public partial class AsistenteViewModel : PaginaViewModel
             }
 
             ExamenGenerado?.Invoke(examen);
+
+            // US-050: generar un examen largo tarda minutos, y en ese rato se puede haber ido
+            // a mirar la biblioteca o el historial. El aviso dice que ya esta listo sin
+            // interrumpir lo que se este haciendo; si el usuario apago las notificaciones, el
+            // shell lo descarta y el examen se genera igual.
+            _nav.Notificar($"Tu examen está listo: {preguntas.Count} pregunta(s) de {libro.Titulo}.");
 
             if (preguntas.Count < cantidad)
             {

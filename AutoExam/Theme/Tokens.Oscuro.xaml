@@ -35,6 +35,33 @@
     <SolidColorBrush x:Key="PincelMarcaSuave" Color="#2A2440" />
     <SolidColorBrush x:Key="PincelSobreMarca" Color="#12101C" />
 
+    <!--
+        US-043 — la superficie de una tarjeta que se elige.
+
+        Es PincelTarjeta con un degradado vertical minimo alrededor: apenas mas claro arriba,
+        apenas mas oscuro abajo. El salto entre las dos paradas es de dos puntos de luminancia,
+        lo justo para que la tarjeta deje de leerse como un rectangulo plano y tome volumen sin
+        que se note el degradado ni baje el contraste del texto que va encima.
+    -->
+    <LinearGradientBrush x:Key="PincelTarjetaProfunda" StartPoint="0,0" EndPoint="0,1">
+        <GradientStop Offset="0" Color="#2A2740" />
+        <GradientStop Offset="1" Color="#201E30" />
+    </LinearGradientBrush>
+
+    <!--
+        US-041 — el cuadrado del icono de cada tarjeta del menu.
+
+        Es un degradado y no un color plano porque el mockup lo pide asi, y porque es la unica
+        superficie de la app que lo lleva: le da al menu un punto de identidad sin agregar
+        ningun color nuevo. Los dos extremos salen del mismo violeta de marca, no de una paleta
+        aparte — corridos en luminancia, que es lo que hace que se lea como volumen y no como
+        dos colores distintos.
+    -->
+    <LinearGradientBrush x:Key="PincelIconoAccion" StartPoint="0,0" EndPoint="1,1">
+        <GradientStop Offset="0" Color="#3A3560" />
+        <GradientStop Offset="1" Color="#2C2748" />
+    </LinearGradientBrush>
+
     <!-- Semantica de correccion: fija, nunca se reutiliza para decorar. Mismo matiz que antes
          (verde/rojo/ambar, nunca corrido hacia el violeta) — solo se ajusto luminancia/
          saturacion para que Acierto/Error/Pendiente se distingan entre si (NFR-33/AC-T39).

@@ -101,7 +101,44 @@ public class AppConfig
     /// </summary>
     public bool UsarFilesApi { get; set; } = true;
 
+    /// <summary>
+    /// Se conserva por compatibilidad con los config.json ya escritos y porque es lo que
+    /// <c>TemaService</c> necesita para elegir el juego de tokens. Desde US-049 lo manda
+    /// <see cref="TemaDeColor"/>: el tema "claro" es el unico que lo pone en false, y
+    /// <see cref="TemaDeColor"/> se sincroniza con este campo al cargar.
+    /// </summary>
     public bool TemaOscuro { get; set; } = true;
+
+    // ------------------------------------------------------------------
+    // Apariencia (US-048 / US-049 / US-054)
+    // ------------------------------------------------------------------
+
+    /// <summary>
+    /// Tema de color general de la app (US-049). Es la clave de una paleta de
+    /// <see cref="PaletaDeApp"/>, no un color: RN-57 acota la eleccion a paletas
+    /// predefinidas y con contraste verificado, igual que el color por materia (RN-31).
+    /// </summary>
+    public string TemaDeColor { get; set; } = PaletaDeApp.PorDefecto;
+
+    /// <summary>
+    /// Escala de toda la interfaz (US-048). 1.0 = 100%. Los limites viven en
+    /// <see cref="ZoomDeLaApp"/>; aca solo se guarda la preferencia entre sesiones.
+    /// </summary>
+    public double Zoom { get; set; } = ZoomDeLaApp.Normal;
+
+    /// <summary>
+    /// Avisos informativos dentro de la ventana (US-050). Nunca afecta errores ni
+    /// confirmaciones: eso lo fija RN-58 y lo garantiza que ni <c>IDialogos</c> ni las
+    /// InfoBar de error consulten este campo.
+    /// </summary>
+    public bool Notificaciones { get; set; } = true;
+
+    /// <summary>
+    /// "Reducir movimiento" propio de la app (US-054). Se combina con OR con la preferencia
+    /// del sistema operativo (RN-62): apagar este toggle no vuelve a encender las animaciones
+    /// si Windows ya las pidio reducidas.
+    /// </summary>
+    public bool ReducirMovimiento { get; set; }
 
     /// <summary>Habilita la generacion multimodal (preguntas sobre graficos/esquemas).</summary>
     public bool IncluirImagenes { get; set; } = true;
@@ -177,6 +214,47 @@ public class AppConfig
         ApiKey = claves.FirstOrDefault() ?? string.Empty;
     }
 
+    /// <summary>
+    /// Separadores admitidos entre claves en el formato viejo (US-042 los deja de usar para
+    /// cargar, pero siguen valiendo para leer lo que ya estaba guardado).
+    /// </summary>
+    private static readonly char[] SeparadoresDeClaves = { ',', ';', '\n', '\r' };
+
+    /// <summary>
+    /// Migracion de RN-52: pasa del formato viejo —un solo texto con las claves separadas por
+    /// coma— a una clave por entrada, que es lo que US-042 muestra como pestanias.
+    ///
+    /// Hace falta porque hasta ahora nada garantizaba que lo guardado estuviera separado: una
+    /// version anterior escribia en <see cref="ApiKey"/> el texto entero tal como se habia
+    /// pegado, comas incluidas. Ese valor compuesto se leia como UNA sola clave, asi que al
+    /// abrir las pestanias el usuario habria visto "clave 1" con las tres adentro y el
+    /// fallback de cuota no habria tenido con que rotar.
+    ///
+    /// Es silenciosa y de una sola vez: si no hay ninguna entrada compuesta devuelve false y
+    /// no se toca ni se reescribe nada. El orden original se conserva, que es de lo que
+    /// depende el orden de fallback (RN-3).
+    /// </summary>
+    public bool MigrarClavesASeparadas()
+    {
+        var guardadas = new[] { ApiKey ?? string.Empty }
+            .Concat(ApiKeys ?? new List<string>())
+            .ToList();
+
+        bool hayCompuestas = guardadas.Any(c => c.IndexOfAny(SeparadoresDeClaves) >= 0);
+
+        if (!hayCompuestas)
+        {
+            return false;
+        }
+
+        var separadas = SepararClaves(string.Join(",", guardadas));
+
+        ApiKeys = separadas;
+        ApiKey = separadas.FirstOrDefault() ?? string.Empty;
+
+        return true;
+    }
+
     /// <summary>Separa un texto en claves. Publico porque la UI lo usa para contarlas mientras se escribe.</summary>
     public static List<string> SepararClaves(string texto)
     {
@@ -187,7 +265,7 @@ public class AppConfig
 
         var salida = new List<string>();
 
-        foreach (string trozo in texto.Split(new[] { ',', ';', '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries))
+        foreach (string trozo in texto.Split(SeparadoresDeClaves, StringSplitOptions.RemoveEmptyEntries))
         {
             string limpia = trozo.Trim();
 
@@ -255,4 +333,37 @@ public class AppConfig
     /// <c>OpcionesExtraccion.MaxImagenes</c> y con <see cref="MaxImagenesPorExamen"/>.
     /// </summary>
     public int MaxImagenesPorMaterial { get; set; } = 12;
+
+    // ------------------------------------------------------------------
+    // Restaurar valores de fabrica (US-047)
+    // ------------------------------------------------------------------
+
+    /// <summary>
+    /// Devuelve las preferencias de interfaz a como vienen de fabrica: tema (US-049), zoom
+    /// (US-048), notificaciones (US-050), reducir movimiento (US-054) y la geometria de
+    /// ventana, que RN-63 pide resetear junto con el resto por ser una preferencia mas
+    /// aunque no tenga control visible.
+    ///
+    /// Lo importante es lo que NO toca, y por eso esto vive en el modelo y no en la pantalla:
+    /// las claves de Gemini, el modelo elegido, el historial y los libros quedan intactos
+    /// (RN-55). Escrito como una lista explicita de asignaciones y no como <c>= new
+    /// AppConfig()</c> justamente por eso: reemplazar el objeto entero borraria las claves,
+    /// y el dia que se agregue un campo nuevo el default seria borrarlo tambien.
+    /// </summary>
+    public void RestaurarValoresDeFabrica()
+    {
+        var fabrica = new AppConfig();
+
+        TemaDeColor = fabrica.TemaDeColor;
+        TemaOscuro = fabrica.TemaOscuro;
+        Zoom = fabrica.Zoom;
+        Notificaciones = fabrica.Notificaciones;
+        ReducirMovimiento = fabrica.ReducirMovimiento;
+
+        VentanaAncho = fabrica.VentanaAncho;
+        VentanaAlto = fabrica.VentanaAlto;
+        VentanaX = fabrica.VentanaX;
+        VentanaY = fabrica.VentanaY;
+        VentanaEstado = fabrica.VentanaEstado;
+    }
 }

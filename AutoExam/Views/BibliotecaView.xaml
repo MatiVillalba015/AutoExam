@@ -21,6 +21,33 @@
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
+        <!--
+            US-045 / RN-53 — la misma luz violeta lejana que el Historial. Desde esta historia
+            es el fondo estandar de la app: manchas de degradado radial que terminan en
+            transparente, muy tenues, detras de todo y sin recibir mouse. La unica pantalla que
+            no lo lleva es la configuracion inicial de la clave (US-042), que tiene el suyo.
+        -->
+        <Canvas Grid.Row="0" Grid.RowSpan="2" Grid.ColumnSpan="3" ClipToBounds="True"
+                IsHitTestVisible="False" Panel.ZIndex="-1">
+            <Ellipse Canvas.Left="-160" Canvas.Top="-220" Width="820" Height="820" Opacity="0.35">
+                <Ellipse.Fill>
+                    <RadialGradientBrush>
+                        <GradientStop Offset="0" Color="#3A2E6B" />
+                        <GradientStop Offset="1" Color="#003A2E6B" />
+                    </RadialGradientBrush>
+                </Ellipse.Fill>
+            </Ellipse>
+
+            <Ellipse Canvas.Right="-240" Canvas.Bottom="-300" Width="900" Height="900" Opacity="0.28">
+                <Ellipse.Fill>
+                    <RadialGradientBrush>
+                        <GradientStop Offset="0" Color="#2E2A5E" />
+                        <GradientStop Offset="1" Color="#002E2A5E" />
+                    </RadialGradientBrush>
+                </Ellipse.Fill>
+            </Ellipse>
+        </Canvas>
+
         <TextBlock Grid.Row="0" Grid.ColumnSpan="3" Text="&#x1F4DA; Libros" Style="{StaticResource TxtSeccion}"
                    Margin="0,0,0,18" />
 
@@ -317,14 +344,120 @@
 
             <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="0,0,12,0"
                           Visibility="{Binding HayLibroAbierto, Converter={StaticResource BoolToVis}}">
-                <!-- Stretch y no Left: con Left el panel se encoge al ancho de su
-                     contenido y los campos del formulario quedan angostos. -->
-                <StackPanel MaxWidth="640" HorizontalAlignment="Center">
+                <!--
+                    US-045 — el detalle ocupa todo el ancho disponible.
+
+                    Antes era una columna de 640 px centrada, con la mitad de la pantalla vacia
+                    al costado en un monitor ancho. Ahora: un encabezado grande arriba con lo
+                    que identifica al libro y las dos acciones que lo cierran (guardar, quitar),
+                    y debajo dos columnas — lo que se edita a la izquierda, lo que se lee a la
+                    derecha. Ningun campo ni boton cambio: solo donde esta cada uno.
+                -->
+                <!--
+                    Sin MaxWidth ni HorizontalAlignment a proposito, y las dos cosas por el
+                    mismo motivo: un Grid con HorizontalAlignment="Center" se mide por su
+                    contenido, asi que la columna * de abajo nunca se estira y la ficha queda
+                    angosta con espacio muerto a los costados — justo lo que esta historia vino
+                    a sacar. Estirado (el default) la ficha usa todo el ancho de la columna.
+
+                    RN-13 se cumple donde importa, que es el largo de linea: el unico texto
+                    largo de esta pantalla es el resumen de "De que trata", y ese si lleva su
+                    tope propio mas abajo. Los campos, los botones y los modulos son cajas
+                    cortas: estirarlos no hace ninguna linea ilegible.
+                -->
+                <Grid x:Name="FichaDelLibro">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <!-- ================================================================ -->
+                    <!-- Encabezado: de que materia es, como se llama y sus datos.         -->
+                    <!-- ================================================================ -->
+                    <Border Grid.Row="0" Style="{StaticResource Tarjeta}" Padding="24,20" Margin="0,0,0,16"
+                            Background="{DynamicResource PincelTarjetaProfunda}">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+
+                            <!-- Marca del archivo. No dice nada que no este escrito abajo: es
+                                 el ancla visual que hace que la franja se lea como el
+                                 encabezado del libro y no como una tarjeta mas. -->
+                            <Border Grid.Column="0" Width="54" Height="54" Margin="0,0,18,0"
+                                    VerticalAlignment="Top"
+                                    CornerRadius="{DynamicResource RadioTarjeta}"
+                                    Background="{DynamicResource PincelMarcaSuave}">
+                                <ui:SymbolIcon Symbol="Document24" FontSize="24"
+                                               HorizontalAlignment="Center" VerticalAlignment="Center"
+                                               Foreground="{DynamicResource PincelMarcaFuerte}" />
+                            </Border>
+
+                            <StackPanel Grid.Column="1">
+                                <!-- La materia primero y con su color: es lo que ubica al libro
+                                     antes de leer el titulo, igual que la franja de la lista
+                                     (US-027 / RN-34). -->
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                                    <Ellipse Width="9" Height="9" VerticalAlignment="Center" Margin="0,0,9,0"
+                                             Fill="{Binding ColorDeLaMateria, Converter={StaticResource ColorMateria}}" />
+                                    <TextBlock Text="{Binding MateriaEnMayusculas}" Style="{StaticResource TxtRotulo}"
+                                               Margin="0" VerticalAlignment="Center" />
+                                </StackPanel>
+
+                                <TextBlock Text="{Binding TituloLibro}" Style="{StaticResource TxtTitulo}"
+                                           TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" />
+
+                                <!-- Los mismos datos que antes iban en una linea sola, separados
+                                     para que cada uno se encuentre sin leer los otros tres. -->
+                                <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
+                                    <TextBlock Text="{Binding PaginasTexto}" Style="{StaticResource TxtDato}" />
+                                    <TextBlock Text="·" Style="{StaticResource TxtTenue}" Margin="12,0" />
+                                    <TextBlock Text="{Binding ArchivoTexto}" Style="{StaticResource TxtDato}"
+                                               TextTrimming="CharacterEllipsis" MaxWidth="260" />
+                                    <TextBlock Text="·" Style="{StaticResource TxtTenue}" Margin="12,0" />
+                                    <TextBlock Text="{Binding ResumenModulos}" Style="{StaticResource TxtDato}" />
+                                    <TextBlock Text="·" Style="{StaticResource TxtTenue}" Margin="12,0" />
+                                    <TextBlock Text="{Binding FechaSubidaTexto}" Style="{StaticResource TxtDato}" />
+                                </StackPanel>
+                            </StackPanel>
+
+                            <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Top"
+                                        Margin="20,2,0,0">
+                                <ui:Button Content="Guardar cambios" Appearance="Primary" Padding="18,10"
+                                           ToolTip="Guarda el titulo, la materia y los modulos de este libro"
+                                           Icon="{ui:SymbolIcon Save24}" Command="{Binding GuardarCommand}" />
+                                <Button Content="Quitar libro" Style="{StaticResource ChipAccion}"
+                                        ToolTip="Saca este material de la biblioteca y borra su copia interna. Pide confirmacion"
+                                        Margin="10,0,0,0" VerticalAlignment="Center"
+                                        Command="{Binding QuitarCommand}" />
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+
+                    <!-- ================================================================ -->
+                    <!-- Cuerpo: lo que se edita a la izquierda, lo que se lee a la derecha -->
+                    <!-- ================================================================ -->
+                    <Grid Grid.Row="1">
+                        <!-- Un tercio y dos tercios, en proporcion y no en pixeles: lo que se
+                             edita son cuatro campos cortos y lo que se lee es un resumen mas la
+                             grilla de modulos, asi que el ancho que se gana tiene que ir casi
+                             todo a la derecha. Con un ancho fijo a la izquierda, en un monitor
+                             grande la columna de edicion quedaba flaca al lado de la otra. -->
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="16" />
+                            <ColumnDefinition Width="2*" />
+                        </Grid.ColumnDefinitions>
+
+                    <StackPanel Grid.Column="0">
 
                     <Border Style="{StaticResource Tarjeta}" Margin="0,0,0,16">
                         <StackPanel>
-                            <TextBlock Text="{Binding DetalleArchivo}" Style="{StaticResource TxtDato}"
-                                       Margin="0,0,0,20" />
+                            <TextBlock Text="DATOS DEL LIBRO" Style="{StaticResource TxtRotulo}"
+                                       Margin="0,0,0,14" />
 
                             <ui:InfoBar Severity="Error" IsClosable="False" Margin="0,0,0,18"
                                         Title="Falta el archivo PDF"
@@ -370,6 +503,10 @@
                         </StackPanel>
                     </Border>
 
+                    </StackPanel>
+
+                    <StackPanel Grid.Column="2">
+
                     <!-- ================================================================ -->
                     <!-- US-020 — "De que trata": resumen del material, bajo demanda.      -->
                     <!--                                                                   -->
@@ -402,6 +539,18 @@
                                     <Button Content="Ver de que trata" Style="{StaticResource ChipAccion}" ToolTip="Genera con IA un resumen de que trata este material, sin armar ningun examen"
                                             Command="{Binding VerDeQueTrataCommand}"
                                             AutomationProperties.Name="Ver de que trata este material" />
+
+                                    <!-- US-045: pedir uno nuevo. Solo aparece cuando ya hay un
+                                         resumen guardado: sin resumen previo, "Ver de que trata"
+                                         ya genera el primero y los dos botones harian lo mismo.
+                                         Gasta una peticion de la cuota, igual que la primera vez
+                                         (RN-17), y por eso se dice en el tooltip. -->
+                                    <Button Content="Volver a generar" Style="{StaticResource ChipAccion}"
+                                            Margin="8,0,0,0"
+                                            ToolTip="Pide un resumen nuevo en lugar del guardado. Gasta una peticion de tu cuota diaria"
+                                            AutomationProperties.Name="Volver a generar el resumen de este material"
+                                            Command="{Binding VolverAGenerarCommand}"
+                                            Visibility="{Binding TieneResumenGuardado, Converter={StaticResource BoolToVis}}" />
                                 </StackPanel>
                             </Grid>
 
@@ -415,8 +564,15 @@
                                                Style="{StaticResource TxtTenue}"
                                                Visibility="{Binding Resumiendo, Converter={StaticResource BoolToVis}}" />
 
+                                    <!-- US-017 / RN-13 — el tope de ancho vive aca y no en la
+                                         ficha entera. Es el unico parrafo largo de la pantalla:
+                                         a ancho completo en un monitor grande una linea cruzaria
+                                         el escritorio y se volveria incomoda de leer. Centrado
+                                         porque el texto adentro sigue alineado a la izquierda:
+                                         lo que se centra es la columna, no los renglones. -->
                                     <TextBlock Text="{Binding TextoDeQueTrata}" Style="{StaticResource TxtCuerpo}"
                                                TextWrapping="Wrap" LineHeight="21"
+                                               MaxWidth="920" HorizontalAlignment="Center"
                                                Visibility="{Binding TextoDeQueTrata, Converter={StaticResource TextoAVisibilidad}}" />
 
                                     <Button Content="Cerrar" Style="{StaticResource ChipAccion}"
@@ -427,8 +583,13 @@
                         </StackPanel>
                     </Border>
 
-                    <!-- Modulos: plegado, porque la mayoria de las veces no hace falta tocarlo -->
-                    <ui:CardExpander Icon="{ui:SymbolIcon BookNumber24}" ContentPadding="18" Margin="0,0,0,16">
+                    <!-- US-045: abierto de entrada. Antes venia plegado porque el detalle era una
+                         columna angosta y los modulos eran una tira vertical larga que empujaba
+                         todo lo demas fuera de la pantalla. Ahora son dos columnas en la mitad
+                         derecha y entran a la vista sin tapar nada, asi que esconderlos solo
+                         agregaba un click para ver de que partes esta hecho el libro. -->
+                    <ui:CardExpander Icon="{ui:SymbolIcon BookNumber24}" ContentPadding="18" Margin="0,0,0,16"
+                                     IsExpanded="True">
                         <ui:CardExpander.Header>
                             <StackPanel>
                                 <TextBlock Text="Modulos y capitulos" Style="{StaticResource TxtCuerpo}"
@@ -438,6 +599,65 @@
                         </ui:CardExpander.Header>
 
                         <StackPanel>
+                            <!-- ============================================================ -->
+                            <!-- US-045 — los modulos, en una grilla de dos columnas.          -->
+                            <!--                                                               -->
+                            <!-- Cada uno con su etiqueta (M1, M2...), su nombre y el rango de  -->
+                            <!-- paginas que cubre. Dos columnas y no una lista vertical porque -->
+                            <!-- un libro con veinte capitulos se leia como una tira larga que  -->
+                            <!-- no entraba en pantalla.                                        -->
+                            <!--                                                               -->
+                            <!-- Es solo lectura: editarlos sigue siendo la grilla de abajo,    -->
+                            <!-- que es donde se les cambia el nombre y el rango.               -->
+                            <!-- ============================================================ -->
+                            <ItemsControl ItemsSource="{Binding Modulos}" Margin="0,0,0,16"
+                                          AlternationCount="999"
+                                          Visibility="{Binding HayModulos, Converter={StaticResource BoolToVis}}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <UniformGrid Columns="2" />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate DataType="{x:Type modelos:Modulo}">
+                                        <Grid Margin="0,0,10,10">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+
+                                            <!-- La etiqueta sale de la posicion del modulo en la
+                                                 lista, no de un campo nuevo: renumerar al agregar
+                                                 o quitar uno tiene que ser gratis. -->
+                                            <Border Grid.Column="0" Padding="7,2" Margin="0,0,10,0"
+                                                    VerticalAlignment="Center"
+                                                    CornerRadius="{DynamicResource RadioCampo}"
+                                                    Background="{DynamicResource PincelMarcaSuave}">
+                                                <TextBlock Style="{StaticResource TxtDato}" FontSize="11"
+                                                           Foreground="{DynamicResource PincelMarcaFuerte}">
+                                                    <Run Text="M" /><Run Text="{Binding (ItemsControl.AlternationIndex),
+                                                                                RelativeSource={RelativeSource AncestorType=ContentPresenter},
+                                                                                Mode=OneWay, Converter={StaticResource MasUno}}" />
+                                                </TextBlock>
+                                            </Border>
+
+                                            <TextBlock Grid.Column="1" Text="{Binding Nombre}"
+                                                       Style="{StaticResource TxtCuerpo}" VerticalAlignment="Center"
+                                                       TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" />
+
+                                            <TextBlock Grid.Column="2" Style="{StaticResource TxtDato}"
+                                                       FontSize="11" VerticalAlignment="Center" Margin="10,0,0,0">
+                                                <Run Text="pag." /><Run Text=" " /><Run Text="{Binding DesdePagina, Mode=OneWay}" /><Run Text="–" /><Run Text="{Binding HastaPagina, Mode=OneWay}" />
+                                            </TextBlock>
+                                        </Grid>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+
+                            <TextBlock Text="EDITAR MODULOS" Style="{StaticResource TxtRotulo}"
+                                       Margin="0,0,0,10" />
+
                             <WrapPanel Margin="0,0,0,14">
                                 <!-- Primero, y con el acento: es lo que hay que tocar. Cargar
                                      veinte capitulos a mano es lo que nadie quiere hacer. -->
@@ -488,18 +708,14 @@
                         </StackPanel>
                     </ui:CardExpander>
 
-                    <StackPanel Orientation="Horizontal">
-                        <ui:Button Content="Guardar cambios" Appearance="Primary" ToolTip="Guarda el titulo, la materia y los modulos de este libro" Padding="18,10"
-                                   Icon="{ui:SymbolIcon Save24}" Command="{Binding GuardarCommand}" />
-                        <Button Content="Quitar libro" Style="{StaticResource ChipAccion}" ToolTip="Saca este material de la biblioteca y borra su copia interna. Pide confirmacion"
-                                Margin="10,0,0,0" VerticalAlignment="Center"
-                                Command="{Binding QuitarCommand}" />
                     </StackPanel>
+                    </Grid>
 
-                    <ui:InfoBar Margin="0,18,0,20" IsClosable="True" Title="" Message="{Binding Mensaje}"
+                    <ui:InfoBar Grid.Row="2" Margin="0,18,0,20" IsClosable="True" Title=""
+                                Message="{Binding Mensaje}"
                                 IsOpen="{Binding HayMensaje, Mode=OneWay}"
                                 Severity="{Binding Severidad, Converter={StaticResource Severidad}}" />
-                </StackPanel>
+                </Grid>
             </ScrollViewer>
         </Grid>
     </Grid>

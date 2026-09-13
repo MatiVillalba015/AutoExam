@@ -149,6 +149,10 @@ public partial class BibliotecaViewModel : PaginaViewModel
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HayLibroAbierto))]
     [NotifyPropertyChangedFor(nameof(DetalleArchivo))]
+    [NotifyPropertyChangedFor(nameof(PaginasTexto))]
+    [NotifyPropertyChangedFor(nameof(ArchivoTexto))]
+    [NotifyPropertyChangedFor(nameof(FechaSubidaTexto))]
+    [NotifyPropertyChangedFor(nameof(TieneResumenGuardado))]
     [NotifyPropertyChangedFor(nameof(FaltaElPdf))]
     private Libro? _libroSeleccionado;
 
@@ -158,6 +162,8 @@ public partial class BibliotecaViewModel : PaginaViewModel
     private string _tituloLibro = string.Empty;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ColorDeLaMateria))]
+    [NotifyPropertyChangedFor(nameof(MateriaEnMayusculas))]
     private string _materia = string.Empty;
 
     [ObservableProperty]
@@ -185,6 +191,32 @@ public partial class BibliotecaViewModel : PaginaViewModel
     public string DetalleArchivo => LibroSeleccionado is null
         ? string.Empty
         : $"{LibroSeleccionado.CantidadPaginas} paginas · {LibroSeleccionado.NombreArchivoOriginal}";
+
+    /// <summary>
+    /// Los datos del libro repartidos para el encabezado del detalle (US-045). No hay ningun
+    /// dato nuevo: son los mismos que ya decia <see cref="DetalleArchivo"/> en una sola linea,
+    /// mas la fecha de subida, que el libro ya guardaba desde que se agrego.
+    /// </summary>
+    public string PaginasTexto => LibroSeleccionado is null
+        ? string.Empty
+        : LibroSeleccionado.MedidaTamanio is { Length: > 0 } medida
+            ? medida
+            : $"{LibroSeleccionado.CantidadPaginas} paginas";
+
+    public string ArchivoTexto => LibroSeleccionado?.NombreArchivoOriginal ?? string.Empty;
+
+    public string FechaSubidaTexto => LibroSeleccionado is null
+        ? string.Empty
+        : $"Subido el {LibroSeleccionado.FechaAgregado:dd/MM/yyyy}";
+
+    /// <summary>Color de la materia del libro abierto, para el acento del encabezado (RN-30).</summary>
+    public string ColorDeLaMateria => PaletaMaterias.ColorDe(Materia);
+
+    /// <summary>Nombre de la materia en mayusculas, como lo muestra el encabezado.</summary>
+    public string MateriaEnMayusculas => (Materia ?? string.Empty).ToUpperInvariant();
+
+    /// <summary>True cuando el libro abierto ya tiene un resumen guardado (US-045).</summary>
+    public bool TieneResumenGuardado => LibroSeleccionado?.TieneResumen == true;
 
     public string ResumenModulos => Modulos.Count == 0
         ? "Sin dividir: los examenes van a tomar el libro entero"
@@ -307,6 +339,11 @@ public partial class BibliotecaViewModel : PaginaViewModel
             OnPropertyChanged(nameof(MateriasConocidas));
 
             _nav.Estado($"Material agregado: {libro.Titulo} ({libro.MedidaTamanio}).");
+
+            // US-050: copiar y analizar un PDF de varios cientos de paginas tarda, y mientras
+            // tanto la app se sigue usando. El aviso avisa que termino; la barra de estado de
+            // arriba dice lo mismo pero pasa desapercibida desde otra pantalla.
+            _nav.Notificar($"Material listo: {libro.Titulo} ({libro.MedidaTamanio}).");
 
             string ignoradasNota = ignoradas > 0
                 ? $" Se ignoraron {ignoradas} archivo(s) con un formato no admitido."
@@ -598,7 +635,21 @@ public partial class BibliotecaViewModel : PaginaViewModel
     /// el texto no cambia y cada regeneracion costaria otra peticion de la cuota diaria (RN-17).
     /// </summary>
     [RelayCommand]
-    private async Task VerDeQueTrataAsync()
+    private Task VerDeQueTrataAsync() => ResumirAsync(forzar: false);
+
+    /// <summary>
+    /// Pide un resumen nuevo aunque ya haya uno guardado (US-045).
+    ///
+    /// Existe porque el resumen se guarda para no volver a pagar la cuota (RN-17), y esa misma
+    /// cache dejaba sin salida al caso en que el resumen quedo mal o el material cambio: la
+    /// unica forma de conseguir otro era borrar el libro y volver a subirlo. Es la misma
+    /// generacion que la de "Ver de que trata", solo que ignorando lo guardado, asi que gasta
+    /// una peticion de la cuota igual que la primera vez.
+    /// </summary>
+    [RelayCommand]
+    private Task VolverAGenerarAsync() => ResumirAsync(forzar: true);
+
+    private async Task ResumirAsync(bool forzar)
     {
         var libro = LibroSeleccionado;
 
@@ -609,7 +660,7 @@ public partial class BibliotecaViewModel : PaginaViewModel
 
         MostrarDeQueTrata = true;
 
-        if (libro.TieneResumen)
+        if (libro.TieneResumen && !forzar)
         {
             TextoDeQueTrata = libro.DeQueTrata;
             return;

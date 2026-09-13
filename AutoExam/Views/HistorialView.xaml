@@ -11,31 +11,419 @@
              mc:Ignorable="d"
              d:DataContext="{d:DesignInstance Type=vm:HistorialViewModel}">
 
+    <!--
+        US-044 — Historial en dos columnas.
+
+        A la izquierda lo que se recorre (buscador, lista de examenes, repaso combinado); a la
+        derecha lo que se mira de reojo (el resumen, la evolucion, y el borrado total al fondo).
+        Antes iba todo apilado en una columna: las estadisticas empujaban la lista hacia abajo y
+        el grafico de evolucion, al abrirse, se comia el alto de la lista entera.
+    -->
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
-            <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <TextBlock Grid.Row="0" Text="&#x1F4CA; Historial" Style="{StaticResource TxtSeccion}" Margin="0,0,0,18" />
+        <!--
+            Luz violeta lejana: dos manchas de degradado radial, muy tenues, detras de todo.
+            Son RadialGradientBrush que terminan en transparente, asi que no tienen borde ni
+            forma reconocible; a esta opacidad no cambian el contraste de ningun texto, que es
+            lo que el criterio pide cuidar. No reciben mouse.
+        -->
+        <Canvas Grid.Row="0" Grid.RowSpan="2" ClipToBounds="True" IsHitTestVisible="False"
+                Panel.ZIndex="-1">
+            <Ellipse Canvas.Left="-160" Canvas.Top="-220" Width="820" Height="820" Opacity="0.35">
+                <Ellipse.Fill>
+                    <RadialGradientBrush>
+                        <GradientStop Offset="0" Color="#3A2E6B" />
+                        <GradientStop Offset="1" Color="#003A2E6B" />
+                    </RadialGradientBrush>
+                </Ellipse.Fill>
+            </Ellipse>
 
-        <!-- Tres numeros, no seis lineas de estadisticas.
+            <Ellipse Canvas.Right="-240" Canvas.Bottom="-300" Width="900" Height="900" Opacity="0.28">
+                <Ellipse.Fill>
+                    <RadialGradientBrush>
+                        <GradientStop Offset="0" Color="#2E2A5E" />
+                        <GradientStop Offset="1" Color="#002E2A5E" />
+                    </RadialGradientBrush>
+                </Ellipse.Fill>
+            </Ellipse>
+        </Canvas>
 
-             US-016, superficie nueva: la tarjeta de estadisticas aparece de golpe cuando el
-             historial deja de estar vacio (primer examen rendido, o vuelta a la seccion). Ahora
-             entra con el mismo fade + desplazamiento corto que ya usa la pantalla de Resultados,
-             con los parametros centralizados de US-011 y la misma guarda de "reducir
-             movimiento" (RN-11). Anima solo Opacity y TranslateTransform.Y: no toca el layout. -->
-        <Border Grid.Row="1" Margin="0,0,14,20" Padding="22,18"
-                Visibility="{Binding HayExamenes, Converter={StaticResource BoolToVis}}"
-                RenderTransformOrigin="0.5,0">
+        <!-- Encabezado: el titulo, y a la derecha el resumen en una linea. -->
+        <Grid Grid.Row="0" Margin="0,0,14,18">
+            <TextBlock Text="&#x1F4CA; Historial" Style="{StaticResource TxtSeccion}"
+                       VerticalAlignment="Center" />
+
+            <TextBlock Text="{Binding Resumen}" Style="{StaticResource TxtDato}"
+                       HorizontalAlignment="Right" VerticalAlignment="Center"
+                       TextTrimming="CharacterEllipsis"
+                       Visibility="{Binding HayExamenes, Converter={StaticResource BoolToVis}}" />
+        </Grid>
+
+        <!-- Cuerpo: la lista a la izquierda, el resumen y la evolucion a la derecha. -->
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="26" />
+                <ColumnDefinition Width="380" />
+            </Grid.ColumnDefinitions>
+
+            <Grid Grid.Column="0">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+        <!-- Estado vacio -->
+        <StackPanel Grid.Row="1" VerticalAlignment="Center" HorizontalAlignment="Center" MaxWidth="330"
+                    Visibility="{Binding HayExamenes, Converter={StaticResource BoolAVisibilidad},
+                                 ConverterParameter=invertir}">
+            <ui:SymbolIcon Symbol="History24" FontSize="30" HorizontalAlignment="Center"
+                           Foreground="{DynamicResource PincelTextoTenue}" />
+            <TextBlock Text="{Binding Resumen}" Style="{StaticResource TxtCuerpo}"
+                       HorizontalAlignment="Center" Margin="0,14,0,4" />
+            <TextBlock Text="{Binding Detalle}" Style="{StaticResource TxtTenue}" TextAlignment="Center" />
+        </StackPanel>
+
+        <!-- ============================================================ -->
+        <!-- US-035 — buscador. Filtra la lista, no las estadisticas de    -->
+        <!-- arriba: lo que se esconde sigue existiendo y sigue contando.  -->
+        <!-- ============================================================ -->
+        <Grid Grid.Row="0" Margin="0,0,14,12"
+              Visibility="{Binding HayExamenes, Converter={StaticResource BoolToVis}}">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+            <ui:TextBox Grid.Column="0" Text="{Binding Filtro, UpdateSourceTrigger=PropertyChanged}"
+                        PlaceholderText="Buscar por examen, materia o tema..."
+                        Icon="{ui:SymbolIcon Search24}"
+                        AutomationProperties.Name="Buscar en el historial" />
+
+            <Button Grid.Column="1" Content="Limpiar" Style="{StaticResource ChipAccion}"
+                    Margin="8,0,0,0" VerticalAlignment="Center"
+                    ToolTip="Borra la busqueda y vuelve a mostrar todos los examenes"
+                    Command="{Binding LimpiarFiltroCommand}"
+                    Visibility="{Binding Filtro, Converter={StaticResource TextoAVisibilidad}}" />
+        </Grid>
+
+        <!-- Busqueda sin resultados: se dice, no se deja una lista vacia sin explicacion. -->
+        <StackPanel Grid.Row="1" VerticalAlignment="Center" HorizontalAlignment="Center" MaxWidth="340"
+                    Visibility="{Binding SinResultados, Converter={StaticResource BoolToVis}}">
+            <ui:SymbolIcon Symbol="Search24" FontSize="28" HorizontalAlignment="Center"
+                           Foreground="{DynamicResource PincelTextoTenue}" />
+            <TextBlock Text="{Binding AvisoSinResultados}" Style="{StaticResource TxtCuerpo}"
+                       HorizontalAlignment="Center" TextAlignment="Center" Margin="0,14,0,4" />
+            <TextBlock Text="Probá con otra palabra, o limpiá la búsqueda para ver todo."
+                       Style="{StaticResource TxtTenue}" TextAlignment="Center" />
+        </StackPanel>
+
+        <ListBox Grid.Row="1" ItemsSource="{Binding ExamenesFiltrados}" Background="Transparent"
+                 BorderThickness="0" Margin="0,0,10,0"
+                 ItemContainerStyle="{StaticResource ItemDeHistorial}"
+                 ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                 AutomationProperties.Name="Examenes rendidos"
+                 Visibility="{Binding HayExamenes, Converter={StaticResource BoolToVis}}">
+            <ListBox.ItemTemplate>
+                <DataTemplate DataType="{x:Type modelos:ExamenRendido}">
+                    <!--
+                        US-030: cada examen es una tarjeta y no una fila de texto, con una
+                        franja del color de su materia (US-027 / RN-34) para reconocer de que
+                        materia es sin leer el titulo.
+
+                        La franja se pinta desde ColorMateria, que resuelve el color por el
+                        NOMBRE de la materia al dibujar (RN-30). Por eso cambiarle el color a
+                        una materia repinta tambien los examenes que ya estaban rendidos.
+                    -->
+                    <!-- Profundidad de tarjeta seleccionable (US-030): estas se tildan para
+                         armar un repaso, asi que van al ras. Es el nivel mas bajo de los tres
+                         tambien por una razon practica: son muchas juntas, y con la sombra de
+                         una tarjeta informativa la lista entera se ensucia. -->
+                    <!--
+                        US-044 — al pasar el mouse, el contenido de la tarjeta se corre un poco
+                        hacia la izquierda. Se mueve el contenido y NO la tarjeta: corriendo la
+                        tarjeta entera, la franja de materia se despegaba del borde y la fila
+                        entraba en la de al lado. Con ClipToBounds, ademas, nada puede asomar
+                        fuera de la tarjeta mientras se desplaza.
+                    -->
+                    <Border x:Name="Tarjeta" Margin="0,0,0,8" MinHeight="66"
+                            ClipToBounds="True"
+                            Background="{DynamicResource PincelTarjetaProfunda}"
+                            BorderBrush="{DynamicResource PincelBorde}" BorderThickness="1"
+                            CornerRadius="{DynamicResource RadioCampo}"
+                            Effect="{DynamicResource SombraTarjetaSuave}">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+
+                        <!-- Franja de materia, pegada al borde izquierdo de la tarjeta. Queda
+                             fuera del grupo que se desplaza: es el canto de la tarjeta. -->
+                        <Border Grid.Column="0" Width="5" CornerRadius="9,0,0,9"
+                                Background="{Binding ColorMateria, Converter={StaticResource ColorMateria}}" />
+
+                    <Grid x:Name="Contenido" Grid.Column="1">
+                        <Grid.RenderTransform>
+                            <TranslateTransform X="0" />
+                        </Grid.RenderTransform>
+                        <Grid.Style>
+                            <Style TargetType="Grid">
+                                <Style.Triggers>
+                                    <MultiDataTrigger>
+                                        <MultiDataTrigger.Conditions>
+                                            <Condition Binding="{Binding IsMouseOver, RelativeSource={RelativeSource AncestorType=Border}}" Value="True" />
+                                            <Condition Binding="{Binding Source={x:Static comportamientos:Animaciones.Reducidas}}" Value="False" />
+                                        </MultiDataTrigger.Conditions>
+                                        <MultiDataTrigger.EnterActions>
+                                            <BeginStoryboard>
+                                                <Storyboard>
+                                                    <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(TranslateTransform.X)"
+                                                                     To="-7" Duration="{StaticResource DuracionHover}"
+                                                                     EasingFunction="{StaticResource SuavizadoSalida}" />
+                                                </Storyboard>
+                                            </BeginStoryboard>
+                                        </MultiDataTrigger.EnterActions>
+                                        <MultiDataTrigger.ExitActions>
+                                            <BeginStoryboard>
+                                                <Storyboard>
+                                                    <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(TranslateTransform.X)"
+                                                                     To="0" Duration="{StaticResource DuracionHover}"
+                                                                     EasingFunction="{StaticResource SuavizadoSalida}" />
+                                                </Storyboard>
+                                            </BeginStoryboard>
+                                        </MultiDataTrigger.ExitActions>
+                                    </MultiDataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Grid.Style>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="52" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <Border Grid.Column="0" Width="14" Background="Transparent" />
+
+                        <!-- US-026: tildar para incluir este examen en un repaso combinado.
+                             Solo aparece en los que pueden aportar preguntas: un examen de
+                             antes de US-025 no guardo el detalle, y un repaso no alimenta
+                             otro repaso. Dejar la casilla visible pero muerta seria peor que
+                             no mostrarla. -->
+                        <CheckBox Grid.Column="1" Margin="0,0,10,0" VerticalAlignment="Center"
+                                  IsChecked="{Binding Seleccionado, Mode=TwoWay}"
+                                  AutomationProperties.Name="{Binding TituloTexto}"
+                                  ToolTip="Incluir este examen en un repaso combinado"
+                                  Visibility="{Binding PuedeAlimentarRepaso, Converter={StaticResource BoolToVis}}" />
+
+                        <Border Grid.Column="2" Width="38" Height="38" CornerRadius="19"
+                                HorizontalAlignment="Left" BorderThickness="2"
+                                BorderBrush="{Binding Aprobado, Converter={StaticResource AprobadoAPincel}}"
+                                Background="{Binding Aprobado, Converter={StaticResource AprobadoAPincel},
+                                             ConverterParameter=suave}">
+                            <TextBlock Text="{Binding NotaUBA}" FontSize="15" FontWeight="Bold"
+                                       FontFamily="{DynamicResource FuenteDato}"
+                                       Foreground="{Binding Aprobado, Converter={StaticResource AprobadoAPincel}}"
+                                       HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+
+                        <StackPanel Grid.Column="3" VerticalAlignment="Center">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="{Binding TituloTexto}" Style="{StaticResource TxtCuerpo}"
+                                           TextTrimming="CharacterEllipsis" />
+
+                                <!-- US-026: un repaso se distingue de un examen generado con
+                                     IA, para que no parezca un intento nuevo del original. -->
+                                <Border Margin="8,0,0,0" Padding="6,1" VerticalAlignment="Center"
+                                        CornerRadius="{DynamicResource RadioCampo}"
+                                        Background="{DynamicResource PincelMarcaSuave}"
+                                        Visibility="{Binding EsRepaso, Converter={StaticResource BoolToVis}}">
+                                    <TextBlock Text="{Binding EtiquetaTipo}" FontSize="10"
+                                               Foreground="{DynamicResource PincelMarcaFuerte}" />
+                                </Border>
+                            </StackPanel>
+                            <!--
+                                US-044 — correctas, incorrectas y salteadas como pastillas.
+
+                                Es el mismo dato que antes iba en una linea de texto (DetalleTexto),
+                                repartido en tres fichas de color. No se agrega nada: son los
+                                mismos numeros del mismo examen. El texto de cada pastilla dice
+                                que es, asi que el color acompania pero no es lo unico que informa.
+                            -->
+                            <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                                <Border Style="{StaticResource Pastilla}"
+                                        Background="{DynamicResource PincelAciertoSuave}">
+                                    <TextBlock Style="{StaticResource TextoDePastilla}"
+                                               Foreground="{DynamicResource PincelAcierto}">
+                                        <Run Text="{Binding Correctas, Mode=OneWay}" /><Run Text=" correctas" />
+                                    </TextBlock>
+                                </Border>
+
+                                <Border Style="{StaticResource Pastilla}"
+                                        Background="{DynamicResource PincelErrorSuave}">
+                                    <TextBlock Style="{StaticResource TextoDePastilla}"
+                                               Foreground="{DynamicResource PincelError}">
+                                        <Run Text="{Binding Incorrectas, Mode=OneWay}" /><Run Text=" incorrectas" />
+                                    </TextBlock>
+                                </Border>
+
+                                <!-- Salteadas en gris y no en un tercer color: no son ni acierto
+                                     ni error, y un ambar al lado del verde y el rojo convertia la
+                                     fila en un semaforo. -->
+                                <Border Style="{StaticResource Pastilla}">
+                                    <TextBlock Style="{StaticResource TextoDePastilla}">
+                                        <Run Text="{Binding Salteadas, Mode=OneWay}" /><Run Text=" salteadas" />
+                                    </TextBlock>
+                                </Border>
+
+                                <Border Style="{StaticResource Pastilla}"
+                                        Background="{DynamicResource PincelMarcaSuave}">
+                                    <TextBlock Text="{Binding DuracionTexto}"
+                                               Style="{StaticResource TextoDePastilla}"
+                                               FontFamily="{DynamicResource FuenteDato}"
+                                               Foreground="{DynamicResource PincelMarcaFuerte}" />
+                                </Border>
+                            </StackPanel>
+                        </StackPanel>
+
+                        <TextBlock Grid.Column="4" Text="{Binding FechaTexto}" Style="{StaticResource TxtDato}"
+                                   FontSize="11" VerticalAlignment="Center" Margin="16,0,0,0" />
+
+                        <!-- US-025: entrar a revisar pregunta por pregunta.
+
+                             US-044: los dos iconos pasan a IconoDeAccion, que enciende un tinte
+                             del color de su accion al pasar el mouse, con transicion. El de ver
+                             el detalle en violeta (es navegar) y el de borrar en rojo (destruye),
+                             para que el color diga que hace cada uno antes de leer el tooltip. -->
+                        <Button Grid.Column="5" Style="{StaticResource IconoDeAccion}"
+                                Margin="12,0,0,0" VerticalAlignment="Center"
+                                ToolTip="Ver el detalle: pregunta por pregunta, que contestaste y cual era la correcta"
+                                AutomationProperties.Name="Ver el detalle de este examen"
+                                Command="{Binding DataContext.VerDetalleCommand,
+                                          RelativeSource={RelativeSource AncestorType=ListBox}}"
+                                CommandParameter="{Binding}">
+                            <ui:SymbolIcon Symbol="DocumentSearch24" FontSize="16" />
+                        </Button>
+
+                        <!-- US-012: borrar este examen del historial -->
+                        <Button Grid.Column="6" Style="{StaticResource IconoDeAccion}"
+                                Background="{DynamicResource PincelErrorSuave}"
+                                VerticalAlignment="Center"
+                                ToolTip="Borrar este examen del historial"
+                                AutomationProperties.Name="Borrar este examen"
+                                Command="{Binding DataContext.BorrarExamenCommand,
+                                          RelativeSource={RelativeSource AncestorType=ListBox}}"
+                                CommandParameter="{Binding}">
+                            <ui:SymbolIcon Symbol="Delete24" FontSize="16" />
+                        </Button>
+                    </Grid>
+                    </Grid>
+                    </Border>
+                </DataTemplate>
+            </ListBox.ItemTemplate>
+        </ListBox>
+
+
+
+        <!-- ================================================================ -->
+        <!-- US-026 / RN-29 — atajo al repaso combinado.                       -->
+        <!--                                                                   -->
+        <!-- Aca NO se arma el examen: el flujo vive en el asistente de Nuevo   -->
+        <!-- examen, que es el punto de entrada principal. Esto es lo que la    -->
+        <!-- regla llama "un atajo al mismo flujo, no una pantalla distinta":   -->
+        <!-- tildar mientras se navega el historial y saltar al asistente con   -->
+        <!-- lo tildado ya puesto.                                              -->
+        <!--                                                                   -->
+        <!-- Se esconde entero cuando no hay al menos dos examenes que puedan   -->
+        <!-- aportar preguntas, para no ofrecer algo inerte.                     -->
+        <!-- ================================================================ -->
+        <!-- TarjetaAviso y no TarjetaPlana: este bloque no informa, invita. Aparece solo
+             cuando hay examenes que pueden aportar preguntas y su unica razon de ser son los
+             dos botones de la derecha; entre la lista y el buscador, en gris neutro, se leia
+             como un renglon mas del historial. Mismo tratamiento que el aviso de "este libro
+             no tiene capitulos" del asistente: el par de pinceles de marca y un icono al
+             frente, que es como la app dice "esto espera algo tuyo". -->
+        <Border Grid.Row="2" Style="{StaticResource TarjetaAviso}" Padding="18" Margin="0,14,14,0"
+                Visibility="{Binding HayElegiblesParaRepaso, Converter={StaticResource BoolToVis}}">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <ui:SymbolIcon Grid.Column="0" Symbol="ArrowShuffle24" FontSize="19"
+                               VerticalAlignment="Center" Margin="2,0,14,0"
+                               Foreground="{DynamicResource PincelMarcaFuerte}" />
+
+                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                    <TextBlock Text="Repaso combinado" Style="{StaticResource TxtCuerpo}"
+                               FontWeight="SemiBold" />
+                    <!-- US-026: cuantos examenes hay tildados y cuantas preguntas salen de
+                         ellos. Es el ultimo dato antes de "Armar repaso", asi que se lee en el
+                         color de marca y no en el tenue de un pie de linea — mismo criterio
+                         que "Vas a generar" en el asistente. -->
+                    <TextBlock Text="{Binding ResumenRepaso}" Style="{StaticResource TxtDato}"
+                               Foreground="{DynamicResource PincelMarcaFuerte}"
+                               TextWrapping="Wrap" Margin="0,3,0,0" />
+                </StackPanel>
+
+                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center"
+                            Margin="14,0,0,0">
+                    <Button Content="Destildar todos" Style="{StaticResource ChipAccion}"
+                            ToolTip="Destilda todos los examenes elegidos para el repaso"
+                            VerticalAlignment="Center" Margin="0,0,10,0"
+                            Command="{Binding DestildarExamenesCommand}" />
+
+                    <ui:Button Content="Armar repaso" Appearance="Primary" Padding="16,9"
+                               Icon="{ui:SymbolIcon ArrowShuffle24}"
+                               ToolTip="Lleva a Nuevo examen con estos examenes ya tildados"
+                               AutomationProperties.Name="Armar un repaso con los examenes tildados"
+                               Command="{Binding IrAlRepasoCommand}" />
+                </StackPanel>
+            </Grid>
+        </Border>
+            </Grid>
+
+            <!-- ============================================================ -->
+            <!-- Columna derecha: el resumen, la evolucion y el borrado total. -->
+            <!-- ============================================================ -->
+            <ScrollViewer Grid.Column="2" VerticalScrollBarVisibility="Auto"
+                          HorizontalScrollBarVisibility="Disabled" Padding="0,0,10,0"
+                          Visibility="{Binding HayExamenes, Converter={StaticResource BoolToVis}}">
+            <StackPanel>
+
+        <!-- ============================================================ -->
+        <!-- US-044 — resumen con anillo de progreso.                      -->
+        <!--                                                               -->
+        <!-- Los cuatro numeros son los mismos que ya mostraba la franja    -->
+        <!-- de estadisticas (promedio, aciertos, mejor nota, total): lo    -->
+        <!-- unico nuevo es el anillo, y tampoco informa nada que el numero -->
+        <!-- del medio no diga — lo hace comparable contra el 10 de un      -->
+        <!-- vistazo, que un "1,5" suelto no logra.                         -->
+        <!-- ============================================================ -->
+        <!-- US-016 / RN-11: la tarjeta aparece de golpe cuando el historial deja de estar
+             vacio (primer examen rendido, o vuelta a la seccion). Entra con el mismo fade +
+             desplazamiento corto que usa la pantalla de Resultados, con los parametros
+             centralizados y la guarda de "reducir movimiento". Anima solo Opacity y
+             TranslateTransform.Y: no toca el layout. -->
+        <Border Padding="22,20" RenderTransformOrigin="0.5,0"
+                Visibility="{Binding HayExamenes, Converter={StaticResource BoolToVis}}">
             <Border.RenderTransform>
                 <TranslateTransform />
             </Border.RenderTransform>
             <Border.Style>
                 <Style TargetType="Border" BasedOn="{StaticResource Tarjeta}">
+                    <Setter Property="Background" Value="{DynamicResource PincelTarjetaProfunda}" />
                     <Style.Triggers>
                         <MultiDataTrigger>
                             <MultiDataTrigger.Conditions>
@@ -63,216 +451,75 @@
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="*" />
                 </Grid.ColumnDefinitions>
 
-                <StackPanel Grid.Column="0" Margin="0,0,44,0">
-                    <TextBlock Text="{Binding Promedio}" FontFamily="{DynamicResource FuenteDato}"
-                               FontSize="26" Foreground="{DynamicResource PincelTexto}" />
-                    <TextBlock Text="PROMEDIO" Style="{StaticResource TxtRotulo}" Margin="0,2,0,0" />
-                </StackPanel>
+                <Grid Grid.Column="0" Width="106" Height="106" VerticalAlignment="Center">
+                    <!-- El riel: el circulo entero, apagado. Es lo que le da al arco algo
+                         contra que compararse; sin el, pocos aciertos se leen como un
+                         grafico roto y no como poco avance. -->
+                    <Ellipse Width="88" Height="88" StrokeThickness="9"
+                             Stroke="{DynamicResource PincelBorde}" />
 
-                <StackPanel Grid.Column="1" Margin="0,0,44,0">
+                    <!--
+                        El arco es un guion del trazo de ESTA misma elipse —mismo tamanio, mismo
+                        grosor, mismo centro que el riel de arriba— y no una geometria aparte.
+                        Antes era un Path con un ArcSegment centrado en la grilla, y un Path se
+                        mide por el rectangulo de su geometria: con un arco corto ese rectangulo
+                        es un cuadrante, y centrarlo corria el arco hacia adentro hasta taparle
+                        el numero al medio. Asi no hay dos circulos que puedan desalinearse.
+
+                        La rotacion existe porque WPF empieza a recorrer una elipse a las 3 en
+                        punto y un progreso se lee desde arriba.
+                    -->
+                    <Ellipse Width="88" Height="88" StrokeThickness="9"
+                             Stroke="{DynamicResource PincelMarca}"
+                             StrokeDashCap="Round" StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+                             RenderTransformOrigin="0.5,0.5"
+                             StrokeDashArray="{Binding AciertosFraccion,
+                                               Converter={StaticResource FraccionAAnillo},
+                                               ConverterParameter='44,9'}">
+                        <Ellipse.RenderTransform>
+                            <RotateTransform Angle="-90" />
+                        </Ellipse.RenderTransform>
+                        <Ellipse.Style>
+                            <Style TargetType="Ellipse">
+                                <Style.Triggers>
+                                    <!-- Sin aciertos no hay arco. Con el trazo en cero las
+                                         puntas redondeadas igual dibujan un punto arriba, que
+                                         se leeria como "algo hay". -->
+                                    <DataTrigger Binding="{Binding AciertosFraccion}" Value="0">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Ellipse.Style>
+                    </Ellipse>
+
+                    <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
+                        <TextBlock Text="{Binding Promedio}" FontFamily="{DynamicResource FuenteDato}"
+                                   FontSize="26" HorizontalAlignment="Center"
+                                   Foreground="{DynamicResource PincelTexto}" />
+                        <TextBlock Text="PROMEDIO" Style="{StaticResource TxtRotulo}"
+                                   Margin="0,1,0,0" HorizontalAlignment="Center" />
+                    </StackPanel>
+                </Grid>
+
+                <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="20,0,0,0">
                     <TextBlock Text="{Binding Aciertos}" FontFamily="{DynamicResource FuenteDato}"
-                               FontSize="26" Foreground="{DynamicResource PincelTexto}" />
-                    <TextBlock Text="ACIERTOS" Style="{StaticResource TxtRotulo}" Margin="0,2,0,0" />
-                </StackPanel>
+                               FontSize="22" Foreground="{DynamicResource PincelTexto}" />
+                    <TextBlock Text="ACIERTOS" Style="{StaticResource TxtRotulo}" Margin="0,1,0,12" />
 
-                <StackPanel Grid.Column="2" Margin="0,0,44,0">
                     <TextBlock Text="{Binding MejorNota}" FontFamily="{DynamicResource FuenteDato}"
-                               FontSize="26" Foreground="{DynamicResource PincelAcierto}" />
-                    <TextBlock Text="MEJOR NOTA" Style="{StaticResource TxtRotulo}" Margin="0,2,0,0" />
-                </StackPanel>
+                               FontSize="22" Foreground="{DynamicResource PincelAcierto}" />
+                    <TextBlock Text="MEJOR NOTA" Style="{StaticResource TxtRotulo}" Margin="0,1,0,12" />
 
-                <TextBlock Grid.Column="3" Text="{Binding Resumen}" Style="{StaticResource TxtSuave}"
-                           VerticalAlignment="Center" MaxWidth="260" />
+                    <TextBlock Text="{Binding Total}" FontFamily="{DynamicResource FuenteDato}"
+                               FontSize="22" Foreground="{DynamicResource PincelTexto}" />
+                    <TextBlock Text="TOTAL DE EXAMENES" Style="{StaticResource TxtRotulo}" Margin="0,1,0,0" />
+                </StackPanel>
             </Grid>
         </Border>
-
-        <!-- Estado vacio -->
-        <StackPanel Grid.Row="2" VerticalAlignment="Center" HorizontalAlignment="Center" MaxWidth="330"
-                    Visibility="{Binding HayExamenes, Converter={StaticResource BoolAVisibilidad},
-                                 ConverterParameter=invertir}">
-            <ui:SymbolIcon Symbol="History24" FontSize="30" HorizontalAlignment="Center"
-                           Foreground="{DynamicResource PincelTextoTenue}" />
-            <TextBlock Text="{Binding Resumen}" Style="{StaticResource TxtCuerpo}"
-                       HorizontalAlignment="Center" Margin="0,14,0,4" />
-            <TextBlock Text="{Binding Detalle}" Style="{StaticResource TxtTenue}" TextAlignment="Center" />
-        </StackPanel>
-
-        <!-- ============================================================ -->
-        <!-- US-035 — buscador. Filtra la lista, no las estadisticas de    -->
-        <!-- arriba: lo que se esconde sigue existiendo y sigue contando.  -->
-        <!-- ============================================================ -->
-        <Grid Grid.Row="2" VerticalAlignment="Top" Margin="0,0,14,12"
-              Visibility="{Binding HayExamenes, Converter={StaticResource BoolToVis}}">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="Auto" />
-            </Grid.ColumnDefinitions>
-
-            <ui:TextBox Grid.Column="0" Text="{Binding Filtro, UpdateSourceTrigger=PropertyChanged}"
-                        PlaceholderText="Buscar por examen, materia o tema..."
-                        Icon="{ui:SymbolIcon Search24}"
-                        AutomationProperties.Name="Buscar en el historial" />
-
-            <Button Grid.Column="1" Content="Limpiar" Style="{StaticResource ChipAccion}"
-                    Margin="8,0,0,0" VerticalAlignment="Center"
-                    ToolTip="Borra la busqueda y vuelve a mostrar todos los examenes"
-                    Command="{Binding LimpiarFiltroCommand}"
-                    Visibility="{Binding Filtro, Converter={StaticResource TextoAVisibilidad}}" />
-        </Grid>
-
-        <!-- Busqueda sin resultados: se dice, no se deja una lista vacia sin explicacion. -->
-        <StackPanel Grid.Row="2" VerticalAlignment="Center" HorizontalAlignment="Center" MaxWidth="340"
-                    Visibility="{Binding SinResultados, Converter={StaticResource BoolToVis}}">
-            <ui:SymbolIcon Symbol="Search24" FontSize="28" HorizontalAlignment="Center"
-                           Foreground="{DynamicResource PincelTextoTenue}" />
-            <TextBlock Text="{Binding AvisoSinResultados}" Style="{StaticResource TxtCuerpo}"
-                       HorizontalAlignment="Center" TextAlignment="Center" Margin="0,14,0,4" />
-            <TextBlock Text="Probá con otra palabra, o limpiá la búsqueda para ver todo."
-                       Style="{StaticResource TxtTenue}" TextAlignment="Center" />
-        </StackPanel>
-
-        <ListBox Grid.Row="2" ItemsSource="{Binding ExamenesFiltrados}" Background="Transparent"
-                 BorderThickness="0" Margin="0,52,0,0"
-                 ItemContainerStyle="{StaticResource ItemLibro}"
-                 ScrollViewer.HorizontalScrollBarVisibility="Disabled"
-                 AutomationProperties.Name="Examenes rendidos"
-                 Visibility="{Binding HayExamenes, Converter={StaticResource BoolToVis}}">
-            <ListBox.ItemTemplate>
-                <DataTemplate DataType="{x:Type modelos:ExamenRendido}">
-                    <!--
-                        US-030: cada examen es una tarjeta y no una fila de texto, con una
-                        franja del color de su materia (US-027 / RN-34) para reconocer de que
-                        materia es sin leer el titulo.
-
-                        La franja se pinta desde ColorMateria, que resuelve el color por el
-                        NOMBRE de la materia al dibujar (RN-30). Por eso cambiarle el color a
-                        una materia repinta tambien los examenes que ya estaban rendidos.
-                    -->
-                    <!-- Profundidad de tarjeta seleccionable (US-030): estas se tildan para
-                         armar un repaso, asi que van al ras. Es el nivel mas bajo de los tres
-                         tambien por una razon practica: son muchas juntas, y con la sombra de
-                         una tarjeta informativa la lista entera se ensucia. -->
-                    <Border MaxWidth="880" HorizontalAlignment="Center" Margin="0,3"
-                            Background="{DynamicResource PincelTarjeta}"
-                            BorderBrush="{DynamicResource PincelBorde}" BorderThickness="1"
-                            CornerRadius="{DynamicResource RadioCampo}"
-                            Effect="{DynamicResource SombraTarjetaSuave}">
-                    <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto" />
-                            <ColumnDefinition Width="Auto" />
-                            <ColumnDefinition Width="Auto" />
-                            <ColumnDefinition Width="52" />
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="Auto" />
-                            <ColumnDefinition Width="Auto" />
-                            <ColumnDefinition Width="Auto" />
-                        </Grid.ColumnDefinitions>
-
-                        <!-- Franja de materia, pegada al borde izquierdo de la tarjeta. -->
-                        <Border Grid.Column="0" Width="5" CornerRadius="9,0,0,9"
-                                Background="{Binding ColorMateria, Converter={StaticResource ColorMateria}}" />
-
-                        <Border Grid.Column="1" Width="14" Background="Transparent" />
-
-                        <!-- US-026: tildar para incluir este examen en un repaso combinado.
-                             Solo aparece en los que pueden aportar preguntas: un examen de
-                             antes de US-025 no guardo el detalle, y un repaso no alimenta
-                             otro repaso. Dejar la casilla visible pero muerta seria peor que
-                             no mostrarla. -->
-                        <CheckBox Grid.Column="2" Margin="0,0,10,0" VerticalAlignment="Center"
-                                  IsChecked="{Binding Seleccionado, Mode=TwoWay}"
-                                  AutomationProperties.Name="{Binding TituloTexto}"
-                                  ToolTip="Incluir este examen en un repaso combinado"
-                                  Visibility="{Binding PuedeAlimentarRepaso, Converter={StaticResource BoolToVis}}" />
-
-                        <Border Grid.Column="3" Width="38" Height="38" CornerRadius="19"
-                                HorizontalAlignment="Left" BorderThickness="2"
-                                BorderBrush="{Binding Aprobado, Converter={StaticResource AprobadoAPincel}}"
-                                Background="{Binding Aprobado, Converter={StaticResource AprobadoAPincel},
-                                             ConverterParameter=suave}">
-                            <TextBlock Text="{Binding NotaUBA}" FontSize="15" FontWeight="Bold"
-                                       FontFamily="{DynamicResource FuenteDato}"
-                                       Foreground="{Binding Aprobado, Converter={StaticResource AprobadoAPincel}}"
-                                       HorizontalAlignment="Center" VerticalAlignment="Center" />
-                        </Border>
-
-                        <StackPanel Grid.Column="4" VerticalAlignment="Center">
-                            <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="{Binding TituloTexto}" Style="{StaticResource TxtCuerpo}"
-                                           TextTrimming="CharacterEllipsis" />
-
-                                <!-- US-026: un repaso se distingue de un examen generado con
-                                     IA, para que no parezca un intento nuevo del original. -->
-                                <Border Margin="8,0,0,0" Padding="6,1" VerticalAlignment="Center"
-                                        CornerRadius="{DynamicResource RadioCampo}"
-                                        Background="{DynamicResource PincelMarcaSuave}"
-                                        Visibility="{Binding EsRepaso, Converter={StaticResource BoolToVis}}">
-                                    <TextBlock Text="{Binding EtiquetaTipo}" FontSize="10"
-                                               Foreground="{DynamicResource PincelMarcaFuerte}" />
-                                </Border>
-                            </StackPanel>
-                            <TextBlock Text="{Binding DetalleTexto}" Style="{StaticResource TxtTenue}" />
-                        </StackPanel>
-
-                        <TextBlock Grid.Column="5" Text="{Binding FechaTexto}" Style="{StaticResource TxtDato}"
-                                   FontSize="11" VerticalAlignment="Center" Margin="16,0,0,0" />
-
-                        <!-- US-025: entrar a revisar pregunta por pregunta -->
-                        <ui:Button Grid.Column="6" Appearance="Secondary" Padding="7" Margin="12,0,0,0"
-                                   VerticalAlignment="Center"
-                                   Icon="{ui:SymbolIcon DocumentSearch24}"
-                                   ToolTip="Ver el detalle: pregunta por pregunta, que contestaste y cual era la correcta"
-                                   AutomationProperties.Name="Ver el detalle de este examen"
-                                   Command="{Binding DataContext.VerDetalleCommand,
-                                             RelativeSource={RelativeSource AncestorType=ListBox}}"
-                                   CommandParameter="{Binding}" />
-
-                        <!-- US-012: borrar este examen del historial -->
-                        <ui:Button Grid.Column="7" Appearance="Secondary" Padding="7" Margin="8,0,0,0"
-                                   VerticalAlignment="Center"
-                                   Icon="{ui:SymbolIcon Delete24}"
-                                   ToolTip="Borrar este examen del historial"
-                                   AutomationProperties.Name="Borrar este examen"
-                                   Command="{Binding DataContext.BorrarExamenCommand,
-                                             RelativeSource={RelativeSource AncestorType=ListBox}}"
-                                   CommandParameter="{Binding}" />
-                    </Grid>
-                    </Border>
-                </DataTemplate>
-            </ListBox.ItemTemplate>
-        </ListBox>
-
-
-
-        <!-- ================================================================ -->
-        <!-- US-026 / RN-29 — atajo al repaso combinado.                       -->
-        <!--                                                                   -->
-        <!-- Aca NO se arma el examen: el flujo vive en el asistente de Nuevo   -->
-        <!-- examen, que es el punto de entrada principal. Esto es lo que la    -->
-        <!-- regla llama "un atajo al mismo flujo, no una pantalla distinta":   -->
-        <!-- tildar mientras se navega el historial y saltar al asistente con   -->
-        <!-- lo tildado ya puesto.                                              -->
-        <!--                                                                   -->
-        <!-- Se esconde entero cuando no hay al menos dos examenes que puedan   -->
-        <!-- aportar preguntas, para no ofrecer algo inerte.                     -->
-        <!-- ================================================================ -->
-        <!--
-            Las secciones de abajo van adentro de un ScrollViewer con tope de alto.
-
-            Sin el tope, abrir el grafico de evolucion (US-033) le come TODO el alto a la
-            fila de la lista —que es la fila estrella del Grid— y los examenes rendidos
-            desaparecen de la pantalla. Con el tope, el bloque de abajo crece hasta donde
-            puede y despues scrollea solo, y la lista siempre conserva su lugar.
-        -->
-        <ScrollViewer Grid.Row="3" MaxHeight="380" VerticalScrollBarVisibility="Auto"
-                      HorizontalScrollBarVisibility="Disabled">
-        <StackPanel>
 
         <!-- ============================================================ -->
         <!-- US-033 — evolucion de notas por materia                       -->
@@ -280,13 +527,67 @@
         <!-- RN-42: sale entero de lo que ExamenRendido ya guarda (fecha,   -->
         <!-- nota, materia), sin persistir nada nuevo. Por eso funciona     -->
         <!-- tambien con examenes viejos que no tienen detalle de preguntas.-->
+        <!--                                                               -->
+        <!-- US-044: deja de ser un CardExpander y pasa a un encabezado que -->
+        <!-- se tilda mas un panel cuya altura y opacidad se animan. El     -->
+        <!-- CardExpander abria de golpe, y el criterio pide que la         -->
+        <!-- apertura sea suave; su template no expone nada que animar sin  -->
+        <!-- reescribirlo entero, asi que el desplegable es propio. Lo que  -->
+        <!-- hay adentro no cambio en nada.                                 -->
         <!-- ============================================================ -->
-        <ui:CardExpander Margin="0,16,14,0" IsExpanded="False"
-                         Visibility="{Binding HayMateriasParaGraficar, Converter={StaticResource BoolToVis}}">
-            <ui:CardExpander.Header>
-                <TextBlock Text="Mi evolución por materia" Style="{StaticResource TxtCuerpo}"
-                           FontWeight="SemiBold" />
-            </ui:CardExpander.Header>
+        <Border Style="{StaticResource Tarjeta}" Padding="18,14" Margin="0,14,0,0"
+                Background="{DynamicResource PincelTarjetaProfunda}"
+                Visibility="{Binding HayMateriasParaGraficar, Converter={StaticResource BoolToVis}}">
+            <StackPanel>
+                <ToggleButton x:Name="AbrirEvolucion" Style="{StaticResource EncabezadoDesplegable}"
+                              AutomationProperties.Name="Mi evolución por materia"
+                              ToolTip="Muestra como te fue en cada intento de una materia">
+                    <Grid>
+                        <TextBlock Text="Mi evolución por materia" Style="{StaticResource TxtCuerpo}"
+                                   FontWeight="SemiBold" VerticalAlignment="Center" />
+
+                        <ui:SymbolIcon x:Name="Flecha" Symbol="ChevronDown24" FontSize="14"
+                                       HorizontalAlignment="Right" VerticalAlignment="Center"
+                                       Foreground="{DynamicResource PincelTextoSuave}" />
+                    </Grid>
+                </ToggleButton>
+
+                <Border ClipToBounds="True" MaxHeight="0" Opacity="0">
+                    <Border.Style>
+                        <Style TargetType="Border">
+                            <Style.Triggers>
+                                <!-- Se anima MaxHeight y no Height: con Height fijo el panel
+                                     quedaria del mismo alto tenga una materia o cinco. El tope
+                                     es holgado; el contenido decide cuanto ocupa de verdad. -->
+                                <DataTrigger Binding="{Binding IsChecked, ElementName=AbrirEvolucion}" Value="True">
+                                    <DataTrigger.EnterActions>
+                                        <BeginStoryboard>
+                                            <Storyboard>
+                                                <DoubleAnimation Storyboard.TargetProperty="MaxHeight"
+                                                                 To="560" Duration="{StaticResource DuracionTransicionSeccion}"
+                                                                 EasingFunction="{StaticResource SuavizadoSalida}" />
+                                                <DoubleAnimation Storyboard.TargetProperty="Opacity"
+                                                                 To="1" Duration="{StaticResource DuracionTransicionSeccion}"
+                                                                 EasingFunction="{StaticResource SuavizadoSalida}" />
+                                            </Storyboard>
+                                        </BeginStoryboard>
+                                    </DataTrigger.EnterActions>
+                                    <DataTrigger.ExitActions>
+                                        <BeginStoryboard>
+                                            <Storyboard>
+                                                <DoubleAnimation Storyboard.TargetProperty="MaxHeight"
+                                                                 To="0" Duration="{StaticResource DuracionTransicionSeccion}"
+                                                                 EasingFunction="{StaticResource SuavizadoSalida}" />
+                                                <DoubleAnimation Storyboard.TargetProperty="Opacity"
+                                                                 To="0" Duration="{StaticResource DuracionTransicionSeccion}"
+                                                                 EasingFunction="{StaticResource SuavizadoSalida}" />
+                                            </Storyboard>
+                                        </BeginStoryboard>
+                                    </DataTrigger.ExitActions>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Border.Style>
 
             <StackPanel Margin="0,8,0,0">
                 <!-- Elegir materia: el criterio pide poder ver una puntual, no todo mezclado. -->
@@ -431,70 +732,33 @@
                     </TextBlock>
                 </StackPanel>
             </StackPanel>
-        </ui:CardExpander>
-
-        <Border Style="{StaticResource TarjetaPlana}" Padding="18" Margin="0,16,14,0"
-                Visibility="{Binding HayElegiblesParaRepaso, Converter={StaticResource BoolToVis}}">
-            <Grid>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
-                </Grid.ColumnDefinitions>
-
-                <StackPanel Grid.Column="0" VerticalAlignment="Center">
-                    <TextBlock Text="Repaso combinado" Style="{StaticResource TxtCuerpo}"
-                               FontWeight="SemiBold" />
-                    <TextBlock Text="{Binding ResumenRepaso}" Style="{StaticResource TxtTenue}"
-                               TextWrapping="Wrap" Margin="0,3,0,0" />
-                </StackPanel>
-
-                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center"
-                            Margin="14,0,0,0">
-                    <Button Content="Destildar todos" Style="{StaticResource ChipAccion}" ToolTip="Destilda todos los examenes elegidos para el repaso"
-                            VerticalAlignment="Center" Margin="0,0,10,0"
-                            Command="{Binding DestildarExamenesCommand}" />
-
-                    <ui:Button Content="Armar repaso" Appearance="Primary" Padding="16,9"
-                               Icon="{ui:SymbolIcon ArrowShuffle24}"
-                               ToolTip="Lleva a Nuevo examen con estos examenes ya tildados"
-                               AutomationProperties.Name="Armar un repaso con los examenes tildados"
-                               Command="{Binding IrAlRepasoCommand}" />
-                </StackPanel>
-            </Grid>
+                </Border>
+            </StackPanel>
         </Border>
-        <ui:CardExpander Icon="{ui:SymbolIcon Info24}" ContentPadding="18" Margin="0,16,14,14">
-            <ui:CardExpander.Header>
-                <TextBlock Text="Escala UBA y datos guardados" Style="{StaticResource TxtCuerpo}"
-                           FontWeight="SemiBold" />
-            </ui:CardExpander.Header>
 
-            <Grid>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="28" />
-                    <ColumnDefinition Width="Auto" />
-                </Grid.ColumnDefinitions>
-
-                <StackPanel Grid.Column="0">
-                    <TextBlock Text="{Binding Detalle}" Style="{StaticResource TxtSuave}" LineHeight="22" />
-                    <TextBlock Style="{StaticResource TxtTenue}" Margin="0,10,0,0"
-                               Text="Las salteadas cuentan como no respondidas: restan igual que un error. Las revanchas no modifican la nota original." />
-                    <Button Content="&#x1F5D1;&#xFE0F; Borrar historial" Style="{StaticResource ChipAccion}" ToolTip="Borra TODOS los examenes rendidos y reinicia las estadisticas. Pide confirmacion"
-                            Margin="0,16,0,0" HorizontalAlignment="Left" Command="{Binding BorrarCommand}" />
-                </StackPanel>
-
-                <ItemsControl Grid.Column="2" ItemsSource="{Binding Escala}">
-                    <ItemsControl.ItemTemplate>
-                        <DataTemplate>
-                            <TextBlock Text="{Binding}" Style="{StaticResource TxtDato}"
-                                       FontSize="11" Margin="0,1" />
-                        </DataTemplate>
-                    </ItemsControl.ItemTemplate>
-                </ItemsControl>
-            </Grid>
-        </ui:CardExpander>
-        </StackPanel>
-        </ScrollViewer>
+        <!-- ============================================================ -->
+        <!-- US-044 — el unico punto de borrado total.                     -->
+        <!--                                                               -->
+        <!-- Antes vivia adentro del desplegable "Escala UBA y datos        -->
+        <!-- guardados", que se saco: la escala de la UBA la explica ya la  -->
+        <!-- pantalla de Resultados, y tener el borrado escondido ahi hacia -->
+        <!-- que la accion mas grave de la pantalla fuera la mas dificil de -->
+        <!-- encontrar. Ahora esta a la vista y en rojo. RN-6 no cambia: el -->
+        <!-- comando sigue pidiendo confirmacion antes de borrar nada.      -->
+        <!-- ============================================================ -->
+        <Button Style="{StaticResource BotonDestructivo}" Margin="0,14,0,14"
+                HorizontalAlignment="Stretch"
+                ToolTip="Borra TODOS los examenes rendidos y reinicia las estadisticas. Pide confirmacion antes"
+                AutomationProperties.Name="Borrar todo el historial"
+                Command="{Binding BorrarCommand}">
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                <ui:SymbolIcon Symbol="Delete24" FontSize="15" VerticalAlignment="Center" />
+                <TextBlock Text="Borrar todo historial" VerticalAlignment="Center" Margin="9,0,0,0" />
+            </StackPanel>
+        </Button>
+            </StackPanel>
+            </ScrollViewer>
+        </Grid>
         <!-- ================================================================ -->
         <!-- US-025 — detalle de un examen del historial.                      -->
         <!--                                                                   -->
@@ -506,7 +770,7 @@
         <!-- de correccion (TarjetaCorreccion, en App.xaml), que es lo que     -->
         <!-- pide el criterio: "igual que en la pantalla de correccion".       -->
         <!-- ================================================================ -->
-        <Border Grid.Row="1" Grid.RowSpan="3" Margin="0,0,14,0" Padding="0"
+        <Border Grid.Row="1" Margin="0,0,14,0" Padding="0"
                 Background="{DynamicResource PincelFondo}"
                 Visibility="{Binding HayDetalleAbierto, Converter={StaticResource BoolToVis}}">
             <Grid>

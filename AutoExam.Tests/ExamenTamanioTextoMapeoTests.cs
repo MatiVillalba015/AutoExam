@@ -160,6 +160,8 @@ public class ExamenTamanioTextoMapeoTests
         public string[]? ElegirFuentes() => null;
         public string? ElegirExamenCompartido() => null;
         public string? ElegirDondeGuardarExamen(string nombreSugerido) => null;
+        public string? ElegirDondeGuardarCopia(string nombreSugerido) => null;
+        public string? ElegirCopiaDeSeguridad() => null;
         public void AbrirCarpeta(string ruta) { }
     }
 
@@ -168,5 +170,8 @@ public class ExamenTamanioTextoMapeoTests
         public void IrA(string clave) { }
         public void Estado(string texto) { }
         public void RefrescarEstadoApi() { }
+        public void AplicarZoom(double escala) { }
+        public void Notificar(string mensaje) { }
+        public void RecargarDatos() { }
     }
 }

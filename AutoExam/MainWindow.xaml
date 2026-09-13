@@ -41,7 +41,6 @@
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
-            <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
         <ui:TitleBar Grid.Row="0" Title="AutoExam" ShowMaximize="True">
@@ -49,6 +48,31 @@
                 <ui:SymbolIcon Symbol="BookOpen24" />
             </ui:TitleBar.Icon>
         </ui:TitleBar>
+
+        <!-- ============================================================ -->
+        <!-- US-048 / RN-56 — el zoom de toda la interfaz, en un solo lugar -->
+        <!--                                                               -->
+        <!-- Un unico ScaleTransform envolviendo el contenido, y no un      -->
+        <!-- tamanio de fuente por pantalla: asi escalan tambien los        -->
+        <!-- iconos, los paddings y los bordes, y ninguna pantalla puede    -->
+        <!-- quedarse afuera por olvido. Va en LayoutTransform y no en      -->
+        <!-- RenderTransform porque el layout tiene que rehacerse con el    -->
+        <!-- tamanio nuevo: con RenderTransform el contenido se agrandaria  -->
+        <!-- por encima de la ventana y quedaria cortado.                   -->
+        <!--                                                               -->
+        <!-- La barra de titulo queda afuera a proposito: es cromo de la    -->
+        <!-- ventana de Windows, y agrandar los botones de minimizar y      -->
+        <!-- cerrar los desalinearia del borde.                             -->
+        <!-- ============================================================ -->
+        <Grid Grid.Row="1">
+            <Grid.LayoutTransform>
+                <ScaleTransform ScaleX="{Binding Zoom}" ScaleY="{Binding Zoom}" />
+            </Grid.LayoutTransform>
+
+            <Grid.RowDefinitions>
+                <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
 
         <!-- ============================================================ -->
         <!-- Cuerpo: barra de seccion + pagina activa                      -->
@@ -64,7 +88,7 @@
         <!-- solo cuando hay una seccion abierta. La navegacion por teclado -->
         <!-- (Ctrl+1..5) sigue funcionando igual, sin pasar por el inicio.  -->
         <!-- ============================================================ -->
-        <Grid Grid.Row="1">
+        <Grid Grid.Row="0">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="*" />
@@ -99,7 +123,7 @@
         <!-- ============================================================ -->
         <!-- Barra de estado                                               -->
         <!-- ============================================================ -->
-        <Border Grid.Row="2" Padding="26,8" BorderThickness="0,1,0,0"
+        <Border Grid.Row="1" Padding="26,8" BorderThickness="0,1,0,0"
                 BorderBrush="{DynamicResource PincelBorde}">
             <Grid>
                 <TextBlock Text="{Binding EstadoTexto}" Style="{StaticResource TxtTenue}" />
@@ -121,12 +145,53 @@
         </Border>
 
         <!-- ============================================================ -->
+        <!-- US-050 — aviso informativo                                    -->
+        <!--                                                               -->
+        <!-- Adentro de la ventana y no una notificacion de Windows: es lo  -->
+        <!-- que pide RN-58, y ademas es lo unico que tiene sentido en una  -->
+        <!-- app que se usa en primer plano. Flota sobre el contenido,      -->
+        <!-- justo arriba de la barra de estado, y se va solo a los seis    -->
+        <!-- segundos. No es hit-testeable salvo su boton de cerrar: un     -->
+        <!-- aviso no puede robarle un click a lo que hay debajo.           -->
+        <!--                                                               -->
+        <!-- Nunca muestra errores ni confirmaciones: esos van por          -->
+        <!-- IDialogos y por la InfoBar de cada pantalla, que no pasan por  -->
+        <!-- aca. Es lo que hace que apagar las notificaciones no pueda     -->
+        <!-- silenciar nada importante.                                     -->
+        <!-- ============================================================ -->
+        <Border Grid.Row="0" Panel.ZIndex="9" Margin="26,0,26,16"
+                HorizontalAlignment="Center" VerticalAlignment="Bottom"
+                MaxWidth="520" Padding="16,12"
+                Background="{DynamicResource PincelTarjeta}"
+                BorderBrush="{DynamicResource PincelMarca}" BorderThickness="1"
+                CornerRadius="{DynamicResource RadioTarjeta}"
+                Visibility="{Binding HayAviso, Converter={StaticResource BoolToVis}}">
+            <Border.Effect>
+                <DropShadowEffect BlurRadius="24" ShadowDepth="4" Opacity="0.35" Color="#000000" />
+            </Border.Effect>
+
+            <StackPanel Orientation="Horizontal">
+                <ui:SymbolIcon Symbol="CheckmarkCircle24" FontSize="18" VerticalAlignment="Center"
+                               Margin="0,0,12,0" Foreground="{DynamicResource PincelMarca}" />
+
+                <TextBlock Text="{Binding Aviso}" Style="{StaticResource TxtCuerpo}"
+                           TextWrapping="Wrap" VerticalAlignment="Center" MaxWidth="400" />
+
+                <Button Content="✕" Style="{StaticResource ChipAccion}" Margin="14,0,0,0"
+                        VerticalAlignment="Center" Padding="8,3"
+                        AutomationProperties.Name="Cerrar el aviso"
+                        Command="{Binding CerrarAvisoCommand}" />
+            </StackPanel>
+        </Border>
+
+        <!-- ============================================================ -->
         <!-- Pantalla de inicio: configurar y verificar antes de entrar     -->
         <!-- ============================================================ -->
-        <vistas:OnboardingView Grid.Row="1" Grid.RowSpan="2" Panel.ZIndex="10"
+        <vistas:OnboardingView Grid.Row="0" Grid.RowSpan="2" Panel.ZIndex="10"
                                DataContext="{Binding Onboarding}"
                                Visibility="{Binding DataContext.MostrarBienvenida,
                                             RelativeSource={RelativeSource AncestorType=Window},
                                             Converter={StaticResource BoolToVis}}" />
+        </Grid>
     </Grid>
 </ui:FluentWindow>

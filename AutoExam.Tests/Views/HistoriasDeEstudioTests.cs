@@ -147,9 +147,13 @@ public class HistoriasDeEstudioTests
         // Si el bloque estuviera dentro de uno de los bloques por modo, sólo aplicaría a ese.
         var doc = Vista("AutoExam/Views/AsistenteView.xaml");
 
+        // El rótulo pasó de "TIEMPO" a encabezado de tarjeta ("Tiempo") con US-058, así que se
+        // lo busca sin distinguir mayúsculas: lo que esta prueba protege es dónde vive el
+        // bloque, no cómo está escrito su título.
         var bloque = doc.Descendants()
             .FirstOrDefault(e => e.Name.LocalName == "TextBlock" &&
-                                 (e.Attribute("Text")?.Value ?? string.Empty) == "TIEMPO");
+                                 string.Equals(e.Attribute("Text")?.Value, "Tiempo",
+                                     StringComparison.OrdinalIgnoreCase));
 
         Assert.True(bloque is not null, "No hay bloque de tiempo en el asistente (US-034).");
 

@@ -14,6 +14,11 @@
                     xmlns:sys="clr-namespace:System;assembly=System.Runtime"
                     xmlns:comportamientos="clr-namespace:AutoExam.Behaviors">
 
+    <!-- Convertidor propio y no el "BoolToVis" de App.xaml: este diccionario se fusiona
+         ANTES de que App.xaml declare sus convertidores, y un StaticResource se resuelve al
+         cargar el diccionario que lo escribe. Plantillas.xaml resuelve lo mismo igual. -->
+    <BooleanToVisibilityConverter x:Key="EstilosBoolToVis" />
+
     <!-- ==============================================================
          Tooltips (US-029).
 
@@ -100,6 +105,11 @@
          el cuerpo sube medio punto. El contraste entre niveles se apoya mas en el peso
          y en el espaciado que en el salto de tamanio, que es lo que hacia que la
          pantalla se viera cargada. -->
+    <!-- Un escalon por encima de TamTitulo, reservado a la portada: hoy lo usa solamente el
+         "AutoExam" de la configuracion inicial (US-042), que es lo primero que ve alguien que
+         abre la app y no tiene con que competir en esa pantalla. Adentro de la app no se usa:
+         ahi el titulo mas grande sigue siendo TamTitulo. -->
+    <sys:Double x:Key="TamHeroe">46</sys:Double>
     <sys:Double x:Key="TamTitulo">26</sys:Double>
     <sys:Double x:Key="TamSeccion">19</sys:Double>
     <sys:Double x:Key="TamEnunciado">16</sys:Double>
@@ -125,6 +135,16 @@
     <!-- Peso SemiBold y no Light: a 26px el Light se veia desvaido y sin jerarquia. Lo que
          separa un titulo de un parrafo grande ahora es el peso, no el tamanio, que es lo que
          permitio bajar la escala sin perder lectura. -->
+    <!-- Portada (US-042). Mismo sistema que TxtTitulo, un escalon mas grande y sin ajuste de
+         linea: es un nombre propio de una palabra, no una frase. -->
+    <Style x:Key="TxtHeroe" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{DynamicResource FuenteTitulo}" />
+        <Setter Property="FontSize" Value="{DynamicResource TamHeroe}" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Foreground" Value="{DynamicResource PincelTexto}" />
+        <Setter Property="TextOptions.TextRenderingMode" Value="ClearType" />
+    </Style>
+
     <Style x:Key="TxtTitulo" TargetType="TextBlock">
         <Setter Property="FontFamily" Value="{DynamicResource FuenteTitulo}" />
         <Setter Property="FontSize" Value="{DynamicResource TamTitulo}" />
@@ -266,6 +286,10 @@
          hay muchas juntas y apilar sombras profundas ensucia la pantalla entera. -->
     <Style x:Key="TarjetaSeleccionable" TargetType="Border" BasedOn="{StaticResource Tarjeta}">
         <Setter Property="Effect" Value="{DynamicResource SombraTarjetaSuave}" />
+        <!-- US-043: la superficie deja de ser plana y toma un degradado vertical minimo. Lo
+             que cambia es solo la sensacion de volumen; el color, el borde y la sombra son
+             los mismos, asi que ninguna tarjeta cambia de nivel en la jerarquia de US-030. -->
+        <Setter Property="Background" Value="{DynamicResource PincelTarjetaProfunda}" />
     </Style>
 
     <!-- Nivel 3 de 3 — resumen / bloque protagonista. La usan el resumen de "vas a
@@ -283,6 +307,18 @@
     <Style x:Key="TarjetaPlana" TargetType="Border" BasedOn="{StaticResource Tarjeta}">
         <Setter Property="Effect" Value="{x:Null}" />
         <Setter Property="Background" Value="{DynamicResource PincelSuperficie}" />
+    </Style>
+
+    <!-- Variante de TarjetaPlana para un aviso, no para informacion neutra: usa el
+         mismo par de pinceles que el chip seleccionado (PincelMarcaSuave/PincelMarca),
+         asi que "esto necesita tu atencion" se lee con el mismo lenguaje de color que
+         ya tiene el resto de la app en vez de inventar un tono de alerta nuevo. Sigue
+         siendo Nivel 1 (sin sombra): un aviso no compite en profundidad con el resumen
+         final, compite en color. -->
+    <Style x:Key="TarjetaAviso" TargetType="Border" BasedOn="{StaticResource Tarjeta}">
+        <Setter Property="Effect" Value="{x:Null}" />
+        <Setter Property="Background" Value="{DynamicResource PincelMarcaSuave}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource PincelMarca}" />
     </Style>
 
     <!-- ============================================================== -->
@@ -339,6 +375,15 @@
                                         <DoubleAnimation Storyboard.TargetName="FondoHover" Storyboard.TargetProperty="Opacity"
                                                          To="1" Duration="{StaticResource DuracionHover}"
                                                          EasingFunction="{StaticResource SuavizadoSalida}" />
+                                        <DoubleAnimation Storyboard.TargetName="AnilloHover" Storyboard.TargetProperty="Opacity"
+                                                         To="1" Duration="{StaticResource DuracionHover}"
+                                                         EasingFunction="{StaticResource SuavizadoSalida}" />
+                                        <DoubleAnimation Storyboard.TargetName="Escala" Storyboard.TargetProperty="ScaleX"
+                                                         To="1.01" Duration="{StaticResource DuracionHover}"
+                                                         EasingFunction="{StaticResource SuavizadoSalida}" />
+                                        <DoubleAnimation Storyboard.TargetName="Escala" Storyboard.TargetProperty="ScaleY"
+                                                         To="1.01" Duration="{StaticResource DuracionHover}"
+                                                         EasingFunction="{StaticResource SuavizadoSalida}" />
                                     </Storyboard>
                                 </BeginStoryboard>
                             </MultiTrigger.EnterActions>
@@ -347,6 +392,15 @@
                                     <Storyboard>
                                         <DoubleAnimation Storyboard.TargetName="FondoHover" Storyboard.TargetProperty="Opacity"
                                                          To="0" Duration="{StaticResource DuracionHover}"
+                                                         EasingFunction="{StaticResource SuavizadoSalida}" />
+                                        <DoubleAnimation Storyboard.TargetName="AnilloHover" Storyboard.TargetProperty="Opacity"
+                                                         To="0" Duration="{StaticResource DuracionHover}"
+                                                         EasingFunction="{StaticResource SuavizadoSalida}" />
+                                        <DoubleAnimation Storyboard.TargetName="Escala" Storyboard.TargetProperty="ScaleX"
+                                                         To="1" Duration="{StaticResource DuracionHover}"
+                                                         EasingFunction="{StaticResource SuavizadoSalida}" />
+                                        <DoubleAnimation Storyboard.TargetName="Escala" Storyboard.TargetProperty="ScaleY"
+                                                         To="1" Duration="{StaticResource DuracionHover}"
                                                          EasingFunction="{StaticResource SuavizadoSalida}" />
                                     </Storyboard>
                                 </BeginStoryboard>
@@ -392,6 +446,136 @@
                             <Setter TargetName="Fondo" Property="Background" Value="{DynamicResource PincelMarcaSuave}" />
                             <Setter TargetName="Fondo" Property="BorderBrush" Value="{DynamicResource PincelMarca}" />
                             <Setter Property="Foreground" Value="{DynamicResource PincelMarcaFuerte}" />
+                            <Setter Property="FontWeight" Value="SemiBold" />
+                        </Trigger>
+                        <Trigger Property="IsKeyboardFocused" Value="True">
+                            <Setter TargetName="Fondo" Property="BorderBrush" Value="{DynamicResource PincelMarcaFuerte}" />
+                            <Setter TargetName="Fondo" Property="BorderThickness" Value="2" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Opacity" Value="0.4" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- Variante de Chip con relleno solido cuando esta seleccionado, en vez del tinte
+         suave de Chip. Nace para las tres filas de preset del Asistente (paginas,
+         cantidad de preguntas, tiempo): son grupos chicos y excluyentes (RadioButton,
+         uno solo activo a la vez) donde cual quedo elegido es la decision central de
+         ese renglon, asi que conviene que se vea resuelta de un vistazo en vez de
+         competir en el mismo tono que un chip de capitulos que se puede tildar de a
+         varios. Es una copia de Chip y no un Trigger agregado por BasedOn porque el
+         Template completo (con sus Triggers) se hereda como un solo valor atomico: no
+         hay forma de "parchear" un Trigger de adentro de un ControlTemplate heredado. -->
+    <Style x:Key="ChipDestacado" TargetType="ToggleButton">
+        <Setter Property="FontFamily" Value="{DynamicResource FuenteCuerpo}" />
+        <Setter Property="FontSize" Value="{DynamicResource TamMenor}" />
+        <Setter Property="Foreground" Value="{DynamicResource PincelTexto}" />
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderBrush" Value="{DynamicResource PincelBordeFuerte}" />
+        <Setter Property="Padding" Value="15,8" />
+        <Setter Property="Margin" Value="0,0,8,8" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="MinHeight" Value="34" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ToggleButton">
+                    <Grid x:Name="Raiz" RenderTransformOrigin="0.5,0.5">
+                        <Grid.RenderTransform>
+                            <ScaleTransform x:Name="Escala" ScaleX="1" ScaleY="1" />
+                        </Grid.RenderTransform>
+                        <Border x:Name="Fondo"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="1"
+                                CornerRadius="{DynamicResource RadioChip}"
+                                SnapsToDevicePixels="True" />
+                        <Border x:Name="FondoHover" Background="{DynamicResource PincelTarjetaHover}"
+                                CornerRadius="{DynamicResource RadioChip}" Opacity="0"
+                                IsHitTestVisible="False" />
+                        <ContentPresenter Margin="{TemplateBinding Padding}"
+                                          HorizontalAlignment="Center" VerticalAlignment="Center"
+                                          RecognizesAccessKey="True" />
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <MultiTrigger>
+                            <MultiTrigger.Conditions>
+                                <Condition Property="IsMouseOver" Value="True" />
+                                <Condition Property="IsEnabled" Value="True" />
+                                <Condition Property="comportamientos:Animaciones.MovimientoReducido" Value="False" />
+                            </MultiTrigger.Conditions>
+                            <MultiTrigger.EnterActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="FondoHover" Storyboard.TargetProperty="Opacity"
+                                                         To="1" Duration="{StaticResource DuracionHover}"
+                                                         EasingFunction="{StaticResource SuavizadoSalida}" />
+                                        <DoubleAnimation Storyboard.TargetName="Escala" Storyboard.TargetProperty="ScaleX"
+                                                         To="1.01" Duration="{StaticResource DuracionHover}"
+                                                         EasingFunction="{StaticResource SuavizadoSalida}" />
+                                        <DoubleAnimation Storyboard.TargetName="Escala" Storyboard.TargetProperty="ScaleY"
+                                                         To="1.01" Duration="{StaticResource DuracionHover}"
+                                                         EasingFunction="{StaticResource SuavizadoSalida}" />
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </MultiTrigger.EnterActions>
+                            <MultiTrigger.ExitActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="FondoHover" Storyboard.TargetProperty="Opacity"
+                                                         To="0" Duration="{StaticResource DuracionHover}"
+                                                         EasingFunction="{StaticResource SuavizadoSalida}" />
+                                        <DoubleAnimation Storyboard.TargetName="Escala" Storyboard.TargetProperty="ScaleX"
+                                                         To="1" Duration="{StaticResource DuracionHover}"
+                                                         EasingFunction="{StaticResource SuavizadoSalida}" />
+                                        <DoubleAnimation Storyboard.TargetName="Escala" Storyboard.TargetProperty="ScaleY"
+                                                         To="1" Duration="{StaticResource DuracionHover}"
+                                                         EasingFunction="{StaticResource SuavizadoSalida}" />
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </MultiTrigger.ExitActions>
+                        </MultiTrigger>
+                        <MultiTrigger>
+                            <MultiTrigger.Conditions>
+                                <Condition Property="IsPressed" Value="True" />
+                                <Condition Property="IsEnabled" Value="True" />
+                                <Condition Property="comportamientos:Animaciones.MovimientoReducido" Value="False" />
+                            </MultiTrigger.Conditions>
+                            <MultiTrigger.EnterActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="Escala" Storyboard.TargetProperty="ScaleX"
+                                                         To="0.985" Duration="{StaticResource DuracionPresion}"
+                                                         EasingFunction="{StaticResource SuavizadoSalida}" />
+                                        <DoubleAnimation Storyboard.TargetName="Escala" Storyboard.TargetProperty="ScaleY"
+                                                         To="0.985" Duration="{StaticResource DuracionPresion}"
+                                                         EasingFunction="{StaticResource SuavizadoSalida}" />
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </MultiTrigger.EnterActions>
+                            <MultiTrigger.ExitActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="Escala" Storyboard.TargetProperty="ScaleX"
+                                                         To="1" Duration="{StaticResource DuracionPresion}"
+                                                         EasingFunction="{StaticResource SuavizadoSalida}" />
+                                        <DoubleAnimation Storyboard.TargetName="Escala" Storyboard.TargetProperty="ScaleY"
+                                                         To="1" Duration="{StaticResource DuracionPresion}"
+                                                         EasingFunction="{StaticResource SuavizadoSalida}" />
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </MultiTrigger.ExitActions>
+                        </MultiTrigger>
+                        <!-- Unica diferencia real con Chip: relleno solido de marca y texto
+                             sobre-marca en vez del tinte suave. Mismo criterio de contraste
+                             que ya usa el circulo del paso activo en el riel del Asistente. -->
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter TargetName="Fondo" Property="Background" Value="{DynamicResource PincelMarca}" />
+                            <Setter TargetName="Fondo" Property="BorderBrush" Value="{DynamicResource PincelMarca}" />
+                            <Setter Property="Foreground" Value="{DynamicResource PincelSobreMarca}" />
                             <Setter Property="FontWeight" Value="SemiBold" />
                         </Trigger>
                         <Trigger Property="IsKeyboardFocused" Value="True">
@@ -512,9 +696,13 @@
     <!-- ============================================================== -->
     <!-- Opcion del examen: tarjeta clickeable con letra y texto copiable -->
     <!-- ============================================================== -->
+    <!-- US-057: mas aire entre opciones y esquinas mas suaves. Cuatro tarjetas separadas por
+         10 px con esquinas de 10 se leian como un bloque de cuatro renglones; con 14 y 14 se
+         leen como cuatro cosas que se eligen. El padding tambien crece: es la superficie que
+         se toca, y en una pantalla donde se responde con el mouse conviene que sobre. -->
     <Style x:Key="OpcionExamen" TargetType="RadioButton">
-        <Setter Property="Margin" Value="0,0,0,10" />
-        <Setter Property="Padding" Value="16,14" />
+        <Setter Property="Margin" Value="0,0,0,14" />
+        <Setter Property="Padding" Value="18,16" />
         <Setter Property="Cursor" Value="Hand" />
         <Setter Property="HorizontalContentAlignment" Value="Stretch" />
         <Setter Property="Template">
@@ -528,9 +716,9 @@
                                 Background="{DynamicResource PincelTarjeta}"
                                 BorderBrush="{DynamicResource PincelBorde}"
                                 BorderThickness="1"
-                                CornerRadius="{DynamicResource RadioCampo}" />
+                                CornerRadius="{DynamicResource RadioTarjeta}" />
                         <Border x:Name="FondoHover" Background="{DynamicResource PincelTarjetaHover}"
-                                CornerRadius="{DynamicResource RadioCampo}" Opacity="0"
+                                CornerRadius="{DynamicResource RadioTarjeta}" Opacity="0"
                                 IsHitTestVisible="False" />
 
                         <!--
@@ -548,9 +736,13 @@
                             Sale del color de marca y no de los de correcto/incorrecto porque
                             mientras se responde todavia no hay nada correcto que senalar.
                         -->
-                        <Border x:Name="Acento" Width="5" HorizontalAlignment="Left" Opacity="0"
+                        <!-- US-057 la adelgaza de 5 a 3 px. La barra se queda —es lo que hace
+                             que la elegida se lea sin comparar tonos, que es lo que pide
+                             US-030— pero deja de ser un bloque: a 3 px es un canto, y con el
+                             relleno tenue y el borde fino de abajo alcanza de sobra. -->
+                        <Border x:Name="Acento" Width="3" HorizontalAlignment="Left" Opacity="0"
                                 Background="{DynamicResource PincelMarca}" IsHitTestVisible="False"
-                                CornerRadius="{DynamicResource RadioCampo}" />
+                                CornerRadius="{DynamicResource RadioTarjeta}" />
 
                         <!-- RN-38: el texto de la opcion se dibuja por encima del overlay de
                              hover. Estaba adentro de "Fondo", debajo de FondoHover, que usa un
@@ -622,13 +814,17 @@
                                 </BeginStoryboard>
                             </MultiTrigger.ExitActions>
                         </MultiTrigger>
+                        <!-- US-057 — la opcion elegida, sin marco grueso.
+                             El borde vuelve a 1 px y baja de PincelMarcaFuerte al violeta de
+                             marca: lo que marcaba la eleccion era un marco de 2 px en el tono
+                             mas luminoso de la paleta, y sobre cuatro tarjetas apiladas eso es
+                             lo que hacia ruido. Queda un relleno apenas insinuado, un borde
+                             fino y el canto de acento, que juntos se leen igual de rapido y
+                             pesan mucho menos. -->
                         <Trigger Property="IsChecked" Value="True">
                             <Setter TargetName="Fondo" Property="Background" Value="{DynamicResource PincelMarcaSuave}" />
-                            <Setter TargetName="Fondo" Property="BorderBrush" Value="{DynamicResource PincelMarcaFuerte}" />
-                            <!-- El borde engorda a 2 px sin correr el texto: ahora el contenido es
-                                 hermano del borde, no su hijo, asi que ya no hace falta compensar
-                                 el grosor con un Padding mas chico. -->
-                            <Setter TargetName="Fondo" Property="BorderThickness" Value="2" />
+                            <Setter TargetName="Fondo" Property="BorderBrush" Value="{DynamicResource PincelMarca}" />
+                            <Setter TargetName="Fondo" Property="BorderThickness" Value="1" />
                             <!-- US-030: el acento es lo que hace que la opcion elegida se lea
                                  de un vistazo; el fondo y el borde solos no alcanzaban. -->
                             <Setter TargetName="Acento" Property="Opacity" Value="1" />
@@ -777,9 +973,17 @@
         <Setter Property="BorderBrush" Value="{DynamicResource PincelBorde}" />
         <Setter Property="Foreground" Value="{DynamicResource PincelTexto}" />
         <Setter Property="Cursor" Value="Hand" />
-        <Setter Property="Margin" Value="10" />
-        <Setter Property="MinHeight" Value="190" />
-        <Setter Property="Padding" Value="24,26" />
+        <!-- US-041: la tarjeta sigue en la grilla 2x2 de US-030, pero adentro dejo de ser un
+             bloque cuadrado (icono grande arriba, texto abajo) para volverse una fila: cuadrado
+             de icono a la izquierda, titulo y descripcion a la derecha. Con el texto al costado
+             y no debajo del icono, el alto minimo baja de 190 a 106.
+
+             El margen solo empuja hacia la derecha y hacia abajo; la vista cancela el sobrante
+             del borde exterior con un margen negativo, para que la grilla quede alineada con lo
+             que tiene al lado. -->
+        <Setter Property="Margin" Value="0,0,14,14" />
+        <Setter Property="MinHeight" Value="106" />
+        <Setter Property="Padding" Value="18,16" />
         <Setter Property="HorizontalContentAlignment" Value="Stretch" />
         <Setter Property="VerticalContentAlignment" Value="Center" />
         <Setter Property="Template">
@@ -803,14 +1007,28 @@
                         <!-- Se anima la Opacity de esta capa y no el Brush del fondo: animar un
                              Brush lo congela y rompe el cambio de tema claro/oscuro. -->
                         <Border x:Name="Realce" Background="{DynamicResource PincelTarjetaHover}"
-                                BorderBrush="{DynamicResource PincelMarca}" BorderThickness="1"
                                 CornerRadius="{DynamicResource RadioTarjeta}" Opacity="0"
                                 IsHitTestVisible="False" />
 
+                        <!-- US-041 — el anillo violeta del hover, en su propia capa y no como
+                             borde del realce. Separarlo es lo que permite que el borde se vea
+                             completo: el realce se dibuja detras del contenido y su borde
+                             quedaba tapado por la tarjeta en los bordes redondeados. Ademas,
+                             2 px de anillo sobre el borde de 1 px del fondo se leen como un
+                             marco que aparece, no como el borde de siempre cambiando de color. -->
+                        <Border x:Name="AnilloHover" BorderBrush="{DynamicResource PincelMarca}"
+                                BorderThickness="2" CornerRadius="{DynamicResource RadioTarjeta}"
+                                Opacity="0" IsHitTestVisible="False" />
+
                         <!-- RN-38: ultimo hijo = siempre encima del realce. Ver el comentario
-                             del estilo. -->
+                             del estilo.
+
+                             US-041: se estira a lo ancho en vez de centrarse. Con la tarjeta
+                             horizontal, el contenido es una fila (icono + textos + insignia) que
+                             tiene que ocupar todo el ancho; centrado, quedaba un bloque angosto
+                             flotando en el medio de una tarjeta ancha. -->
                         <ContentPresenter Margin="{TemplateBinding Padding}"
-                                          HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                          HorizontalAlignment="Stretch" VerticalAlignment="Center" />
                     </Grid>
 
                     <ControlTemplate.Triggers>
@@ -826,12 +1044,20 @@
                                         <DoubleAnimation Storyboard.TargetName="Realce" Storyboard.TargetProperty="Opacity"
                                                          To="1" Duration="{StaticResource DuracionHover}"
                                                          EasingFunction="{StaticResource SuavizadoSalida}" />
+                                        <!-- US-041: el anillo violeta entra con el mismo tiempo y
+                                             el mismo suavizado que el resto del hover, asi las tres
+                                             cosas (realce, anillo y zoom) se leen como un solo
+                                             movimiento y no como tres efectos encimados. -->
+                                        <DoubleAnimation Storyboard.TargetName="AnilloHover" Storyboard.TargetProperty="Opacity"
+                                                         To="1" Duration="{StaticResource DuracionHover}"
+                                                         EasingFunction="{StaticResource SuavizadoSalida}" />
                                         <DoubleAnimation Storyboard.TargetName="Elevacion" Storyboard.TargetProperty="Y"
                                                          To="-2" Duration="{StaticResource DuracionHover}"
                                                          EasingFunction="{StaticResource SuavizadoSalida}" />
-                                        <!-- US-029: zoom leve. 1.03 sobre una tarjeta de 190 px son
-                                             ~6 px de crecimiento y ~0,5 px de texto: se percibe como
-                                             que la tarjeta se acerca, no como que el texto salta. -->
+                                        <!-- US-029 / US-041: zoom leve. 1.03 sobre una tarjeta de la
+                                             grilla son ~13 px de crecimiento y menos de medio pixel
+                                             de texto: se percibe como que la tarjeta se acerca, no
+                                             como que el texto salta. -->
                                         <DoubleAnimation Storyboard.TargetName="Zoom" Storyboard.TargetProperty="ScaleX"
                                                          To="1.03" Duration="{StaticResource DuracionHover}"
                                                          EasingFunction="{StaticResource SuavizadoSalida}" />
@@ -845,6 +1071,9 @@
                                 <BeginStoryboard>
                                     <Storyboard>
                                         <DoubleAnimation Storyboard.TargetName="Realce" Storyboard.TargetProperty="Opacity"
+                                                         To="0" Duration="{StaticResource DuracionHover}"
+                                                         EasingFunction="{StaticResource SuavizadoSalida}" />
+                                        <DoubleAnimation Storyboard.TargetName="AnilloHover" Storyboard.TargetProperty="Opacity"
                                                          To="0" Duration="{StaticResource DuracionHover}"
                                                          EasingFunction="{StaticResource SuavizadoSalida}" />
                                         <DoubleAnimation Storyboard.TargetName="Elevacion" Storyboard.TargetProperty="Y"
@@ -872,6 +1101,10 @@
                                 <Condition Property="comportamientos:Animaciones.MovimientoReducido" Value="True" />
                             </MultiTrigger.Conditions>
                             <Setter TargetName="Realce" Property="Opacity" Value="1" />
+                            <!-- El anillo si aparece con movimiento reducido: es un cambio de
+                                 color, no un movimiento, y es lo que deja claro cual de las
+                                 cuatro tarjetas esta debajo del cursor. -->
+                            <Setter TargetName="AnilloHover" Property="Opacity" Value="1" />
                         </MultiTrigger>
 
                         <MultiTrigger>
@@ -908,6 +1141,49 @@
                 </ControlTemplate>
             </Setter.Value>
         </Setter>
+
+        <!-- ==============================================================
+             La tarjeta destacada del menu: "Generar examen" (US-041).
+
+             El disparador vive aca dentro y no en un estilo aparte a proposito. Un estilo
+             derivado obligaria a la vista a elegir cual de los dos aplicar, y en XAML esa
+             eleccion condicional se escribe como un <Style> anonimo dentro del Button, que
+             es justo lo que hace que la tarjeta deje de declarar "uso TarjetaAcceso". Con
+             el disparador aca, las cuatro tarjetas usan literalmente el mismo estilo y la
+             que viene marcada como principal cambia sola.
+
+             Solo cambian fondo y borde: hereda el template entero —el mismo hover, el
+             mismo zoom, la misma guarda de "reducir movimiento"—, asi la accion mas usada
+             se lee como la principal sin comportarse distinto de las otras tres.
+
+             Los dos pinceles son los de marca que ya existen (US-027), no colores nuevos:
+             en tema oscuro PincelMarcaSuave es un violeta apagado sobre el que el texto
+             blanco sigue leyendose, y en tema claro es un lavanda palido con el mismo
+             contraste.
+             ============================================================== -->
+        <Style.Triggers>
+            <DataTrigger Binding="{Binding EsPrincipal}" Value="True">
+                <Setter Property="Background" Value="{DynamicResource PincelMarcaSuave}" />
+                <Setter Property="BorderBrush" Value="{DynamicResource PincelMarca}" />
+            </DataTrigger>
+        </Style.Triggers>
+    </Style>
+
+    <!-- ==============================================================
+         Cuadrado del icono de una tarjeta del menu (US-041).
+
+         Un solo lugar define su tamanio, su radio y su degradado, para que las cuatro
+         tarjetas no se vayan separando a medida que se toca una.
+         ============================================================== -->
+    <Style x:Key="CuadroDeIcono" TargetType="Border">
+        <Setter Property="Width" Value="52" />
+        <Setter Property="Height" Value="52" />
+        <Setter Property="CornerRadius" Value="14" />
+        <Setter Property="Margin" Value="0,0,16,0" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="Background" Value="{DynamicResource PincelIconoAccion}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource PincelBordeFuerte}" />
+        <Setter Property="BorderThickness" Value="1" />
     </Style>
 
     <!-- ==============================================================
@@ -922,19 +1198,34 @@
          con ellas por el primer click, que es justo lo contrario de lo que el menu
          tiene que lograr.
 
-         Sin escala en el hover (US-029) y con la guarda de "reducir movimiento" en el
-         pulsado (RN-33), igual que los otros templates.
+         Desde US-041 el hover si escala, como el de las tarjetas, porque el criterio lo
+         pide para los dos: la ficha crece 1.02 (menos que el 1.03 de la tarjeta, que es
+         mucho mas grande) y se le enciende el mismo anillo violeta. Sigue siendo mas
+         discreta que una tarjeta de accion —no se eleva ni proyecta sombra—, que es lo
+         que RN-37 protege. Con la guarda de "reducir movimiento" en todos los casos (RN-33),
+         igual que los otros templates.
          ============================================================== -->
     <Style x:Key="FilaDeActividad" TargetType="Button">
-        <Setter Property="Background" Value="Transparent" />
+        <!-- US-041: la fila pasa de transparente a tener superficie propia. En el mockup cada
+             examen es una ficha con su barra de acento, no un renglon suelto: sin fondo, la
+             barra vertical de la izquierda queda flotando contra el panel y no se lee como el
+             borde de nada. -->
+        <Setter Property="Background" Value="{DynamicResource PincelTarjeta}" />
         <Setter Property="Cursor" Value="Hand" />
-        <Setter Property="Padding" Value="10,9" />
-        <Setter Property="Margin" Value="0,4,0,0" />
+        <!-- Sin relleno a la izquierda ni arriba y abajo: la barra de acento va pegada al
+             borde de la ficha y la cruza entera, como en el mockup. El aire lo pone el
+             contenido, que es el unico que sabe cual de sus columnas tiene que respirar. -->
+        <Setter Property="Padding" Value="0,0,14,0" />
+        <Setter Property="Margin" Value="0,0,0,8" />
         <Setter Property="HorizontalContentAlignment" Value="Stretch" />
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="Button">
-                    <Grid>
+                    <Grid x:Name="Raiz" RenderTransformOrigin="0.5,0.5">
+                        <Grid.RenderTransform>
+                            <ScaleTransform x:Name="Zoom" ScaleX="1" ScaleY="1" />
+                        </Grid.RenderTransform>
+
                         <Border x:Name="Fondo" Background="{TemplateBinding Background}"
                                 CornerRadius="{DynamicResource RadioCampo}" />
 
@@ -944,6 +1235,19 @@
 
                         <!-- RN-38: el contenido va sobre el realce opaco, no debajo. -->
                         <ContentPresenter Margin="{TemplateBinding Padding}" />
+
+                        <!-- US-041 — el mismo anillo violeta que la tarjeta de accion, con el
+                             radio de la ficha. Es la senial de "esto se puede tocar" en las dos
+                             mitades del menu, asi que tiene que ser la misma.
+
+                             Va DESPUES del contenido, al reves que el realce: la barra de acento
+                             de la materia esta pegada al borde izquierdo y es opaca, asi que
+                             dibujada encima le comia el lado izquierdo al anillo y el marco
+                             quedaba abierto. No contradice RN-38 porque esta capa no tiene
+                             fondo: es un borde con el centro transparente, no tapa nada. -->
+                        <Border x:Name="AnilloHover" BorderBrush="{DynamicResource PincelMarca}"
+                                BorderThickness="2" CornerRadius="{DynamicResource RadioCampo}"
+                                Opacity="0" IsHitTestVisible="False" />
                     </Grid>
 
                     <ControlTemplate.Triggers>
@@ -959,6 +1263,18 @@
                                         <DoubleAnimation Storyboard.TargetName="Realce" Storyboard.TargetProperty="Opacity"
                                                          To="1" Duration="{StaticResource DuracionHover}"
                                                          EasingFunction="{StaticResource SuavizadoSalida}" />
+                                        <DoubleAnimation Storyboard.TargetName="AnilloHover" Storyboard.TargetProperty="Opacity"
+                                                         To="1" Duration="{StaticResource DuracionHover}"
+                                                         EasingFunction="{StaticResource SuavizadoSalida}" />
+                                        <!-- 1.02 y no 1.03: la ficha es la mitad de alta que una
+                                             tarjeta, y con el mismo factor el crecimiento se nota
+                                             de mas contra las dos fichas quietas de al lado. -->
+                                        <DoubleAnimation Storyboard.TargetName="Zoom" Storyboard.TargetProperty="ScaleX"
+                                                         To="1.02" Duration="{StaticResource DuracionHover}"
+                                                         EasingFunction="{StaticResource SuavizadoSalida}" />
+                                        <DoubleAnimation Storyboard.TargetName="Zoom" Storyboard.TargetProperty="ScaleY"
+                                                         To="1.02" Duration="{StaticResource DuracionHover}"
+                                                         EasingFunction="{StaticResource SuavizadoSalida}" />
                                     </Storyboard>
                                 </BeginStoryboard>
                             </MultiTrigger.EnterActions>
@@ -967,6 +1283,15 @@
                                     <Storyboard>
                                         <DoubleAnimation Storyboard.TargetName="Realce" Storyboard.TargetProperty="Opacity"
                                                          To="0" Duration="{StaticResource DuracionHover}"
+                                                         EasingFunction="{StaticResource SuavizadoSalida}" />
+                                        <DoubleAnimation Storyboard.TargetName="AnilloHover" Storyboard.TargetProperty="Opacity"
+                                                         To="0" Duration="{StaticResource DuracionHover}"
+                                                         EasingFunction="{StaticResource SuavizadoSalida}" />
+                                        <DoubleAnimation Storyboard.TargetName="Zoom" Storyboard.TargetProperty="ScaleX"
+                                                         To="1" Duration="{StaticResource DuracionHover}"
+                                                         EasingFunction="{StaticResource SuavizadoSalida}" />
+                                        <DoubleAnimation Storyboard.TargetName="Zoom" Storyboard.TargetProperty="ScaleY"
+                                                         To="1" Duration="{StaticResource DuracionHover}"
                                                          EasingFunction="{StaticResource SuavizadoSalida}" />
                                     </Storyboard>
                                 </BeginStoryboard>
@@ -980,6 +1305,7 @@
                                 <Condition Property="comportamientos:Animaciones.MovimientoReducido" Value="True" />
                             </MultiTrigger.Conditions>
                             <Setter TargetName="Realce" Property="Opacity" Value="1" />
+                            <Setter TargetName="AnilloHover" Property="Opacity" Value="1" />
                         </MultiTrigger>
 
                         <Trigger Property="IsKeyboardFocused" Value="True">
@@ -1010,7 +1336,10 @@
                         <Grid.RenderTransform>
                             <ScaleTransform x:Name="Escala" ScaleX="1" ScaleY="1" />
                         </Grid.RenderTransform>
-                        <Border x:Name="Fondo" Background="{DynamicResource PincelTarjeta}"
+                        <!-- US-043: mismo degradado minimo que las demas tarjetas que se
+                             eligen. La lista de documentos a combinar es justamente una de
+                             las que el criterio nombra. -->
+                        <Border x:Name="Fondo" Background="{DynamicResource PincelTarjetaProfunda}"
                                 BorderBrush="{DynamicResource PincelBorde}" BorderThickness="1"
                                 CornerRadius="{DynamicResource RadioCampo}"
                                 Cursor="Hand" />
@@ -1019,6 +1348,15 @@
                                 IsHitTestVisible="False" />
                         <!-- RN-38: la ficha del libro se dibuja sobre el realce, no debajo. -->
                         <ContentPresenter Margin="16,13" />
+
+                        <!-- US-045 / RN-53: el mismo anillo de acento que las tarjetas del menu
+                             y las del asistente. Desde esta historia el hover con anillo es el
+                             estandar de la app, asi que la ficha de un libro y la de un examen
+                             responden igual al mouse. Va despues del contenido para que el
+                             marco se cierre entero. -->
+                        <Border x:Name="AnilloHover" BorderBrush="{DynamicResource PincelMarca}"
+                                BorderThickness="2" CornerRadius="{DynamicResource RadioCampo}"
+                                Opacity="0" IsHitTestVisible="False" />
                     </Grid>
                     <ControlTemplate.Triggers>
                         <!-- US-011 superficie 8 (RN-7): alta de items en Historial y Libros.
@@ -1059,6 +1397,19 @@
                                         <DoubleAnimation Storyboard.TargetName="FondoHover" Storyboard.TargetProperty="Opacity"
                                                          To="1" Duration="{StaticResource DuracionHover}"
                                                          EasingFunction="{StaticResource SuavizadoSalida}" />
+                                        <!-- US-045 / RN-53: anillo de acento y zoom leve, como en el
+                                             resto de la app. 1.01 y no 1.02: la ficha de un libro es
+                                             mucho mas ancha que alta, y ahi el mismo factor se nota de
+                                             mas contra las fichas quietas de arriba y de abajo. -->
+                                        <DoubleAnimation Storyboard.TargetName="AnilloHover" Storyboard.TargetProperty="Opacity"
+                                                         To="1" Duration="{StaticResource DuracionHover}"
+                                                         EasingFunction="{StaticResource SuavizadoSalida}" />
+                                        <DoubleAnimation Storyboard.TargetName="Escala" Storyboard.TargetProperty="ScaleX"
+                                                         To="1.01" Duration="{StaticResource DuracionHover}"
+                                                         EasingFunction="{StaticResource SuavizadoSalida}" />
+                                        <DoubleAnimation Storyboard.TargetName="Escala" Storyboard.TargetProperty="ScaleY"
+                                                         To="1.01" Duration="{StaticResource DuracionHover}"
+                                                         EasingFunction="{StaticResource SuavizadoSalida}" />
                                     </Storyboard>
                                 </BeginStoryboard>
                             </MultiTrigger.EnterActions>
@@ -1067,6 +1418,15 @@
                                     <Storyboard>
                                         <DoubleAnimation Storyboard.TargetName="FondoHover" Storyboard.TargetProperty="Opacity"
                                                          To="0" Duration="{StaticResource DuracionHover}"
+                                                         EasingFunction="{StaticResource SuavizadoSalida}" />
+                                        <DoubleAnimation Storyboard.TargetName="AnilloHover" Storyboard.TargetProperty="Opacity"
+                                                         To="0" Duration="{StaticResource DuracionHover}"
+                                                         EasingFunction="{StaticResource SuavizadoSalida}" />
+                                        <DoubleAnimation Storyboard.TargetName="Escala" Storyboard.TargetProperty="ScaleX"
+                                                         To="1" Duration="{StaticResource DuracionHover}"
+                                                         EasingFunction="{StaticResource SuavizadoSalida}" />
+                                        <DoubleAnimation Storyboard.TargetName="Escala" Storyboard.TargetProperty="ScaleY"
+                                                         To="1" Duration="{StaticResource DuracionHover}"
                                                          EasingFunction="{StaticResource SuavizadoSalida}" />
                                     </Storyboard>
                                 </BeginStoryboard>
@@ -1218,6 +1578,529 @@
                 </ControlTemplate>
             </Setter.Value>
         </Setter>
+    </Style>
+
+    <!-- ==============================================================
+         US-044 — pastillas de dato del Historial.
+
+         Correctas, incorrectas y salteadas dejan de ser una linea de texto corrido y pasan a
+         tres fichas de color. El dato es exactamente el mismo; lo que cambia es que ahora se
+         reconoce por el color antes de leerlo, que es lo que uno hace al barrer una lista de
+         veinte examenes buscando el que le fue mal.
+
+         Los colores son los de correccion que ya existen (US-027) y no unos nuevos: verde es
+         acierto y rojo es error en toda la app, y aca significan lo mismo. El color NUNCA va
+         solo — cada pastilla dice tambien "correctas" / "incorrectas" / "salteadas" —, que es
+         lo que la hace legible para alguien que no distingue verde de rojo.
+         ============================================================== -->
+    <Style x:Key="Pastilla" TargetType="Border">
+        <Setter Property="Padding" Value="9,3" />
+        <Setter Property="Margin" Value="0,0,7,0" />
+        <Setter Property="CornerRadius" Value="{DynamicResource RadioChip}" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="Background" Value="{DynamicResource PincelSuperficie}" />
+    </Style>
+
+    <Style x:Key="TextoDePastilla" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{DynamicResource FuenteCuerpo}" />
+        <Setter Property="FontSize" Value="{DynamicResource TamMinimo}" />
+        <Setter Property="Foreground" Value="{DynamicResource PincelTextoSuave}" />
+    </Style>
+
+    <!-- ==============================================================
+         US-044 — boton de icono con tinte de hover.
+
+         El criterio pide que al pasar el mouse aparezca "un coloreado suave de fondo del color
+         que corresponda a esa accion, con una transicion gradual". El tinte concreto lo pone
+         cada uso via Background del propio boton, que en reposo esta en Opacity 0: asi el
+         mismo estilo sirve para el icono de ver el detalle (violeta) y el de borrar (rojo) sin
+         duplicar el template.
+
+         Se anima la Opacity de la capa y no su Brush, como en todo el resto del archivo:
+         animar un Brush lo congela y rompe el cambio de tema claro/oscuro.
+         ============================================================== -->
+    <Style x:Key="IconoDeAccion" TargetType="Button">
+        <Setter Property="Background" Value="{DynamicResource PincelMarcaSuave}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource PincelBorde}" />
+        <Setter Property="Foreground" Value="{DynamicResource PincelTextoSuave}" />
+        <Setter Property="Padding" Value="8" />
+        <Setter Property="Margin" Value="6,0,0,0" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Grid>
+                        <Border x:Name="Fondo" Background="Transparent"
+                                BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="1"
+                                CornerRadius="{DynamicResource RadioCampo}" />
+
+                        <Border x:Name="Tinte" Background="{TemplateBinding Background}"
+                                CornerRadius="{DynamicResource RadioCampo}" Opacity="0"
+                                IsHitTestVisible="False" />
+
+                        <ContentPresenter Margin="{TemplateBinding Padding}"
+                                          HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Grid>
+
+                    <ControlTemplate.Triggers>
+                        <MultiTrigger>
+                            <MultiTrigger.Conditions>
+                                <Condition Property="IsMouseOver" Value="True" />
+                                <Condition Property="IsEnabled" Value="True" />
+                            </MultiTrigger.Conditions>
+                            <MultiTrigger.EnterActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="Tinte" Storyboard.TargetProperty="Opacity"
+                                                         To="1" Duration="{StaticResource DuracionHover}"
+                                                         EasingFunction="{StaticResource SuavizadoSalida}" />
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </MultiTrigger.EnterActions>
+                            <MultiTrigger.ExitActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="Tinte" Storyboard.TargetProperty="Opacity"
+                                                         To="0" Duration="{StaticResource DuracionHover}"
+                                                         EasingFunction="{StaticResource SuavizadoSalida}" />
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </MultiTrigger.ExitActions>
+                        </MultiTrigger>
+
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter Property="Foreground" Value="{DynamicResource PincelTexto}" />
+                        </Trigger>
+
+                        <Trigger Property="IsKeyboardFocused" Value="True">
+                            <Setter TargetName="Fondo" Property="BorderBrush" Value="{DynamicResource PincelMarcaFuerte}" />
+                        </Trigger>
+
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Opacity" Value="0.45" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- ==============================================================
+         US-044 — contenedor de un examen en la lista del Historial.
+
+         A diferencia de ItemLibro, este NO dibuja tarjeta: la dibuja el propio item, porque su
+         franja de materia tiene que ir pegada al borde y el relleno de ItemLibro la dejaba
+         flotando adentro. Aca el contenedor solo aporta el espacio entre tarjetas.
+
+         Sigue siendo un ListBoxItem y no un ItemsControl suelto para no perder lo que el
+         contenedor da gratis: llegar por teclado a cada examen y anunciarse como una lista.
+         ============================================================== -->
+    <Style x:Key="ItemDeHistorial" TargetType="ListBoxItem">
+        <Setter Property="Padding" Value="0" />
+        <Setter Property="Margin" Value="0" />
+        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ListBoxItem">
+                    <ContentPresenter />
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- ==============================================================
+         US-044 — encabezado de un panel que se despliega.
+
+         Es un ToggleButton pelado: la fila entera es el area de click, sin fondo ni borde
+         propios, porque el panel que abre ya vive adentro de una tarjeta. El estado (abierto /
+         cerrado) lo lleva el propio boton, y el panel de abajo se engancha a su IsChecked para
+         animar su altura — que es lo que un CardExpander no deja hacer sin reescribirle el
+         template entero.
+         ============================================================== -->
+    <Style x:Key="EncabezadoDesplegable" TargetType="ToggleButton">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Padding" Value="0" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ToggleButton">
+                    <Border Background="Transparent" Padding="{TemplateBinding Padding}">
+                        <ContentPresenter HorizontalAlignment="Stretch" VerticalAlignment="Center" />
+                    </Border>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- ==============================================================
+         US-044 — la accion destructiva: borrar TODO el historial.
+
+         Se distingue por el color y no por el tamanio ni por la posicion: en rojo desde el
+         reposo (borde y texto) y con el tinte rojo al pasar el mouse, para que nadie la
+         confunda con las otras acciones de la pantalla. No pierde la confirmacion explicita:
+         RN-6 sigue valiendo y el comando la pide antes de borrar nada — el color avisa, no
+         reemplaza al "estas seguro".
+
+         Es tambien el unico punto de borrado total desde que se saco la seccion "Escala UBA y
+         datos guardados", donde el mismo boton vivia escondido adentro de un desplegable.
+         ============================================================== -->
+    <Style x:Key="BotonDestructivo" TargetType="Button" BasedOn="{StaticResource IconoDeAccion}">
+        <Setter Property="Background" Value="{DynamicResource PincelErrorSuave}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource PincelError}" />
+        <Setter Property="Foreground" Value="{DynamicResource PincelError}" />
+        <Setter Property="FontFamily" Value="{DynamicResource FuenteCuerpo}" />
+        <Setter Property="FontSize" Value="{DynamicResource TamCuerpo}" />
+        <Setter Property="Padding" Value="14,10" />
+        <Setter Property="Margin" Value="0" />
+    </Style>
+
+    <!-- ==============================================================
+         US-043 — las tarjetas de "de donde salen las preguntas".
+
+         Son las cuatro opciones grandes del paso Material. Hasta ahora usaban el estilo Chip,
+         el mismo de las fichas chicas ("Libro completo", "20 min", el nombre de una materia).
+         Comparten la logica —un grupo de opciones excluyentes— pero no el peso: estas cuatro
+         son la primera decision del asistente y ocupan media pantalla, mientras que una ficha
+         es una palabra. Por eso tienen estilo propio en vez de engordar Chip: tocar Chip para
+         estas cuatro le hubiera puesto zoom y anillo a las treinta fichas chicas de la app.
+
+         Las dos escalas van separadas y no en un solo ScaleTransform: el hover lleva Zoom a
+         1.02 y ahi se queda mientras el mouse este encima, y el pulsado mueve Presion, que
+         vuelve sola a 1 al soltar. Con una sola escala compartida, soltar el click devolvia
+         la tarjeta a 1.0 —tamanio de reposo— aunque el mouse siguiera encima, y el hover se
+         perdia hasta salir y volver a entrar. Multiplicadas dan 1.02 en hover y ~1.00
+         mientras se aprieta: el "hundimiento" que pide el criterio es exactamente esa
+         diferencia.
+         ============================================================== -->
+    <Style x:Key="TarjetaDeOpcion" TargetType="ToggleButton" BasedOn="{StaticResource Chip}">
+        <Setter Property="Padding" Value="16,14" />
+        <Setter Property="MinHeight" Value="76" />
+        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ToggleButton">
+                    <Grid x:Name="Raiz" RenderTransformOrigin="0.5,0.5">
+                        <Grid.RenderTransform>
+                            <TransformGroup>
+                                <ScaleTransform x:Name="Zoom" ScaleX="1" ScaleY="1" />
+                                <ScaleTransform x:Name="Presion" ScaleX="1" ScaleY="1" />
+                            </TransformGroup>
+                        </Grid.RenderTransform>
+
+                        <Border x:Name="Fondo"
+                                Background="{DynamicResource PincelTarjetaProfunda}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="1"
+                                CornerRadius="{DynamicResource RadioCampo}"
+                                SnapsToDevicePixels="True" />
+
+                        <Border x:Name="FondoHover" Background="{DynamicResource PincelTarjetaHover}"
+                                CornerRadius="{DynamicResource RadioCampo}" Opacity="0"
+                                IsHitTestVisible="False" />
+
+                        <!-- RN-38: el contenido va DESPUES del realce opaco, no adentro del
+                             fondo, o al llegar el hover a Opacity 1 la tarjeta se ve vacia. -->
+                        <ContentPresenter Margin="{TemplateBinding Padding}"
+                                          HorizontalAlignment="Stretch" VerticalAlignment="Center"
+                                          RecognizesAccessKey="True" />
+
+                        <!-- El anillo de acento va sobre el contenido, como en el menu (US-041):
+                             asi se cierra entero y no queda cortado por lo que tenga debajo. -->
+                        <Border x:Name="AnilloHover" BorderBrush="{DynamicResource PincelMarca}"
+                                BorderThickness="2" CornerRadius="{DynamicResource RadioCampo}"
+                                Opacity="0" IsHitTestVisible="False" />
+                    </Grid>
+
+                    <ControlTemplate.Triggers>
+                        <MultiTrigger>
+                            <MultiTrigger.Conditions>
+                                <Condition Property="IsMouseOver" Value="True" />
+                                <Condition Property="IsEnabled" Value="True" />
+                                <Condition Property="comportamientos:Animaciones.MovimientoReducido" Value="False" />
+                            </MultiTrigger.Conditions>
+                            <MultiTrigger.EnterActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="FondoHover" Storyboard.TargetProperty="Opacity"
+                                                         To="1" Duration="{StaticResource DuracionHover}"
+                                                         EasingFunction="{StaticResource SuavizadoSalida}" />
+                                        <DoubleAnimation Storyboard.TargetName="AnilloHover" Storyboard.TargetProperty="Opacity"
+                                                         To="1" Duration="{StaticResource DuracionHover}"
+                                                         EasingFunction="{StaticResource SuavizadoSalida}" />
+                                        <DoubleAnimation Storyboard.TargetName="Zoom" Storyboard.TargetProperty="ScaleX"
+                                                         To="1.02" Duration="{StaticResource DuracionHover}"
+                                                         EasingFunction="{StaticResource SuavizadoSalida}" />
+                                        <DoubleAnimation Storyboard.TargetName="Zoom" Storyboard.TargetProperty="ScaleY"
+                                                         To="1.02" Duration="{StaticResource DuracionHover}"
+                                                         EasingFunction="{StaticResource SuavizadoSalida}" />
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </MultiTrigger.EnterActions>
+                            <MultiTrigger.ExitActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="FondoHover" Storyboard.TargetProperty="Opacity"
+                                                         To="0" Duration="{StaticResource DuracionHover}"
+                                                         EasingFunction="{StaticResource SuavizadoSalida}" />
+                                        <DoubleAnimation Storyboard.TargetName="AnilloHover" Storyboard.TargetProperty="Opacity"
+                                                         To="0" Duration="{StaticResource DuracionHover}"
+                                                         EasingFunction="{StaticResource SuavizadoSalida}" />
+                                        <DoubleAnimation Storyboard.TargetName="Zoom" Storyboard.TargetProperty="ScaleX"
+                                                         To="1" Duration="{StaticResource DuracionHover}"
+                                                         EasingFunction="{StaticResource SuavizadoSalida}" />
+                                        <DoubleAnimation Storyboard.TargetName="Zoom" Storyboard.TargetProperty="ScaleY"
+                                                         To="1" Duration="{StaticResource DuracionHover}"
+                                                         EasingFunction="{StaticResource SuavizadoSalida}" />
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </MultiTrigger.ExitActions>
+                        </MultiTrigger>
+
+                        <!-- Con "reducir movimiento" el anillo y el realce siguen apareciendo:
+                             son cambios de color, no movimiento. Lo unico que se saltea es el
+                             zoom, que es lo que la preferencia del sistema pide evitar. -->
+                        <MultiTrigger>
+                            <MultiTrigger.Conditions>
+                                <Condition Property="IsMouseOver" Value="True" />
+                                <Condition Property="IsEnabled" Value="True" />
+                                <Condition Property="comportamientos:Animaciones.MovimientoReducido" Value="True" />
+                            </MultiTrigger.Conditions>
+                            <Setter TargetName="FondoHover" Property="Opacity" Value="1" />
+                            <Setter TargetName="AnilloHover" Property="Opacity" Value="1" />
+                        </MultiTrigger>
+
+                        <!-- El "hundimiento" del criterio: se achica un instante al apretar y
+                             vuelve al soltar, justo antes de quedar seleccionada. -->
+                        <MultiTrigger>
+                            <MultiTrigger.Conditions>
+                                <Condition Property="IsPressed" Value="True" />
+                                <Condition Property="IsEnabled" Value="True" />
+                                <Condition Property="comportamientos:Animaciones.MovimientoReducido" Value="False" />
+                            </MultiTrigger.Conditions>
+                            <MultiTrigger.EnterActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="Presion" Storyboard.TargetProperty="ScaleX"
+                                                         To="0.98" Duration="{StaticResource DuracionPresion}"
+                                                         EasingFunction="{StaticResource SuavizadoSalida}" />
+                                        <DoubleAnimation Storyboard.TargetName="Presion" Storyboard.TargetProperty="ScaleY"
+                                                         To="0.98" Duration="{StaticResource DuracionPresion}"
+                                                         EasingFunction="{StaticResource SuavizadoSalida}" />
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </MultiTrigger.EnterActions>
+                            <MultiTrigger.ExitActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="Presion" Storyboard.TargetProperty="ScaleX"
+                                                         To="1" Duration="{StaticResource DuracionPresion}"
+                                                         EasingFunction="{StaticResource SuavizadoSalida}" />
+                                        <DoubleAnimation Storyboard.TargetName="Presion" Storyboard.TargetProperty="ScaleY"
+                                                         To="1" Duration="{StaticResource DuracionPresion}"
+                                                         EasingFunction="{StaticResource SuavizadoSalida}" />
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </MultiTrigger.ExitActions>
+                        </MultiTrigger>
+
+                        <!-- Elegida: el mismo lenguaje que las fichas de Chip, para que "esto
+                             esta seleccionado" se lea igual en toda la app. -->
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter TargetName="Fondo" Property="Background" Value="{DynamicResource PincelMarcaSuave}" />
+                            <Setter TargetName="Fondo" Property="BorderBrush" Value="{DynamicResource PincelMarca}" />
+                        </Trigger>
+
+                        <Trigger Property="IsKeyboardFocused" Value="True">
+                            <Setter TargetName="Fondo" Property="BorderBrush" Value="{DynamicResource PincelMarcaFuerte}" />
+                            <Setter TargetName="Fondo" Property="BorderThickness" Value="2" />
+                        </Trigger>
+
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter TargetName="Raiz" Property="Opacity" Value="0.45" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- ==============================================================
+         US-042 — las claves de Gemini, una por pestania.
+
+         Es un TabControl con el strip ABAJO del contenido, como en el mockup: primero el
+         campo de la clave seleccionada, y debajo la fila de pestanias con el boton de
+         agregar al final. La plantilla se reescribe entera por ese boton: no hay forma de
+         meter algo que no sea una pestania adentro del strip de un TabControl sin tocar su
+         template, y ponerlo afuera lo separaba visualmente de las pestanias, que es lo que
+         el mockup muestra pegado.
+
+         El propio TabControl no dibuja ni fondo ni borde: la caja que se ve es la del campo
+         de texto de adentro. Un marco alrededor de todo sumaba un segundo rectangulo sobre
+         el del campo, y el bloque pasaba a leerse como un panel en vez de como un campo.
+         ============================================================== -->
+    <Style x:Key="PestanasDeClave" TargetType="TabControl">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="TabControl">
+                    <Grid KeyboardNavigation.TabNavigation="Local">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+
+                        <ContentPresenter Grid.Row="0" ContentSource="SelectedContent" />
+
+                        <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,10,0,0">
+                            <TabPanel IsItemsHost="True" KeyboardNavigation.TabIndex="1" />
+
+                            <Button VerticalAlignment="Center"
+                                    Style="{DynamicResource ChipAccion}"
+                                    Content="{Binding EtiquetaDeAgregar}"
+                                    Command="{Binding AgregarCommand}"
+                                    FontFamily="{DynamicResource FuenteDato}"
+                                    ToolTip="Agrega otra clave de Gemini: al agotarse la cuota de una, la app sigue con la siguiente"
+                                    AutomationProperties.Name="Agregar otra clave de Gemini" />
+                        </StackPanel>
+                    </Grid>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- ==============================================================
+         Una pestania de clave: la ficha chica con "clave N" y su cruz de borrar.
+
+         La cruz vive adentro de la pestania y no en una barra aparte porque el criterio pide
+         borrar la clave "desde su propia pestania". Se oculta cuando queda una sola: sin
+         claves no habria donde escribir, y un boton que no se puede usar confunde mas que
+         uno que no esta.
+
+         El punto de la izquierda marca cual esta abierta. Es redundante con el fondo, a
+         proposito: el fondo de la seleccionada es un violeta apagado y sobre papel la
+         diferencia contra una pestania en reposo queda fina.
+         ============================================================== -->
+    <Style x:Key="PestanaDeClave" TargetType="TabItem">
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="Margin" Value="0,0,8,0" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="TabItem">
+                    <Border x:Name="Ficha" Padding="11,5"
+                            CornerRadius="{DynamicResource RadioChip}"
+                            Background="Transparent"
+                            BorderBrush="{DynamicResource PincelBorde}"
+                            BorderThickness="1">
+                        <StackPanel Orientation="Horizontal">
+                            <Ellipse x:Name="Punto" Width="5" Height="5" Margin="0,0,7,0"
+                                     VerticalAlignment="Center" Visibility="Collapsed"
+                                     Fill="{DynamicResource PincelMarcaFuerte}" />
+
+                            <ContentPresenter ContentSource="Header" VerticalAlignment="Center" />
+
+                            <Button x:Name="Quitar" Margin="8,0,0,0" Padding="0" MinWidth="0" MinHeight="0"
+                                    Width="14" Height="14" VerticalAlignment="Center"
+                                    Content="✕" FontSize="9"
+                                    Foreground="{DynamicResource PincelTextoTenue}"
+                                    Background="Transparent" BorderThickness="0" Cursor="Hand"
+                                    ToolTip="Borra esta clave. Las demás no se tocan."
+                                    AutomationProperties.Name="Borrar esta clave"
+                                    Command="{Binding DataContext.QuitarCommand,
+                                              RelativeSource={RelativeSource AncestorType=TabControl}}"
+                                    CommandParameter="{Binding}"
+                                    Visibility="{Binding DataContext.PuedeQuitar,
+                                                 RelativeSource={RelativeSource AncestorType=TabControl},
+                                                 Converter={StaticResource EstilosBoolToVis}}" />
+                        </StackPanel>
+                    </Border>
+
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsSelected" Value="True">
+                            <Setter TargetName="Ficha" Property="Background" Value="{DynamicResource PincelMarcaSuave}" />
+                            <Setter TargetName="Ficha" Property="BorderBrush" Value="{DynamicResource PincelMarca}" />
+                            <Setter TargetName="Punto" Property="Visibility" Value="Visible" />
+                        </Trigger>
+
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Ficha" Property="BorderBrush" Value="{DynamicResource PincelBordeFuerte}" />
+                        </Trigger>
+
+                        <Trigger Property="IsKeyboardFocusWithin" Value="True">
+                            <Setter TargetName="Ficha" Property="BorderBrush" Value="{DynamicResource PincelMarcaFuerte}" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- ==============================================================
+         US-047 — zona de riesgo.
+
+         La tarjeta de "Restaurar valores de fabrica" no es una tarjeta mas: es la unica de
+         Ajustes que no se puede deshacer. El borde rojizo y el fondo teñido son la senial que
+         hace que no se lea como una opcion al pasar, y por eso el estilo se llama por lo que
+         significa —una zona de riesgo— y no por su color: el dia que se sume otra accion
+         irreversible a esta pantalla va a tener que verse igual.
+
+         El rojo es el mismo PincelError de la correccion, sin un tono aparte: la app ya usa
+         ese rojo para "esto salio mal", y una segunda familia de rojos solo diluiria las dos.
+         ============================================================== -->
+    <!-- ==============================================================
+         US-051 — una accion presentada como tarjeta.
+
+         "Exportar todo" e "Importar copia de seguridad" no son botones de una palabra: cada
+         uno necesita decir su nombre y, debajo, que hace exactamente —sobre todo el de
+         importar, que reemplaza lo que hay. Un boton comun con dos lineas de texto adentro se
+         ve como un boton roto.
+
+         Hereda de TarjetaAcceso, la tarjeta del menu principal (US-041), y solo le saca el
+         alto minimo y el margen de grilla: el zoom leve y el anillo de acento al pasar el
+         mouse que RN-53 fijo como estandar vienen con ella, sin repetir una animacion.
+         ============================================================== -->
+    <Style x:Key="TarjetaDeAccion" TargetType="Button" BasedOn="{StaticResource TarjetaAcceso}">
+        <Setter Property="Margin" Value="0" />
+        <Setter Property="MinHeight" Value="0" />
+        <Setter Property="Padding" Value="16,14" />
+    </Style>
+
+    <Style x:Key="ZonaDeRiesgo" TargetType="Border" BasedOn="{StaticResource Tarjeta}">
+        <Setter Property="Background" Value="{DynamicResource PincelErrorSuave}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource PincelError}" />
+        <Setter Property="BorderThickness" Value="1" />
+    </Style>
+
+    <!-- ==============================================================
+         US-046 — un tramo de la barra de uso de disco.
+
+         Cada uno se lleva su parte del ancho por un Grid de columnas en estrella (ver
+         FraccionAEstrellaConverter), asi que aca solo va la forma. Redondeados y con un hueco
+         entre si en vez de una barra continua: los tres tramos son magnitudes distintas —
+         libros, historial, temporales— y el hueco es lo que deja contarlos de un vistazo sin
+         tener que buscar donde cambia el color.
+         ============================================================== -->
+    <Style x:Key="TramoDeUso" TargetType="Border">
+        <Setter Property="Height" Value="10" />
+        <Setter Property="CornerRadius" Value="5" />
+        <Setter Property="Margin" Value="0,0,3,0" />
+    </Style>
+
+    <!-- ==============================================================
+         US-046 / US-050 / US-054 — el punto de color de una referencia.
+
+         Lo usan la leyenda de la barra de uso y cualquier lista donde un color signifique
+         algo. Mismo tamanio que el punto de materia del resto de la app (US-027): dos puntos
+         de referencia de distinto tamanio en la misma pantalla se leen como dos cosas
+         distintas cuando son la misma idea.
+         ============================================================== -->
+    <Style x:Key="PuntoDeReferencia" TargetType="Ellipse">
+        <Setter Property="Width" Value="9" />
+        <Setter Property="Height" Value="9" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="Margin" Value="0,0,8,0" />
     </Style>
 
 </ResourceDictionary>

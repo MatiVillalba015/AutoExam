@@ -29,6 +29,14 @@ public class DialogosDeSimulacion : IDialogos
 
     public List<string> NombresSugeridosParaExportar { get; } = new();
 
+    /// <summary>Valor que devuelve <see cref="ElegirDondeGuardarCopia"/> (US-051).</summary>
+    public string? RutaDondeGuardarCopia { get; set; }
+
+    /// <summary>Valor que devuelve <see cref="ElegirCopiaDeSeguridad"/> (US-051).</summary>
+    public string? RutaDeCopiaAImportar { get; set; }
+
+    public List<string> NombresSugeridosParaCopia { get; } = new();
+
     public int LlamadasConfirmar { get; private set; }
     public int LlamadasAviso { get; private set; }
     public int LlamadasError { get; private set; }
@@ -67,6 +75,14 @@ public class DialogosDeSimulacion : IDialogos
         NombresSugeridosParaExportar.Add(nombreSugerido);
         return RutaDondeExportar;
     }
+
+    public string? ElegirDondeGuardarCopia(string nombreSugerido)
+    {
+        NombresSugeridosParaCopia.Add(nombreSugerido);
+        return RutaDondeGuardarCopia;
+    }
+
+    public string? ElegirCopiaDeSeguridad() => RutaDeCopiaAImportar;
 
     public void AbrirCarpeta(string ruta)
     {

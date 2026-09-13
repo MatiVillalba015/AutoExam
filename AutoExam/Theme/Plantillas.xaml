@@ -24,40 +24,79 @@
     <local:TextoAVisibilidadConverter x:Key="PlantillaTextoAVisibilidad" />
     <BooleanToVisibilityConverter x:Key="PlantillaBoolToVis" />
 
+    <!--
+        US-057 — la tarjeta de una pregunta corregida.
+
+        Antes el resultado se decia con una franja de color a todo lo alto de la tarjeta, mas un
+        borde del mismo color alrededor. Con diez preguntas apiladas eso era una columna de
+        franjas verdes y rojas de punta a punta de la pantalla, y el enunciado —que es lo que
+        hay que leer para entender el error— quedaba compitiendo con ella.
+
+        Ahora el resultado se dice donde se lee: un icono chico y la palabra, arriba de todo, en
+        el color que corresponde. El color sigue estando en la tarjeta, pero como un tinte de
+        fondo apenas perceptible en vez de una barra plena. Se distingue igual de rapido y deja
+        de gritar. La franja lateral desaparece; el borde pasa al borde neutro de la app.
+    -->
     <DataTemplate x:Key="TarjetaCorreccion" DataType="{x:Type modelos:Pregunta}">
-        <Border Margin="0,0,0,10" CornerRadius="{DynamicResource RadioCampo}"
+        <Border Margin="0,0,0,12" CornerRadius="{DynamicResource RadioTarjeta}"
                 Background="{DynamicResource PincelTarjeta}"
-                BorderBrush="{Binding Resultado, Converter={StaticResource PlantillaEstadoAPincel},
-                              ConverterParameter=borde}"
-                BorderThickness="1">
+                BorderBrush="{DynamicResource PincelBorde}"
+                BorderThickness="1"
+                ClipToBounds="True">
             <Grid>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="4" />
-                    <ColumnDefinition Width="*" />
-                </Grid.ColumnDefinitions>
-    
-                <Border Grid.Column="0" CornerRadius="10,0,0,10"
-                        Background="{Binding Resultado, Converter={StaticResource PlantillaEstadoAPincel},
-                                     ConverterParameter=borde}" />
-    
-                <StackPanel Grid.Column="1" Margin="18,16">
-                    <TextBlock Text="{Binding TituloResultado}" FontWeight="Bold" FontSize="11"
-                               Margin="0,0,0,8"
-                               Foreground="{Binding Resultado, Converter={StaticResource PlantillaEstadoAPincel},
-                                            ConverterParameter=borde}" />
-    
+                <!--
+                    El tinte: un velo del color del estado al 7%, no el pincel "suave" de la
+                    paleta usado de fondo. Con el fondo directo, una pregunta salteada quedaba
+                    como un bloque ambar pleno con el texto encima ilegible — los dos tonos del
+                    pendiente estan invertidos respecto de acierto y error (ver la seccion
+                    semantica de Tokens.Oscuro.xaml). El velo da el mismo tinte apenas
+                    perceptible en los tres estados, sin depender de que par de tonos tenga cada
+                    uno.
+                -->
+                <Border Background="{Binding Resultado, Converter={StaticResource PlantillaEstadoAPincel},
+                                     ConverterParameter=rotulo}"
+                        Opacity="0.07" IsHitTestVisible="False" />
+
+                <StackPanel Margin="20,18">
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                        <ui:SymbolIcon FontSize="15" VerticalAlignment="Center" Margin="0,0,8,0"
+                                       Foreground="{Binding Resultado, Converter={StaticResource PlantillaEstadoAPincel},
+                                                    ConverterParameter=rotulo}">
+                            <ui:SymbolIcon.Style>
+                                <Style TargetType="ui:SymbolIcon">
+                                    <!-- Salteada y sin corregir comparten el reloj: las dos
+                                         significan "esto quedo pendiente". -->
+                                    <Setter Property="Symbol" Value="Clock24" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding Resultado}" Value="Correcta">
+                                            <Setter Property="Symbol" Value="CheckmarkCircle24" />
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding Resultado}" Value="Incorrecta">
+                                            <Setter Property="Symbol" Value="DismissCircle24" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </ui:SymbolIcon.Style>
+                        </ui:SymbolIcon>
+
+                        <TextBlock Text="{Binding TituloResultado}" FontWeight="Bold" FontSize="11"
+                                   VerticalAlignment="Center"
+                                   Foreground="{Binding Resultado, Converter={StaticResource PlantillaEstadoAPincel},
+                                                ConverterParameter=rotulo}" />
+                    </StackPanel>
+
                     <TextBox Text="{Binding TextoPregunta, Mode=OneWay}"
                              Style="{StaticResource TextoSeleccionable}"
                              Margin="0,0,0,10" />
-    
+
                     <Image Source="{Binding RutaImagenAdjunta, Converter={StaticResource PlantillaRutaAImagen}}"
                            MaxHeight="200" HorizontalAlignment="Left" Margin="0,0,0,10"
                            Stretch="Uniform"
                            Visibility="{Binding TieneImagen, Converter={StaticResource PlantillaBoolToVis}}" />
-    
+
                     <TextBlock Text="{Binding TextoRespuestaUsuario, StringFormat='Tu respuesta: {0}'}"
                                Style="{StaticResource TxtSuave}" />
-    
+
                     <!--
                         De donde salio la pregunta. Va en TODAS, tambien en las
                         falladas: la pagina es lo que necesitas para ir a estudiar,
@@ -125,5 +164,6 @@
             </Grid>
         </Border>
     </DataTemplate>
+
 
 </ResourceDictionary>

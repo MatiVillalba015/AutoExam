@@ -274,7 +274,18 @@ public partial class ExamenViewModel : PaginaViewModel, IPantallaDeExamen
     private bool _mostrarFelicitacion;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(NotaFraccion))]
     private int _nota;
+
+    /// <summary>
+    /// La nota como fraccion de 0 a 1, para el anillo de la correccion (US-057).
+    ///
+    /// Se calcula aca y no en la vista por la misma razon que <c>PromedioFraccion</c> en el
+    /// Historial: el arco necesita una fraccion, no un numero, y hacer la division en un
+    /// converter obligaria a que el converter conociera la escala. La escala de la nota es
+    /// del dominio (0 a 10, UBA), asi que vive con el resto del dominio.
+    /// </summary>
+    public double NotaFraccion => Math.Clamp(Nota / 10d, 0, 1);
 
     [ObservableProperty]
     private bool _aprobado;
@@ -347,7 +358,7 @@ public partial class ExamenViewModel : PaginaViewModel, IPantallaDeExamen
     /// que la vista toma las teclas (RN-44): la ayuda no puede desincronizarse de lo que las
     /// teclas hacen de verdad, que es el modo habitual en que una lista de atajos miente.
     /// </summary>
-    public IReadOnlyList<(string Teclas, string Que)> Atajos => AtajosExamen.Referencia;
+    public IReadOnlyList<AtajoDelExamen> Atajos => AtajosExamen.Referencia;
 
     [RelayCommand]
     private void OcultarAtajos()

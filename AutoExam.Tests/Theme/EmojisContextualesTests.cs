@@ -31,7 +31,12 @@ public class EmojisContextualesTests
         ("AutoExam/Views/AsistenteView.xaml",  "1F4DD", "Nuevo examen"),      // memo: examen
         ("AutoExam/Views/BibliotecaView.xaml", "1F4DA", "Libros"),            // libros: material
         ("AutoExam/Views/HistorialView.xaml",  "1F4CA", "Historial"),         // grafico: estadisticas
-        ("AutoExam/Views/HistorialView.xaml",  "1F5D1", "Borrar historial"),  // tacho: borrar
+
+        // El tacho 🗑 de "Borrar historial" salió de la lista en US-044: ese botón pasó a
+        // "Borrar todo historial", con el ícono Delete24 del set de la app en vez del emoji,
+        // para acompañar a los otros dos íconos de acción de la misma pantalla (ver el detalle
+        // y borrar un examen), que nunca fueron emoji. La lista sigue siendo acotada — es la
+        // garantía de RN-12 —, sólo que ahora tiene un texto menos.
         ("AutoExam/Views/ExamenView.xaml",     "1F389", ""),                  // fiesta: felicitacion US-013
     };
 

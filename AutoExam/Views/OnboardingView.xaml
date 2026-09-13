@@ -4,48 +4,149 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+             xmlns:vistas="clr-namespace:AutoExam.Views"
              xmlns:vm="clr-namespace:AutoExam.ViewModels"
              mc:Ignorable="d"
              d:DataContext="{d:DesignInstance Type=vm:OnboardingViewModel}">
 
-    <Border Background="{DynamicResource PincelFondo}">
-        <StackPanel MaxWidth="420" VerticalAlignment="Center" HorizontalAlignment="Center" Margin="0,0,0,40">
+    <!--
+        US-042 — configuracion inicial.
 
-            <TextBlock Text="AutoExam" Style="{StaticResource TxtTitulo}" HorizontalAlignment="Center" />
-            <TextBlock Style="{StaticResource TxtSuave}" HorizontalAlignment="Center" TextAlignment="Center"
-                       Margin="0,10,0,38"
-                       Text="Examenes multiple choice a partir de tus PDF, corregidos con la escala de la UBA." />
+        Deja de ser una columna angosta centrada y pasa a las dos mitades del mockup: a la
+        izquierda quien sos y que se te pide (titulo, bajada, la clave), a la derecha que hacer
+        con eso (verificar, ver como va, conseguir una clave). Separarlas es lo que hace que la
+        pantalla no se lea como un formulario largo: lo que se completa esta de un lado y lo que
+        se aprieta del otro.
 
-            <TextBlock Text="API KEY DE GOOGLE GEMINI" Style="{StaticResource TxtRotulo}" />
-            <ui:PasswordBox PlaceholderText="AQ.Ab8..." RevealButtonEnabled="True"
-                            AutomationProperties.Name="API Key de Google Gemini"
-                            Password="{Binding ApiKey, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+        La clave ya no es un cuadro de texto donde se pegaban todas separadas por coma: es una
+        pestania por clave (CamposDeClaves), el mismo control que usa Ajustes.
+    -->
+    <Border Background="{DynamicResource PincelFondo}" ClipToBounds="True">
+        <Grid>
+            <!--
+                Detalle decorativo del mockup: circunferencias muy tenues que salen del icono
+                hacia afuera. Van con Stroke y sin relleno y a opacidad baja para que sugieran
+                profundidad sin competir con nada; a este tamanio, en pantalla se leen como un
+                degrade suave y no como circulos.
+            -->
+            <Canvas ClipToBounds="True" IsHitTestVisible="False" Opacity="0.5">
+                <Ellipse Canvas.Right="-180" Canvas.Top="-260" Width="900" Height="900"
+                         Stroke="{DynamicResource PincelBorde}" StrokeThickness="1" />
+                <Ellipse Canvas.Right="-60" Canvas.Top="-150" Width="620" Height="620"
+                         Stroke="{DynamicResource PincelBorde}" StrokeThickness="1" />
+                <Ellipse Canvas.Right="40" Canvas.Top="-60" Width="380" Height="380"
+                         Stroke="{DynamicResource PincelBorde}" StrokeThickness="1" />
+            </Canvas>
 
-            <TextBlock Text="Si tenés mas de una clave, pegalas separadas por comas: al agotarse la cuota diaria de una, AutoExam sigue con la siguiente."
-                       Style="{StaticResource TxtDato}" TextWrapping="Wrap" Margin="0,6,0,0" />
+            <Grid MaxWidth="980" HorizontalAlignment="Center" VerticalAlignment="Center"
+                  Margin="40,0,40,30">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
 
-            <ui:HyperlinkButton Content="Conseguir una gratis en Google AI Studio"
-                                NavigateUri="https://aistudio.google.com/app/apikey"
-                                FontSize="11" Padding="0,4" HorizontalAlignment="Left" Margin="0,4,0,24" />
+                <!-- ============================================================ -->
+                <!-- Encabezado: quien sos, y el emblema con la inicial            -->
+                <!-- ============================================================ -->
+                <Grid Grid.Row="0" Margin="0,0,0,52">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
 
-            <ui:Button Content="Verificar y empezar" Appearance="Primary" ToolTip="Le hace una consulta minima a Gemini para confirmar que la clave funciona antes de entrar"
-                       HorizontalAlignment="Stretch" Padding="0,13" FontSize="14"
-                       Command="{Binding VerificarCommand}" />
+                    <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                        <TextBlock Text="AutoExam" Style="{StaticResource TxtHeroe}" />
+                        <TextBlock Style="{StaticResource TxtSuave}" TextWrapping="Wrap"
+                                   Margin="0,12,0,0" MaxWidth="520" HorizontalAlignment="Left"
+                                   Text="Examenes multiple choice a partir de tus PDF, corregidos con la escala de la UBA." />
+                    </StackPanel>
 
-            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,18,0,0"
-                        Visibility="{Binding Verificando, Converter={StaticResource BoolToVis}}">
-                <ui:ProgressRing IsIndeterminate="True" Width="18" Height="18" />
-                <TextBlock Text="{Binding Paso}" Style="{StaticResource TxtSuave}"
-                           VerticalAlignment="Center" Margin="10,0,0,0" />
-            </StackPanel>
+                    <!-- El emblema: cuadrado redondeado con el mismo degradado violeta que los
+                         iconos del menu (US-041), con la inicial adentro y un punto suelto
+                         arriba a la derecha. -->
+                    <Grid Grid.Column="1" VerticalAlignment="Center" Margin="32,0,0,0">
+                        <Border Width="96" Height="96" CornerRadius="28"
+                                Background="{DynamicResource PincelIconoAccion}"
+                                BorderBrush="{DynamicResource PincelBordeFuerte}" BorderThickness="1">
+                            <TextBlock Text="A" Style="{StaticResource TxtHeroe}" FontSize="46"
+                                       HorizontalAlignment="Center" VerticalAlignment="Center"
+                                       Foreground="{DynamicResource PincelMarcaFuerte}" />
+                        </Border>
 
-            <ui:InfoBar Severity="Error" IsClosable="False" Margin="0,18,0,0"
-                        Title="{Binding MensajeTitulo}" Message="{Binding Mensaje}"
-                        IsOpen="{Binding HayMensaje, Mode=OneWay}" />
+                        <Ellipse Width="10" Height="10" Margin="0,-4,-4,0"
+                                 HorizontalAlignment="Right" VerticalAlignment="Top"
+                                 Fill="{DynamicResource PincelMarcaFuerte}" />
+                    </Grid>
+                </Grid>
 
-            <Button Content="Entrar sin verificar" Style="{StaticResource ChipAccion}" ToolTip="Entra igual sin probar la clave: vas a poder usar la app pero no generar examenes hasta que sirva"
-                    HorizontalAlignment="Center" Margin="0,22,0,0"
-                    Command="{Binding OmitirCommand}" />
-        </StackPanel>
+                <!-- ============================================================ -->
+                <!-- Cuerpo: la clave a la izquierda, que hacer con ella a la      -->
+                <!-- derecha                                                       -->
+                <!-- ============================================================ -->
+                <Grid Grid.Row="1">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="40" />
+                        <ColumnDefinition Width="380" />
+                    </Grid.ColumnDefinitions>
+
+                    <StackPanel Grid.Column="0" VerticalAlignment="Top">
+                        <TextBlock Text="API KEY DE GOOGLE GEMINI" Style="{StaticResource TxtRotulo}" />
+
+                        <vistas:CamposDeClaves DataContext="{Binding Claves}" />
+
+                        <!-- El texto cambio con el esquema: ya no se pegan separadas por coma,
+                             se agrega una pestania por clave. Lo que NO cambio, y es lo unico
+                             que al alumno le importa, es para que sirve tener varias. -->
+                        <TextBlock Style="{StaticResource TxtDato}" TextWrapping="Wrap" Margin="0,14,0,0"
+                                   MaxWidth="440" HorizontalAlignment="Left"
+                                   Text="Si tenés más de una clave, agregá una pestaña por cada una: al agotarse la cuota diaria de la primera, AutoExam sigue con la siguiente." />
+                    </StackPanel>
+
+                    <Border Grid.Column="2" Style="{StaticResource TarjetaSeleccionable}"
+                            Padding="20,20" VerticalAlignment="Top">
+                        <StackPanel>
+                            <ui:Button Content="Verificar y empezar" Appearance="Primary"
+                                       ToolTip="Le hace una consulta minima a Gemini para confirmar que la clave funciona antes de entrar"
+                                       HorizontalAlignment="Stretch" Padding="0,13" FontSize="14"
+                                       Command="{Binding VerificarCommand}" />
+
+                            <!-- Como va la prueba. Ocupa lugar solo mientras corre: un renglon
+                                 vacio esperando debajo del boton parece algo que fallo. -->
+                            <StackPanel Margin="0,16,0,0"
+                                        Visibility="{Binding Verificando, Converter={StaticResource BoolToVis}}">
+                                <StackPanel Orientation="Horizontal">
+                                    <ui:ProgressRing IsIndeterminate="True" Width="16" Height="16" />
+                                    <TextBlock Text="{Binding Paso}" Style="{StaticResource TxtDato}"
+                                               VerticalAlignment="Center" Margin="10,0,0,0"
+                                               TextTrimming="CharacterEllipsis" />
+                                </StackPanel>
+
+                                <ProgressBar IsIndeterminate="True" Height="3" Margin="0,10,0,0" />
+                            </StackPanel>
+
+                            <ui:HyperlinkButton Content="Conseguí una gratis en Google AI Studio"
+                                                NavigateUri="https://aistudio.google.com/app/apikey"
+                                                ToolTip="Abre Google AI Studio en el navegador para crear una clave sin costo"
+                                                FontSize="12" Padding="0,4" HorizontalAlignment="Left"
+                                                Margin="0,18,0,0" />
+                        </StackPanel>
+                    </Border>
+                </Grid>
+
+                <ui:InfoBar Grid.Row="2" Severity="Error" IsClosable="False" Margin="0,24,0,0"
+                            Title="{Binding MensajeTitulo}" Message="{Binding Mensaje}"
+                            IsOpen="{Binding HayMensaje, Mode=OneWay}" />
+
+                <!-- La valvula de escape va al pie y a la derecha, lejos de la accion
+                     principal: tiene que estar, pero no invitar. -->
+                <Button Grid.Row="3" Content="Entrar sin verificar" Style="{StaticResource ChipAccion}"
+                        ToolTip="Entra igual sin probar la clave: vas a poder usar la app pero no generar examenes hasta que sirva"
+                        HorizontalAlignment="Right" Margin="0,30,0,0"
+                        Command="{Binding OmitirCommand}" />
+            </Grid>
+        </Grid>
     </Border>
 </UserControl>

@@ -48,4 +48,27 @@ public interface INavegacion
 
     /// <summary>Refresca la etiqueta "Gemini: modelo" de la barra inferior.</summary>
     void RefrescarEstadoApi();
+
+    /// <summary>
+    /// Escala toda la interfaz (US-048). Va por el shell y no por un servicio estatico porque
+    /// la transformacion vive en la ventana: es un solo punto para toda la app (RN-56), no un
+    /// tamanio que cada pantalla resuelva por su cuenta.
+    /// </summary>
+    void AplicarZoom(double escala);
+
+    /// <summary>
+    /// Aviso informativo breve dentro de la ventana (US-050). El shell decide si mostrarlo
+    /// segun la preferencia del usuario; quien avisa no tiene que consultarla.
+    ///
+    /// Nunca reemplaza un error ni una confirmacion (RN-58): esos siguen yendo por
+    /// <c>IDialogos</c> y por las InfoBar de cada pantalla, que no pasan por aca.
+    /// </summary>
+    void Notificar(string mensaje);
+
+    /// <summary>
+    /// Vuelve a leer todo desde disco (US-051): despues de importar una copia de seguridad,
+    /// lo que hay en memoria —libros, materias, historial, config— ya no es lo que hay en la
+    /// carpeta de datos.
+    /// </summary>
+    void RecargarDatos();
 }

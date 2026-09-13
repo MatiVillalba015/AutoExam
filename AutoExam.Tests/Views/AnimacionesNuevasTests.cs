@@ -31,14 +31,25 @@ public class AnimacionesNuevasTests
             .SelectMany(t => t.Descendants().Where(d => d.Name.LocalName == "DoubleAnimation"))
             .ToList();
 
+    /// <summary>
+    /// La superficie de la nota al terminar un examen. Se la ubicaba por
+    /// <c>CornerRadius="43"</c>, que era la mitad del disco de 86 px que había antes de US-057.
+    /// Ahora la nota es un anillo de progreso (el mismo lenguaje que el "Promedio" del
+    /// Historial), así que el contenedor ya no es un Border redondeado sino el Grid que
+    /// sostiene riel, arco y número. Se lo ubica por lo que no cambió con el rediseño y es lo
+    /// que este archivo verifica: es la superficie que anima y la que muestra la nota.
+    /// </summary>
     private static XElement CirculoDeLaNota()
     {
-        var borde = Vista("AutoExam/Views/ExamenView.xaml").Descendants()
-            .FirstOrDefault(e => e.Name.LocalName == "Border" &&
-                                 (e.Attribute("CornerRadius")?.Value ?? string.Empty) == "43");
+        var superficie = Vista("AutoExam/Views/ExamenView.xaml").Descendants()
+            .FirstOrDefault(e => e.Elements().Any(h => h.Name.LocalName.EndsWith(".RenderTransform", StringComparison.Ordinal)) &&
+                                 // Hijo directo y no descendiente: el Grid de resultados entero
+                                 // también "contiene" el arco, y es el que aparece primero.
+                                 e.Elements().Any(d => d.Name.LocalName == "Ellipse" &&
+                                     (d.Attribute("StrokeDashArray")?.Value ?? string.Empty).Contains("NotaFraccion", StringComparison.Ordinal)));
 
-        Assert.True(borde is not null, "No se encontró el círculo de la nota en ExamenView.xaml.");
-        return borde!;
+        Assert.True(superficie is not null, "No se encontró el círculo de la nota en ExamenView.xaml.");
+        return superficie!;
     }
 
     private static XElement TarjetaDeEstadisticas()

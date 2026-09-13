@@ -36,6 +36,16 @@ public interface IDialogos
     /// </summary>
     string? ElegirDondeGuardarExamen(string nombreSugerido);
 
+    /// <summary>
+    /// Donde guardar la copia de seguridad (US-051). Devuelve la ruta elegida, o null si se
+    /// cancelo. Separado de <see cref="ElegirDondeGuardarExamen"/> porque son dos formatos
+    /// distintos: uno lleva un examen y el otro la biblioteca entera.
+    /// </summary>
+    string? ElegirDondeGuardarCopia(string nombreSugerido);
+
+    /// <summary>Copia de seguridad a importar (US-051). Devuelve la ruta, o null si se cancelo.</summary>
+    string? ElegirCopiaDeSeguridad();
+
     void AbrirCarpeta(string ruta);
 }
 
@@ -96,6 +106,37 @@ public class DialogoService : IDialogos
 
         return dialogo.ShowDialog() == true ? dialogo.FileName : null;
     }
+
+    public string? ElegirDondeGuardarCopia(string nombreSugerido)
+    {
+        var dialogo = new SaveFileDialog
+        {
+            Title = "Guardar la copia de seguridad de AutoExam",
+            Filter = FiltroCopias(),
+            FileName = nombreSugerido,
+            DefaultExt = CopiaDeSeguridadService.Extension,
+            AddExtension = true,
+        };
+
+        return dialogo.ShowDialog() == true ? dialogo.FileName : null;
+    }
+
+    public string? ElegirCopiaDeSeguridad()
+    {
+        var dialogo = new OpenFileDialog
+        {
+            Title = "Elegi la copia de seguridad que queres restaurar",
+            Filter = FiltroCopias(),
+        };
+
+        return dialogo.ShowDialog() == true ? dialogo.FileName : null;
+    }
+
+    // "Todos los archivos" queda al final y no como primera opcion: la copia tiene extension
+    // propia justamente para que el selector no ofrezca abrir cualquier ZIP suelto.
+    private static string FiltroCopias() => string.Join("|",
+        $"Copia de seguridad de AutoExam (*{CopiaDeSeguridadService.Extension})|*{CopiaDeSeguridadService.Extension}",
+        "Todos los archivos (*.*)|*.*");
 
     // .axexam es un JSON con otra extension: la extension propia es lo que hace que el
     // archivo se reconozca de un vistazo en Descargas y que el selector no ofrezca abrir

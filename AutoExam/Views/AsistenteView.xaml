@@ -11,8 +11,55 @@
              mc:Ignorable="d"
              d:DataContext="{d:DesignInstance Type=vm:AsistenteViewModel}">
 
-    <Grid MaxWidth="820" HorizontalAlignment="Center">
+    <UserControl.Resources>
+        <!--
+            US-058 — una linea del panel "Tu examen".
+
+            Toma un PasoAsistente y muestra su resumen, o —si todavia no se llego a ese paso—
+            la aclaracion atenuada de donde se define. El texto del resumen es el MISMO objeto
+            que dibuja el riel de arriba, asi que el panel no puede decir una cosa distinta de
+            la que dice el riel (RN-68), y la aclaracion se arma con el titulo del propio paso
+            en vez de una frase escrita a mano por campo.
+        -->
+        <DataTemplate x:Key="LineaDelPanel" DataType="{x:Type vm:PasoAsistente}">
+            <Grid>
+                <TextBlock Text="{Binding Resumen}" Style="{StaticResource TxtCuerpo}"
+                           TextWrapping="Wrap"
+                           Visibility="{Binding Pendiente, Converter={StaticResource BoolAVisibilidad},
+                                        ConverterParameter=invertir}" />
+
+                <TextBlock Style="{StaticResource TxtTenue}" TextWrapping="Wrap"
+                           Visibility="{Binding Pendiente, Converter={StaticResource BoolToVis}}">
+                    <Run Text="Se define en el paso" /><Run Text=" " /><Run Text="{Binding Titulo, Mode=OneWay}" />
+                </TextBlock>
+            </Grid>
+        </DataTemplate>
+    </UserControl.Resources>
+
+    <!--
+        US-058 — el asistente en dos columnas.
+
+        A la izquierda el paso que se esta completando; a la derecha el panel "Tu examen", que
+        acompania los tres pasos. El panel vive en una COLUMNA del Grid raiz y no adentro del
+        ScrollViewer del paso: es lo que lo mantiene a la vista al bajar por una lista de veinte
+        documentos, sin necesidad de ningun comportamiento de scroll propio.
+
+        El titulo y el riel cruzan las dos columnas; el pie tambien, porque "Atras" pertenece al
+        recorrido y no al paso.
+    -->
+    <!-- El ancho maximo va con HorizontalAlignment Stretch, no Center: un
+         Grid centrado se mide por su contenido, asi que el riel y el panel se correrian de
+         lugar al pasar a un paso con tarjetas mas angostas. Con Stretch el Grid siempre pide
+         los 1160 y WPF lo centra igual cuando la ventana es mas ancha (RN-13). Va escrito
+         aunque sea el valor por defecto, para que borrarlo se vea en el diff. -->
+    <Grid MaxWidth="1160" HorizontalAlignment="Stretch">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="20" />
+            <ColumnDefinition Width="320" />
+        </Grid.ColumnDefinitions>
         <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
@@ -20,13 +67,14 @@
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <TextBlock Grid.Row="0" Text="&#x1F4DD; Nuevo examen" Style="{StaticResource TxtSeccion}" Margin="0,0,0,18" />
+        <TextBlock Grid.Row="0" Grid.ColumnSpan="3" Text="&#x1F4DD; Nuevo examen"
+                   Style="{StaticResource TxtSeccion}" Margin="0,0,0,18" />
 
         <!-- ============================================================ -->
         <!-- Riel de pasos. El subtitulo de cada paso no repite su nombre: -->
         <!-- muestra lo que el usuario ya eligio ahi.                      -->
         <!-- ============================================================ -->
-        <ItemsControl Grid.Row="1" ItemsSource="{Binding Pasos}" Margin="0,0,0,22">
+        <ItemsControl Grid.Row="1" Grid.ColumnSpan="3" ItemsSource="{Binding Pasos}" Margin="0,0,0,22">
             <ItemsControl.ItemsPanel>
                 <ItemsPanelTemplate>
                     <UniformGrid Rows="1" />
@@ -54,10 +102,24 @@
                                                 Background="Transparent"
                                                 BorderBrush="{DynamicResource PincelBordeFuerte}"
                                                 BorderThickness="1.5">
-                                            <TextBlock x:Name="Numero" Text="{Binding Numero}"
-                                                       FontFamily="{DynamicResource FuenteDato}" FontSize="11"
-                                                       Foreground="{DynamicResource PincelTextoSuave}"
-                                                       HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                            <Grid>
+                                                <TextBlock x:Name="Numero" Text="{Binding Numero}"
+                                                           FontFamily="{DynamicResource FuenteDato}" FontSize="11"
+                                                           Foreground="{DynamicResource PincelTextoSuave}"
+                                                           HorizontalAlignment="Center" VerticalAlignment="Center" />
+
+                                                <!-- US-043: un paso ya hecho muestra el tilde en lugar de
+                                                     su numero. El numero de un paso terminado no informa
+                                                     nada —siempre esta en el mismo lugar del riel—, y el
+                                                     tilde separa de un vistazo lo hecho de lo que falta.
+                                                     Los dos conviven en el mismo circulo y se turnan por
+                                                     Visibility: cambiar el Text del mismo TextBlock haria
+                                                     que el tilde herede la fuente mono del numero. -->
+                                                <ui:SymbolIcon x:Name="Tilde" Symbol="Checkmark24" FontSize="13"
+                                                               Visibility="Collapsed"
+                                                               Foreground="{DynamicResource PincelMarcaFuerte}"
+                                                               HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                            </Grid>
                                         </Border>
 
                                         <TextBlock x:Name="Titulo" Grid.Column="1" Text="{Binding Titulo}"
@@ -94,7 +156,8 @@
                                     <DataTrigger Binding="{Binding Completado}" Value="True">
                                         <Setter TargetName="Circulo" Property="BorderBrush" Value="{DynamicResource PincelMarca}" />
                                         <Setter TargetName="Circulo" Property="Background" Value="{DynamicResource PincelMarcaSuave}" />
-                                        <Setter TargetName="Numero" Property="Foreground" Value="{DynamicResource PincelMarcaFuerte}" />
+                                        <Setter TargetName="Numero" Property="Visibility" Value="Collapsed" />
+                                        <Setter TargetName="Tilde" Property="Visibility" Value="Visible" />
                                         <!-- Linea llena para un paso ya hecho: sin animar (al llegar aca
                                              viniendo de "actual" ya estaba en 1; si se salto directo, un
                                              snap es aceptable). -->
@@ -177,6 +240,27 @@
         </ItemsControl>
 
         <!-- ============================================================ -->
+        <!-- US-043 — etiqueta del paso actual, arriba del contenido.      -->
+        <!--                                                               -->
+        <!-- El riel dice donde estas dentro de los tres pasos; esta       -->
+        <!-- etiqueta dice que estas mirando ahora mismo, pegada a lo que  -->
+        <!-- se completa. Es el mismo numero y el mismo nombre del riel:   -->
+        <!-- no agrega ningun dato, solo lo repite donde cae la vista al   -->
+        <!-- empezar a leer la tarjeta.                                    -->
+        <!-- ============================================================ -->
+        <StackPanel Grid.Row="2" Grid.Column="0" Orientation="Horizontal" Margin="0,0,0,14">
+            <Border Padding="7,2" CornerRadius="{DynamicResource RadioCampo}"
+                    Background="{DynamicResource PincelMarcaSuave}"
+                    BorderBrush="{DynamicResource PincelMarca}" BorderThickness="1">
+                <TextBlock Text="{Binding PasoNumerado}" Style="{StaticResource TxtDato}"
+                           FontSize="11" Foreground="{DynamicResource PincelMarcaFuerte}" />
+            </Border>
+
+            <TextBlock Text="{Binding PasoNombrado}" Style="{StaticResource TxtRotulo}"
+                       Margin="12,0,0,0" VerticalAlignment="Center" />
+        </StackPanel>
+
+        <!-- ============================================================ -->
         <!-- Contenido del paso                                            -->
         <!-- ============================================================ -->
         <!--
@@ -193,7 +277,7 @@
             entra (el paso de Material con veinte documentos), MinHeight queda por debajo del
             alto real, no aplica, y scrollea como siempre desde arriba.
         -->
-        <ScrollViewer x:Name="AreaDelPaso" Grid.Row="2" VerticalScrollBarVisibility="Auto"
+        <ScrollViewer x:Name="AreaDelPaso" Grid.Row="3" VerticalScrollBarVisibility="Auto"
                       Padding="0,0,12,0">
             <Grid MinHeight="{Binding ViewportHeight, ElementName=AreaDelPaso}">
 
@@ -218,13 +302,18 @@
                     <!-- desde el Historial. El atajo del Historial lleva al mismo      -->
                     <!-- flujo, no a otra pantalla.                                     -->
                     <!-- ============================================================ -->
+                    <!-- US-058: cada grupo de opciones pasa a vivir en su propia tarjeta con
+                         encabezado. Antes el titulo y las cuatro opciones flotaban sueltos
+                         sobre el fondo, y con tres grupos apilados no se veia donde terminaba
+                         uno y empezaba el siguiente. -->
+                    <Border Style="{StaticResource Tarjeta}" Margin="0,0,0,16">
+                    <StackPanel>
                     <TextBlock Text="¿De donde salen las preguntas?" Style="{StaticResource TxtCuerpo}"
-                               Margin="0,0,0,12" />
+                               FontWeight="SemiBold" Margin="0,0,0,14" />
 
-                    <UniformGrid Columns="2" Margin="0,0,0,20">
-                        <RadioButton Style="{StaticResource Chip}" GroupName="OrigenPreguntas"
-                                     MinHeight="70" Margin="0,0,6,0"
-                                     HorizontalContentAlignment="Stretch"
+                    <UniformGrid Columns="2">
+                        <RadioButton Style="{StaticResource TarjetaDeOpcion}" GroupName="OrigenPreguntas"
+                                     Margin="0,0,6,0"
                                      IsChecked="{Binding ModoMaterial, Mode=OneWay}"
                                      Command="{Binding UsarMaterialCommand}"
                                      AutomationProperties.Name="Generar preguntas nuevas con IA a partir de material">
@@ -235,9 +324,8 @@
                             </StackPanel>
                         </RadioButton>
 
-                        <RadioButton Style="{StaticResource Chip}" GroupName="OrigenPreguntas"
-                                     MinHeight="70" Margin="6,0,0,0"
-                                     HorizontalContentAlignment="Stretch"
+                        <RadioButton Style="{StaticResource TarjetaDeOpcion}" GroupName="OrigenPreguntas"
+                                     Margin="6,0,0,0"
                                      IsChecked="{Binding ModoCombinado, Mode=OneWay}"
                                      Command="{Binding UsarExamenesAnterioresCommand}"
                                      AutomationProperties.Name="Combinar examenes que ya rendiste">
@@ -250,9 +338,8 @@
 
                         <!-- US-032 — repaso inteligente. Comparte fila con los otros origenes
                              porque responde la misma pregunta: de donde salen las preguntas. -->
-                        <RadioButton Style="{StaticResource Chip}" GroupName="OrigenPreguntas"
-                                     MinHeight="70" Margin="0,12,6,0"
-                                     HorizontalContentAlignment="Stretch"
+                        <RadioButton Style="{StaticResource TarjetaDeOpcion}" GroupName="OrigenPreguntas"
+                                     Margin="0,12,6,0"
                                      IsChecked="{Binding ModoFalladas, Mode=OneWay}"
                                      Command="{Binding UsarPreguntasFalladasCommand}"
                                      AutomationProperties.Name="Repasar solo las preguntas que fallaste">
@@ -264,9 +351,8 @@
                         </RadioButton>
 
                         <!-- US-037 — un examen que compartio un compañero. -->
-                        <RadioButton Style="{StaticResource Chip}" GroupName="OrigenPreguntas"
-                                     MinHeight="70" Margin="6,12,0,0"
-                                     HorizontalContentAlignment="Stretch"
+                        <RadioButton Style="{StaticResource TarjetaDeOpcion}" GroupName="OrigenPreguntas"
+                                     Margin="6,12,0,0"
                                      IsChecked="{Binding ModoImportado, Mode=OneWay}"
                                      Command="{Binding UsarExamenImportadoCommand}"
                                      AutomationProperties.Name="Rendir un examen que te compartieron">
@@ -277,11 +363,18 @@
                             </StackPanel>
                         </RadioButton>
                     </UniformGrid>
+                    </StackPanel>
+                    </Border>
 
                     <!-- ============================================================ -->
                     <!-- US-032 — elegir de que materia o documento repasar lo fallado  -->
                     <!-- ============================================================ -->
-                    <StackPanel Visibility="{Binding ModoFalladas, Converter={StaticResource BoolToVis}}">
+                    <Border Style="{StaticResource Tarjeta}" Margin="0,0,0,16"
+                            Visibility="{Binding ModoFalladas, Converter={StaticResource BoolToVis}}">
+                    <StackPanel>
+                        <TextBlock Text="¿Qué querés repasar?" Style="{StaticResource TxtCuerpo}"
+                                   FontWeight="SemiBold" Margin="0,0,0,6" />
+
                         <TextBlock Text="{Binding ResumenFalladas}" Style="{StaticResource TxtSuave}"
                                    TextWrapping="Wrap" Margin="0,0,0,12" />
 
@@ -312,11 +405,17 @@
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
                     </StackPanel>
+                    </Border>
 
                     <!-- ============================================================ -->
                     <!-- US-037 — examenes importados                                  -->
                     <!-- ============================================================ -->
-                    <StackPanel Visibility="{Binding ModoImportado, Converter={StaticResource BoolToVis}}">
+                    <Border Style="{StaticResource Tarjeta}" Margin="0,0,0,16"
+                            Visibility="{Binding ModoImportado, Converter={StaticResource BoolToVis}}">
+                    <StackPanel>
+                        <TextBlock Text="Elegí el examen compartido" Style="{StaticResource TxtCuerpo}"
+                                   FontWeight="SemiBold" Margin="0,0,0,6" />
+
                         <TextBlock Text="{Binding ResumenImportado}" Style="{StaticResource TxtSuave}"
                                    TextWrapping="Wrap" Margin="0,0,0,12" />
 
@@ -374,11 +473,17 @@
                             </ListBox.ItemTemplate>
                         </ListBox>
                     </StackPanel>
+                    </Border>
 
                     <!-- ============================================================ -->
                     <!-- Modo repaso: elegir los examenes a combinar                   -->
                     <!-- ============================================================ -->
-                    <StackPanel Visibility="{Binding ModoCombinado, Converter={StaticResource BoolToVis}}">
+                    <Border Style="{StaticResource Tarjeta}" Margin="0,0,0,16"
+                            Visibility="{Binding ModoCombinado, Converter={StaticResource BoolToVis}}">
+                    <StackPanel>
+                        <TextBlock Text="Elegí los exámenes a combinar" Style="{StaticResource TxtCuerpo}"
+                                   FontWeight="SemiBold" Margin="0,0,0,6" />
+
                         <TextBlock Text="{Binding ResumenRepaso}" Style="{StaticResource TxtSuave}"
                                    TextWrapping="Wrap" Margin="0,0,0,12" />
 
@@ -440,12 +545,19 @@
                                 Command="{Binding DestildarExamenesCommand}"
                                 Visibility="{Binding HayExamenesParaRepaso, Converter={StaticResource BoolToVis}}" />
                     </StackPanel>
+                    </Border>
 
                     <!-- ============================================================ -->
                     <!-- Modo material: lo de siempre                                   -->
+                    <!--                                                               -->
+                    <!-- US-058 lo parte en dos tarjetas —la materia y los documentos—  -->
+                    <!-- porque son dos decisiones distintas: la primera filtra, la     -->
+                    <!-- segunda elige. Con un solo "¿De que material?" arriba de las    -->
+                    <!-- dos, el paso se leia como una lista larga y no como dos pasos   -->
+                    <!-- chicos. El texto viejo sobrevive en el encabezado de la tarjeta -->
+                    <!-- de materia, que es la que responde esa pregunta.                -->
                     <!-- ============================================================ -->
                     <StackPanel Visibility="{Binding ModoMaterial, Converter={StaticResource BoolToVis}}">
-                    <TextBlock Text="¿De que material?" Style="{StaticResource TxtCuerpo}" Margin="0,0,0,14" />
 
                     <!-- ============================================================ -->
                     <!-- US-024 — Materia primero, despues los documentos.             -->
@@ -455,10 +567,13 @@
                     <!-- juntos dos documentos de materias distintas para poder        -->
                     <!-- tildarlos a la vez.                                           -->
                     <!-- ============================================================ -->
-                    <TextBlock Text="MATERIA" Style="{StaticResource TxtRotulo}"
-                               Visibility="{Binding HayLibros, Converter={StaticResource BoolToVis}}" />
-                    <ItemsControl ItemsSource="{Binding Materias}" Margin="0,0,0,16"
-                                  Visibility="{Binding HayLibros, Converter={StaticResource BoolToVis}}">
+                    <Border Style="{StaticResource Tarjeta}" Margin="0,0,0,16"
+                            Visibility="{Binding HayLibros, Converter={StaticResource BoolToVis}}">
+                    <StackPanel>
+                    <TextBlock Text="¿De qué materia?" Style="{StaticResource TxtCuerpo}"
+                               FontWeight="SemiBold" Margin="0,0,0,14" />
+
+                    <ItemsControl ItemsSource="{Binding Materias}">
                         <ItemsControl.ItemsPanel>
                             <ItemsPanelTemplate>
                                 <WrapPanel />
@@ -490,6 +605,14 @@
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
+                    </StackPanel>
+                    </Border>
+
+                    <Border Style="{StaticResource Tarjeta}" Margin="0,0,0,16">
+                    <StackPanel>
+                    <TextBlock Text="Elegí uno o más documentos" Style="{StaticResource TxtCuerpo}"
+                               FontWeight="SemiBold"
+                               Visibility="{Binding HayLibros, Converter={StaticResource BoolToVis}}" />
 
                     <TextBlock Style="{StaticResource TxtAyuda}"
                                TextWrapping="Wrap"
@@ -559,6 +682,8 @@
                                    VerticalAlignment="Center" Margin="8,0,0,0" />
                     </StackPanel>
                     </StackPanel>
+                    </Border>
+                    </StackPanel>
                 </StackPanel>
 
                 <!-- PASO 2: alcance -->
@@ -578,7 +703,7 @@
                          Word/Excel/PowerPoint/imagenes el examen toma el material completo y
                          solo se acota con el eje tematico. -->
                     <TextBlock Style="{StaticResource TxtSuave}" Margin="0,0,0,4"
-                               Visibility="{Binding EsFuentePdf, Converter={StaticResource BoolToVis}, ConverterParameter=invertir}"
+                               Visibility="{Binding EsFuentePdf, Converter={StaticResource BoolAVisibilidad}, ConverterParameter=invertir}"
                                Text="Este material se toma completo. Para acotar el examen, usa el eje tematico de abajo." />
 
                     <!-- US-024: con varios documentos, los capitulos que se ven aca son los
@@ -594,23 +719,42 @@
                         </StackPanel>
                     </Border>
 
+                    <!-- US-058: Capitulos y Paginas son dos tarjetas. El StackPanel que las
+                         envuelve conserva la guarda de EsFuentePdf, que es la que las esconde
+                         enteras para Word/Excel/imagenes (AC-T45); el eje tematico queda
+                         afuera a proposito, porque si aplica a cualquier formato. -->
                     <StackPanel Visibility="{Binding EsFuentePdf, Converter={StaticResource BoolToVis}}">
-                    <TextBlock Text="CAPITULOS" Style="{StaticResource TxtRotulo}" />
-                    <TextBlock Style="{StaticResource TxtAyuda}"
+
+                    <Border Style="{StaticResource Tarjeta}" Margin="0,0,0,16">
+                    <StackPanel>
+                    <TextBlock Text="Capítulos" Style="{StaticResource TxtCuerpo}"
+                               FontWeight="SemiBold" />
+                    <TextBlock Style="{StaticResource TxtAyuda}" TextWrapping="Wrap"
                                Text="Toca los que quieras y se combinan, salteados incluidos (1, 2, 5, 7...). Sin ninguno marcado entra el libro entero." />
 
                     <!-- Sin capitulos cargados los chips no existen y la pantalla parece
-                         rota: hay que decir por que no hay nada y como conseguirlos. -->
-                    <Border Style="{StaticResource TarjetaPlana}" Padding="14" Margin="0,0,0,14"
-                            Visibility="{Binding HayModulos, Converter={StaticResource BoolToVis},
-                                         ConverterParameter=invertir}">
-                        <StackPanel>
-                            <TextBlock Style="{StaticResource TxtSuave}" Margin="0,0,0,10"
-                                       Text="Este libro todavia no tiene capitulos cargados, asi que solo podes elegir por paginas." />
-                            <Button Content="Detectarlos ahora desde el indice del PDF" ToolTip="Lee el indice del PDF para armar la lista de capitulos: no genera preguntas ni gasta cuota"
-                                    Style="{StaticResource ChipAccion}" HorizontalAlignment="Left"
-                                    Command="{Binding DetectarCapitulosCommand}" />
-                        </StackPanel>
+                         rota: hay que decir por que no hay nada y como conseguirlos.
+                         TarjetaAviso (en vez de TarjetaPlana) y el icono la separan de un
+                         bloque informativo comun: esto pide una accion, no solo informa. -->
+                    <Border Style="{StaticResource TarjetaAviso}" Padding="14" Margin="0,0,0,14"
+                            Visibility="{Binding HayModulos, Converter={StaticResource BoolAVisibilidad},
+                                          ConverterParameter=invertir}">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <ui:SymbolIcon Grid.Column="0" Symbol="Info24" FontSize="17"
+                                           Foreground="{DynamicResource PincelMarcaFuerte}"
+                                           VerticalAlignment="Top" Margin="0,1,12,0" />
+                            <StackPanel Grid.Column="1">
+                                <TextBlock Style="{StaticResource TxtCuerpo}" Margin="0,0,0,10"
+                                           Text="Este libro todavia no tiene capitulos cargados, asi que solo podes elegir por paginas." />
+                                <Button Content="Detectarlos ahora desde el indice del PDF" ToolTip="Lee el indice del PDF para armar la lista de capitulos: no genera preguntas ni gasta cuota"
+                                        Style="{StaticResource ChipAccion}" HorizontalAlignment="Left"
+                                        Command="{Binding DetectarCapitulosCommand}" />
+                            </StackPanel>
+                        </Grid>
                     </Border>
 
                     <ItemsControl ItemsSource="{Binding Modulos}" Margin="0,0,0,4">
@@ -638,7 +782,7 @@
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
 
-                    <StackPanel Orientation="Horizontal" Margin="0,0,0,24"
+                    <StackPanel Orientation="Horizontal"
                                 Visibility="{Binding HayModulos, Converter={StaticResource BoolToVis}}">
                         <Button Content="Marcar todos" Style="{StaticResource ChipAccion}" ToolTip="Incluye todos los capitulos en el examen"
                                 Command="{Binding MarcarTodosCommand}" />
@@ -647,25 +791,33 @@
                         <TextBlock Text="{Binding ResumenCapitulos}" Style="{StaticResource TxtTenue}"
                                    VerticalAlignment="Center" Margin="8,0,0,0" />
                     </StackPanel>
+                    </StackPanel>
+                    </Border>
 
-                    <TextBlock Text="PAGINAS" Style="{StaticResource TxtRotulo}" />
+                    <Border Style="{StaticResource Tarjeta}" Margin="0,0,0,16">
+                    <StackPanel>
+                    <TextBlock Text="Páginas" Style="{StaticResource TxtCuerpo}"
+                               FontWeight="SemiBold" Margin="0,0,0,12" />
+                    <!-- ChipDestacado (relleno solido) en vez de Chip: es un preset excluyente
+                         de una sola fila, no una tilde de a varios como los capitulos de
+                         arriba, asi que conviene que la opcion activa se vea resuelta. -->
                     <WrapPanel Margin="0,0,0,4">
-                        <RadioButton Style="{StaticResource Chip}" Content="Todo el libro"
+                        <RadioButton Style="{StaticResource ChipDestacado}" Content="Todo el libro"
                                       IsChecked="{Binding PresetRango, Converter={StaticResource IndiceOpcion},
                                                   ConverterParameter=0, Mode=TwoWay}" />
-                        <RadioButton Style="{StaticResource Chip}" Content="Primeras 50"
+                        <RadioButton Style="{StaticResource ChipDestacado}" Content="Primeras 50"
                                       IsChecked="{Binding PresetRango, Converter={StaticResource IndiceOpcion},
                                                   ConverterParameter=1, Mode=TwoWay}" />
-                        <RadioButton Style="{StaticResource Chip}" Content="Ultimas 50"
+                        <RadioButton Style="{StaticResource ChipDestacado}" Content="Ultimas 50"
                                       IsChecked="{Binding PresetRango, Converter={StaticResource IndiceOpcion},
                                                   ConverterParameter=2, Mode=TwoWay}" />
-                        <RadioButton Style="{StaticResource Chip}" Content="Elegir rango"
+                        <RadioButton Style="{StaticResource ChipDestacado}" Content="Elegir rango"
                                       IsChecked="{Binding PresetRango, Converter={StaticResource IndiceOpcion},
                                                   ConverterParameter=3, Mode=TwoWay}" />
                     </WrapPanel>
 
                     <!-- Los numeros aparecen solo si el usuario los pidio -->
-                    <StackPanel Orientation="Horizontal" Margin="0,6,0,24"
+                    <StackPanel Orientation="Horizontal" Margin="0,6,0,0"
                                 Visibility="{Binding RangoAMano, Converter={StaticResource BoolToVis}}">
                         <TextBlock Text="Desde" Style="{StaticResource TxtSuave}" VerticalAlignment="Center"
                                    Margin="0,0,8,0" />
@@ -679,13 +831,30 @@
                                       AutomationProperties.Name="Pagina hasta" />
                     </StackPanel>
                     </StackPanel>
+                    </Border>
+                    </StackPanel>
 
-                    <TextBlock Text="EJE TEMATICO (OPCIONAL)" Style="{StaticResource TxtRotulo}" />
+                    <!-- El eje tematico queda FUERA de la guarda de EsFuentePdf: es la unica
+                         forma de acotar un Word, un Excel o un set de fotos (AC-T46). -->
+                    <Border Style="{StaticResource Tarjeta}" Margin="0,0,0,16">
+                    <StackPanel>
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                        <TextBlock Text="Eje temático" Style="{StaticResource TxtCuerpo}"
+                                   FontWeight="SemiBold" VerticalAlignment="Center" />
+                        <Border Padding="8,2" Margin="10,0,0,0" VerticalAlignment="Center"
+                                CornerRadius="{DynamicResource RadioChip}"
+                                BorderBrush="{DynamicResource PincelBorde}" BorderThickness="1">
+                            <TextBlock Text="Opcional" Style="{StaticResource TxtTenue}" FontSize="11" />
+                        </Border>
+                    </StackPanel>
+
                     <ui:TextBox Text="{Binding Tema, UpdateSourceTrigger=PropertyChanged}"
                                 PlaceholderText="Potenciales de accion, arritmias..."
                                 AutomationProperties.Name="Eje tematico" />
-                    <TextBlock Style="{StaticResource TxtAyuda}"
+                    <TextBlock Style="{StaticResource TxtAyuda}" TextWrapping="Wrap"
                                Text="Acota las preguntas a un tema puntual dentro de las paginas elegidas." />
+                    </StackPanel>
+                    </Border>
                 </StackPanel>
 
                 <!-- PASO 3: formato -->
@@ -701,18 +870,24 @@
                         </Style>
                     </StackPanel.Style>
 
-                    <TextBlock Text="CUANTAS PREGUNTAS" Style="{StaticResource TxtRotulo}" />
+                    <!-- US-058: la cantidad y el tilde de graficos comparten tarjeta porque
+                         responden la misma pregunta —que preguntas entran— y porque el tilde
+                         suelto debajo del WrapPanel se leia como si no perteneciera a nada. -->
+                    <Border Style="{StaticResource Tarjeta}" Margin="0,0,0,16">
+                    <StackPanel>
+                    <TextBlock Text="¿Cuántas preguntas?" Style="{StaticResource TxtCuerpo}"
+                               FontWeight="SemiBold" Margin="0,0,0,12" />
                     <WrapPanel Margin="0,0,0,4">
-                        <RadioButton Style="{StaticResource Chip}" Content="10"
+                        <RadioButton Style="{StaticResource ChipDestacado}" Content="10"
                                       IsChecked="{Binding PresetCantidad, Converter={StaticResource IndiceOpcion},
                                                   ConverterParameter=10, Mode=TwoWay}" />
-                        <RadioButton Style="{StaticResource Chip}" Content="30"
+                        <RadioButton Style="{StaticResource ChipDestacado}" Content="30"
                                       IsChecked="{Binding PresetCantidad, Converter={StaticResource IndiceOpcion},
                                                   ConverterParameter=30, Mode=TwoWay}" />
-                        <RadioButton Style="{StaticResource Chip}" Content="60"
+                        <RadioButton Style="{StaticResource ChipDestacado}" Content="60"
                                       IsChecked="{Binding PresetCantidad, Converter={StaticResource IndiceOpcion},
                                                   ConverterParameter=60, Mode=TwoWay}" />
-                        <RadioButton Style="{StaticResource Chip}" Content="Otra"
+                        <RadioButton Style="{StaticResource ChipDestacado}" Content="Otra"
                                       IsChecked="{Binding PresetCantidad, Converter={StaticResource IndiceOpcion},
                                                   ConverterParameter=-1, Mode=TwoWay}" />
                         <ui:NumberBox Value="{Binding CantidadPersonalizada, Mode=TwoWay}" Minimum="1" Maximum="120"
@@ -724,9 +899,14 @@
                     <!-- Solo aplica al modo material: un repaso no genera preguntas, las
                          toma de examenes ya rendidos, asi que no hay nada que pedirle a la
                          IA sobre imagenes (US-026). -->
-                    <CheckBox IsChecked="{Binding IncluirImagenes, Mode=TwoWay}" Margin="0,14,0,24"
+                    <Border Height="1" Margin="0,16,0,14" Background="{DynamicResource PincelBorde}"
+                            Visibility="{Binding ModoMaterial, Converter={StaticResource BoolToVis}}" />
+
+                    <CheckBox IsChecked="{Binding IncluirImagenes, Mode=TwoWay}"
                               Content="Incluir preguntas sobre graficos e imagenes del material"
                               Visibility="{Binding ModoMaterial, Converter={StaticResource BoolToVis}}" />
+                    </StackPanel>
+                    </Border>
 
                     <Border Style="{StaticResource TarjetaResumen}" Padding="16" Margin="0,14,0,20"
                             Visibility="{Binding ModoCombinado, Converter={StaticResource BoolToVis}}">
@@ -755,32 +935,34 @@
                     <!-- que la misma opcion vale para un examen generado con IA, uno   -->
                     <!-- combinado, un repaso de lo fallado y uno importado.            -->
                     <!-- ============================================================ -->
-                    <TextBlock Text="TIEMPO" Style="{StaticResource TxtRotulo}" />
-                    <TextBlock Style="{StaticResource TxtAyuda}"
+                    <Border Style="{StaticResource Tarjeta}" Margin="0,0,0,16">
+                    <StackPanel>
+                    <TextBlock Text="Tiempo" Style="{StaticResource TxtCuerpo}" FontWeight="SemiBold" />
+                    <TextBlock Style="{StaticResource TxtAyuda}" TextWrapping="Wrap"
                                Text="Es un limite para TODO el examen, no por pregunta: cuanto gastar en cada una es parte de lo que se practica. Al acabarse, se entrega solo con lo que hayas respondido." />
 
                     <WrapPanel Margin="0,0,0,4">
-                        <RadioButton Style="{StaticResource Chip}" Content="Sin limite"
+                        <RadioButton Style="{StaticResource ChipDestacado}" Content="Sin limite"
                                      GroupName="TiempoLimite"
                                      AutomationProperties.Name="Sin limite de tiempo"
                                      IsChecked="{Binding MinutosLimite, Converter={StaticResource IndiceOpcion},
                                                  ConverterParameter=0, Mode=TwoWay}" />
-                        <RadioButton Style="{StaticResource Chip}" Content="20 min" GroupName="TiempoLimite"
+                        <RadioButton Style="{StaticResource ChipDestacado}" Content="20 min" GroupName="TiempoLimite"
                                      IsChecked="{Binding MinutosLimite, Converter={StaticResource IndiceOpcion},
                                                  ConverterParameter=20, Mode=TwoWay}" />
-                        <RadioButton Style="{StaticResource Chip}" Content="40 min" GroupName="TiempoLimite"
+                        <RadioButton Style="{StaticResource ChipDestacado}" Content="40 min" GroupName="TiempoLimite"
                                      IsChecked="{Binding MinutosLimite, Converter={StaticResource IndiceOpcion},
                                                  ConverterParameter=40, Mode=TwoWay}" />
-                        <RadioButton Style="{StaticResource Chip}" Content="60 min" GroupName="TiempoLimite"
+                        <RadioButton Style="{StaticResource ChipDestacado}" Content="60 min" GroupName="TiempoLimite"
                                      IsChecked="{Binding MinutosLimite, Converter={StaticResource IndiceOpcion},
                                                  ConverterParameter=60, Mode=TwoWay}" />
-                        <RadioButton Style="{StaticResource Chip}" Content="90 min" GroupName="TiempoLimite"
+                        <RadioButton Style="{StaticResource ChipDestacado}" Content="90 min" GroupName="TiempoLimite"
                                      IsChecked="{Binding MinutosLimite, Converter={StaticResource IndiceOpcion},
                                                  ConverterParameter=90, Mode=TwoWay}" />
                     </WrapPanel>
 
                     <!-- Un valor a mano, para el que practica con el tiempo real de su parcial. -->
-                    <StackPanel Orientation="Horizontal" Margin="0,4,0,20">
+                    <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
                         <ui:NumberBox Value="{Binding MinutosLimite, Mode=TwoWay}"
                                       Minimum="0" Maximum="300" ClearButtonEnabled="False"
                                       Width="130"
@@ -789,46 +971,96 @@
                         <TextBlock Text="{Binding ResumenTiempo}" Style="{StaticResource TxtSuave}"
                                    VerticalAlignment="Center" Margin="12,0,0,0" />
                     </StackPanel>
-
-                    <!-- Resumen antes de gastar cuota: que entra, cuanto y con que.
-                         US-030: es el "resumen final" que nombra el criterio, asi que va en el
-                         nivel de profundidad mas alto. Es lo ultimo que hay que leer antes de
-                         apretar generar, y hasta ahora se veia igual que los dos bloques
-                         informativos de arriba. -->
-                    <!-- Solo en modo material: en los otros tres no hay libro ni alcance, y
-                         este bloque terminaba diciendo "10 preguntas de" seguido de nada, mas
-                         un "Elegi un material para empezar" en una pantalla donde no se elige
-                         material. Cada modo local ya trae su propio resumen arriba. -->
-                    <Border Style="{StaticResource TarjetaResumen}" Margin="0,0,0,20"
-                            Visibility="{Binding ModoMaterial, Converter={StaticResource BoolToVis}}">
-                        <StackPanel>
-                            <TextBlock Text="Vas a generar" Style="{StaticResource TxtRotulo}" />
-
-                            <TextBlock Style="{StaticResource TxtCuerpo}" Margin="0,0,0,10">
-                                <Run Text="{Binding Cantidad, Mode=OneWay}" FontWeight="SemiBold" />
-                                <Run Text="preguntas de" />
-                                <Run Text="{Binding Libro.Titulo, Mode=OneWay}" FontWeight="SemiBold" />
-                            </TextBlock>
-
-                            <TextBlock Text="{Binding ResumenAlcance}" Style="{StaticResource TxtSuave}" />
-                            <TextBlock Style="{StaticResource TxtDato}" Margin="0,6,0,0"
-                                       Visibility="{Binding EsFuentePdf, Converter={StaticResource BoolToVis}}"
-                                       Text="{Binding PaginasDelAlcance, StringFormat='~{0} paginas de material'}" />
-                        </StackPanel>
+                    </StackPanel>
                     </Border>
+
+                    <!-- El resumen final que pedia US-030 ya no vive aca: lo tomo el panel
+                         "Tu examen" de la derecha, que lo muestra en los tres pasos y termina
+                         en el boton de generar (US-058). Repetirlo al pie de esta columna
+                         seria decir dos veces lo mismo a diez centimetros de distancia. -->
                 </StackPanel>
             </Grid>
         </ScrollViewer>
 
         <!-- ============================================================ -->
+        <!-- US-058 — panel "Tu examen".                                   -->
+        <!--                                                               -->
+        <!-- Acompania los tres pasos: muestra que se lleva elegido y, en  -->
+        <!-- el ultimo, remata en el boton de generar. Lo que muestra son  -->
+        <!-- EXACTAMENTE los mismos resumenes que el riel de arriba        -->
+        <!-- (Pasos[n].Resumen): no hay un segundo estado que se pueda     -->
+        <!-- desincronizar de lo que el asistente realmente tiene puesto   -->
+        <!-- (RN-68).                                                      -->
+        <!--                                                               -->
+        <!-- Es de solo lectura (RN-67): ningun control de aca edita nada, -->
+        <!-- la edicion sigue siendo la de cada paso. Lo unico accionable  -->
+        <!-- es "Generar examen", que es el final del recorrido y no una   -->
+        <!-- forma alternativa de configurarlo.                            -->
+        <!-- ============================================================ -->
+        <Border Grid.Row="3" Grid.Column="2" Style="{StaticResource Tarjeta}"
+                VerticalAlignment="Top" Padding="20,18">
+            <StackPanel>
+                <TextBlock Text="Tu examen" Style="{StaticResource TxtCuerpo}"
+                           FontWeight="SemiBold" Margin="0,0,0,16" />
+
+                <!-- MATERIA. No sale de Pasos[n].Resumen porque no es de ningun paso: es el
+                     filtro con el que se eligio el material, y el mockup la pone arriba de
+                     todo con su punto de color, igual que en la biblioteca y el historial
+                     (US-027 / RN-34). -->
+                <TextBlock Text="MATERIA" Style="{StaticResource TxtRotulo}" />
+                <StackPanel Orientation="Horizontal" Margin="0,0,0,14"
+                            Visibility="{Binding MateriaElegida, Converter={StaticResource TextoAVisibilidad}}">
+                    <Ellipse Style="{StaticResource PuntoDeReferencia}"
+                             Fill="{Binding MateriaElegida, Converter={StaticResource ColorDeMateriaPorNombre}}" />
+                    <TextBlock Text="{Binding MateriaElegida}" Style="{StaticResource TxtCuerpo}"
+                               FontWeight="SemiBold" VerticalAlignment="Center"
+                               TextTrimming="CharacterEllipsis" />
+                </StackPanel>
+
+                <TextBlock Text="Se define en el paso Material" Style="{StaticResource TxtTenue}"
+                           Margin="0,0,0,14" TextWrapping="Wrap"
+                           Visibility="{Binding MateriaElegida, Converter={StaticResource TextoAVisibilidad},
+                                        ConverterParameter=invertir}" />
+
+                <Border Height="1" Margin="0,0,0,14" Background="{DynamicResource PincelBorde}" />
+
+                <TextBlock Text="MATERIAL" Style="{StaticResource TxtRotulo}" />
+                <ContentControl Content="{Binding Pasos[0]}" Margin="0,0,0,14"
+                                ContentTemplate="{StaticResource LineaDelPanel}" />
+
+                <Border Height="1" Margin="0,0,0,14" Background="{DynamicResource PincelBorde}" />
+
+                <TextBlock Text="ALCANCE" Style="{StaticResource TxtRotulo}" />
+                <ContentControl Content="{Binding Pasos[1]}" Margin="0,0,0,14"
+                                ContentTemplate="{StaticResource LineaDelPanel}" />
+
+                <Border Height="1" Margin="0,0,0,14" Background="{DynamicResource PincelBorde}" />
+
+                <TextBlock Text="FORMATO" Style="{StaticResource TxtRotulo}" />
+                <ContentControl Content="{Binding Pasos[2]}"
+                                ContentTemplate="{StaticResource LineaDelPanel}" />
+
+                <!-- US-058: el boton de generar es el remate del panel, no un control suelto
+                     al pie. Aparece solo en el ultimo paso, que es cuando ya hay algo que
+                     generar; "Atras" y "Continuar" siguen en el pie del recorrido. -->
+                <ui:Button Content="Generar examen" Appearance="Primary" Margin="0,20,0,0"
+                           HorizontalAlignment="Stretch" Padding="0,12" FontSize="14"
+                           Icon="{ui:SymbolIcon Sparkle24}"
+                           ToolTip="{Binding AvisoDeGeneracion}"
+                           Command="{Binding GenerarCommand}"
+                           Visibility="{Binding EsUltimoPaso, Converter={StaticResource BoolToVis}}" />
+            </StackPanel>
+        </Border>
+
+        <!-- ============================================================ -->
         <!-- Barra de accion                                               -->
         <!-- ============================================================ -->
-        <ui:InfoBar Grid.Row="3" IsClosable="True" Margin="0,16,0,0" Title=""
+        <ui:InfoBar Grid.Row="4" Grid.ColumnSpan="3" IsClosable="True" Margin="0,16,0,0" Title=""
                     Message="{Binding Mensaje}"
                     IsOpen="{Binding HayMensaje, Mode=OneWay}"
                     Severity="{Binding Severidad, Converter={StaticResource Severidad}}" />
 
-        <Grid Grid.Row="4" Margin="0,18,0,16">
+        <Grid Grid.Row="5" Grid.ColumnSpan="3" Margin="0,18,0,16">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="*" />
@@ -848,15 +1080,14 @@
                         Command="{Binding CancelarCommand}" />
             </StackPanel>
 
+            <!-- US-058: "Generar examen" se mudo al panel "Tu examen", al final de lo que se
+                 lleva elegido. Lo que queda aca es el recorrido: volver al paso anterior y
+                 pasar al siguiente. -->
             <StackPanel Grid.Column="2" Orientation="Horizontal">
                 <ui:Button Content="Continuar" Appearance="Primary" ToolTip="Pasa al siguiente paso del asistente" Padding="22,11" FontSize="14"
                            Icon="{ui:SymbolIcon ArrowRight24}" Command="{Binding SiguienteCommand}"
                            Visibility="{Binding EsUltimoPaso, Converter={StaticResource BoolAVisibilidad},
                                         ConverterParameter=invertir}" />
-
-                <ui:Button Content="Generar examen" Appearance="Primary" ToolTip="{Binding AvisoDeGeneracion}" Padding="22,11" FontSize="14"
-                           Icon="{ui:SymbolIcon Sparkle24}" Command="{Binding GenerarCommand}"
-                           Visibility="{Binding EsUltimoPaso, Converter={StaticResource BoolToVis}}" />
             </StackPanel>
         </Grid>
     </Grid>
